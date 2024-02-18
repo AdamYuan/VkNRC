@@ -3,11 +3,13 @@
 //
 
 #include "Scene.hpp"
+
 #include <algorithm>
 #include <iostream>
 #include <ranges>
 
-#include "tiny_obj_loader.h"
+#include <spdlog/spdlog.h>
+#include <tiny_obj_loader.h>
 
 Scene Scene::LoadOBJ(const std::filesystem::path &filename) {
 	Scene scene = {};
@@ -17,11 +19,11 @@ Scene Scene::LoadOBJ(const std::filesystem::path &filename) {
 
 	if (!reader.ParseFromFile(filename, reader_config)) {
 		if (!reader.Error().empty())
-			std::cerr << "TinyObjReader: " << reader.Error() << std::endl;
+			spdlog::error("TinyObjReader: {}", reader.Error());
 		return {};
 	}
 	if (!reader.Warning().empty())
-		std::cout << "TinyObjReader: " << reader.Warning() << std::endl;
+		spdlog::warn("TinyObjReader: {}", reader.Warning());
 
 	const tinyobj::attrib_t &attrib = reader.GetAttrib();
 	const std::vector<tinyobj::shape_t> &shapes = reader.GetShapes();
@@ -34,7 +36,7 @@ Scene Scene::LoadOBJ(const std::filesystem::path &filename) {
 		// Check Non-triangle faces
 		if (std::ranges::any_of(shape.mesh.num_face_vertices,
 		                        [](unsigned num_face_vertex) { return num_face_vertex != 3; })) {
-			std::cerr << "Non-triangle faces not supported" << std::endl;
+			spdlog::error("Non-triangle faces not supported");
 			return {};
 		}
 
@@ -67,12 +69,12 @@ Scene Scene::LoadOBJ(const std::filesystem::path &filename) {
 
 	// Read Materials
 	scene.m_materials.reserve(materials.size());
-	for (const auto &material : materials) {
+	for (const auto &material : materials)
 		scene.m_materials.push_back({
 		    .albedo = {material.diffuse[0], material.diffuse[1], material.diffuse[2]},
-		    .albedo_texture = material.diffuse_texname,
+		    .albedo_texture = material.diffuse_texname.empty() ? std::filesystem::path{}
+		                                                       : filename.parent_path() / material.diffuse_texname,
 		});
-	}
 
 	return scene;
 }

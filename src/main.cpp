@@ -6,7 +6,7 @@
 #include <myvk_rg/pass/ImGuiPass.hpp>
 #include <myvk_rg/resource/SwapchainImage.hpp>
 
-#include "Scene.hpp"
+#include "VkRTScene.hpp"
 
 class NRCRenderGraph : public myvk_rg::RenderGraphBase {
 public:
@@ -39,6 +39,8 @@ int main() {
 	    {VK_KHR_SWAPCHAIN_EXTENSION_NAME, VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME,
 	     VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME, VK_KHR_RAY_QUERY_EXTENSION_NAME});
 	myvk::ImGuiInit(window, myvk::CommandPool::Create(generic_queue));
+
+	myvk::Ptr<VkRTScene> rt_scene = myvk::MakePtr<VkRTScene>(generic_queue, scene);
 
 	auto frame_manager = myvk::FrameManager::Create(generic_queue, present_queue, false, 1);
 	auto render_graph = myvk::MakePtr<NRCRenderGraph>(frame_manager);

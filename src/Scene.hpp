@@ -20,6 +20,20 @@ public:
 		uint32_t index_begin, index_end;
 	};
 
+private:
+	static_assert(sizeof(glm::vec2) == 2 * sizeof(float));
+	static_assert(sizeof(glm::vec3) == 3 * sizeof(float));
+
+	std::vector<glm::vec3> m_vertices;
+	std::vector<glm::vec2> m_texcoords;
+	std::vector<uint32_t> m_vertex_indices, m_texcoord_indices; // Indices on each triangle vertex
+
+	std::vector<Instance> m_instances;
+
+	std::vector<Material> m_materials;
+	std::vector<uint32_t> m_material_ids; // Material IDs on each triangle
+
+public:
 	static Scene LoadOBJ(const std::filesystem::path &filename);
 
 	inline bool Empty() const { return m_instances.empty(); }
@@ -33,19 +47,6 @@ public:
 	inline const auto &GetMaterials() const { return m_materials; }
 	inline const auto &GetInstances() const { return m_instances; }
 	inline const auto &GetMaterialIDs() const { return m_material_ids; }
-
-private:
-	static_assert(sizeof(glm::vec2) == 2 * sizeof(float));
-	static_assert(sizeof(glm::vec3) == 3 * sizeof(float));
-
-	std::vector<glm::vec3> m_vertices;
-	std::vector<glm::vec2> m_texcoords;
-	std::vector<uint32_t> m_vertex_indices, m_texcoord_indices; // Indices on each triangle vertex
-
-	std::vector<Instance> m_instances;
-
-	std::vector<Material> m_materials;
-	std::vector<uint32_t> m_material_ids; // Material IDs on each triangle
 };
 
 #endif // VKNRC_SCENE_HPP
