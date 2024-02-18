@@ -32,10 +32,12 @@ int main() {
 	myvk::Ptr<myvk::Queue> generic_queue;
 	myvk::Ptr<myvk::PresentQueue> present_queue;
 	auto physical_device = myvk::PhysicalDevice::Fetch(instance)[0];
+	auto features = physical_device->GetDefaultFeatures();
+	features.vk12.bufferDeviceAddress = true;
 	auto device = myvk::Device::Create(
 	    physical_device,
 	    myvk::GenericPresentQueueSelector{&generic_queue, myvk::Surface::Create(instance, window), &present_queue},
-	    physical_device->GetDefaultFeatures(),
+	    features,
 	    {VK_KHR_SWAPCHAIN_EXTENSION_NAME, VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME,
 	     VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME, VK_KHR_RAY_QUERY_EXTENSION_NAME});
 	myvk::ImGuiInit(window, myvk::CommandPool::Create(generic_queue));
