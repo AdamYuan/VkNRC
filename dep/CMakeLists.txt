@@ -5,6 +5,12 @@ set(MYVK_TESTING OFF)
 add_subdirectory(MyVK)
 add_subdirectory(glm)
 add_subdirectory(stb_image)
+add_subdirectory(tinyobjloader)
 
 add_library(dep INTERFACE)
-target_link_libraries(dep INTERFACE myvk::vulkan myvk::glfw myvk::rg myvk::imgui glm stb_image)
+target_link_libraries(dep INTERFACE
+        myvk::vulkan myvk::glfw myvk::rg myvk::imgui
+        glm
+        stb_image
+        tinyobjloader
+)

@@ -6,10 +6,12 @@
 #include <myvk_rg/pass/ImGuiPass.hpp>
 #include <myvk_rg/resource/SwapchainImage.hpp>
 
+#include "Scene.hpp"
+
 class NRCRenderGraph : public myvk_rg::RenderGraphBase {
 public:
-	explicit NRCRenderGraph(const myvk::Ptr<myvk::FrameManager> &frame_manager) : RenderGraphBase(
-			frame_manager->GetDevicePtr()) {
+	explicit NRCRenderGraph(const myvk::Ptr<myvk::FrameManager> &frame_manager)
+	    : RenderGraphBase(frame_manager->GetDevicePtr()) {
 		auto swapchain_image = CreateResource<myvk_rg::SwapchainImage>({"swapchain_image"}, frame_manager);
 		swapchain_image->SetLoadOp(VK_ATTACHMENT_LOAD_OP_CLEAR);
 		swapchain_image->SetClearColorValue({.float32 = {0.5f, 0.5f, 0.5f, 1.0f}});
@@ -22,18 +24,20 @@ public:
 int main() {
 	GLFWwindow *window = myvk::GLFWCreateWindow("Test", 640, 480, true);
 
+	Scene scene = Scene::LoadOBJ("/home/adamyuan/models/sponza/sponza.obj");
+	printf("%zu Vertices, %zu Texcoords, %zu Materials, %zu Instances\n", scene.GetVertices().size(),
+	       scene.GetTexcoords().size(), scene.GetMaterials().size(), scene.GetInstances().size());
+
 	auto instance = myvk::Instance::CreateWithGlfwExtensions();
 	myvk::Ptr<myvk::Queue> generic_queue;
 	myvk::Ptr<myvk::PresentQueue> present_queue;
 	auto physical_device = myvk::PhysicalDevice::Fetch(instance)[0];
 	auto device = myvk::Device::Create(
-			physical_device,
-			myvk::GenericPresentQueueSelector{&generic_queue, myvk::Surface::Create(instance, window), &present_queue},
-			physical_device->GetDefaultFeatures(),
-			{VK_KHR_SWAPCHAIN_EXTENSION_NAME,
-			 VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME,
-			 VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME,
-			 VK_KHR_RAY_QUERY_EXTENSION_NAME});
+	    physical_device,
+	    myvk::GenericPresentQueueSelector{&generic_queue, myvk::Surface::Create(instance, window), &present_queue},
+	    physical_device->GetDefaultFeatures(),
+	    {VK_KHR_SWAPCHAIN_EXTENSION_NAME, VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME,
+	     VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME, VK_KHR_RAY_QUERY_EXTENSION_NAME});
 	myvk::ImGuiInit(window, myvk::CommandPool::Create(generic_queue));
 
 	auto frame_manager = myvk::FrameManager::Create(generic_queue, present_queue, false, 1);
