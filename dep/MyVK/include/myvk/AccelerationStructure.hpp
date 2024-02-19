@@ -19,6 +19,9 @@ private:
 public:
 	static Ptr<AccelerationStructure> Create(const Ptr<BufferBase> &buffer,
 	                                         VkAccelerationStructureCreateInfoKHR create_info);
+	static Ptr<AccelerationStructure> Create(const Ptr<Device> &device, VkDeviceSize size,
+	                                         VkAccelerationStructureTypeKHR type,
+	                                         VkAccelerationStructureCreateFlagsKHR create_flags = 0);
 	~AccelerationStructure() final;
 	inline const Ptr<Device> &GetDevicePtr() const { return m_buffer->GetDevicePtr(); }
 	inline const Ptr<BufferBase> &GetBuffer() const { return m_buffer; }

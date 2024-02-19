@@ -33,11 +33,12 @@ int main() {
 	myvk::Ptr<myvk::PresentQueue> present_queue;
 	auto physical_device = myvk::PhysicalDevice::Fetch(instance)[0];
 	auto features = physical_device->GetDefaultFeatures();
+	features.vk12.bufferDeviceAddress = VK_TRUE;
+	features.vk12.hostQueryReset = VK_TRUE;
 	VkPhysicalDeviceAccelerationStructureFeaturesKHR accel_features = {
-	    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR,
-	    .accelerationStructure = VK_TRUE,
+		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR,
+		.accelerationStructure = VK_TRUE,
 	};
-	features.vk12.bufferDeviceAddress = true;
 	features.vk13.pNext = &accel_features;
 	auto device = myvk::Device::Create(
 	    physical_device,

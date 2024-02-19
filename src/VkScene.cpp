@@ -38,7 +38,6 @@ VkAccelerationStructureGeometryKHR VkScene::GetBLASGeometry() const {
 
 VkAccelerationStructureBuildRangeInfoKHR VkScene::GetInstanceBLASBuildRange(uint32_t instance_id) const {
 	const auto &instance = m_instances[instance_id];
-	printf("priOffset = %u / 3, priCount = %u / 3\n", instance.first_index, instance.index_count);
 	VkAccelerationStructureBuildRangeInfoKHR build_range = {
 	    .primitiveCount = instance.index_count / 3u,
 	    .primitiveOffset = instance.first_index * (uint32_t)sizeof(uint32_t),

@@ -30,6 +30,13 @@ Ptr<AccelerationStructure> AccelerationStructure::Create(const Ptr<BufferBase> &
 	return ret;
 }
 
+Ptr<AccelerationStructure> AccelerationStructure::Create(const Ptr<Device> &device, VkDeviceSize size,
+                                                         VkAccelerationStructureTypeKHR type,
+                                                         VkAccelerationStructureCreateFlagsKHR create_flags) {
+	return Create(myvk::Buffer::Create(device, size, 0, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR),
+	              {.size = size, .type = type});
+}
+
 AccelerationStructure::~AccelerationStructure() {
 	if (m_accel_struct != VK_NULL_HANDLE)
 		vkDestroyAccelerationStructureKHR(m_buffer->GetDevicePtr()->GetHandle(), m_accel_struct, nullptr);
