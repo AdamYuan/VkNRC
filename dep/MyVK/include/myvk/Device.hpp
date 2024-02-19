@@ -19,7 +19,7 @@ private:
 	PhysicalDeviceFeatures m_features;
 	VkDevice m_device{VK_NULL_HANDLE};
 	VkPipelineCache m_pipeline_cache{VK_NULL_HANDLE};
-	VmaAllocator m_allocator{VK_NULL_HANDLE}, m_as_allocator{VK_NULL_HANDLE};
+	VmaAllocator m_allocator{VK_NULL_HANDLE}, m_dev_addr_allocator{VK_NULL_HANDLE};
 
 	VkResult create_device(const std::vector<VkDeviceQueueCreateInfo> &queue_create_infos,
 	                       const std::vector<const char *> &extensions, const PhysicalDeviceFeatures &features);
@@ -31,7 +31,7 @@ public:
 	                          const PhysicalDeviceFeatures &features, const std::vector<const char *> &extensions);
 
 	inline VmaAllocator GetAllocatorHandle() const { return m_allocator; }
-	inline VmaAllocator GetASAllocatorHandle() const { return m_as_allocator; }
+	inline VmaAllocator GetDeviceAddressAllocatorHandle() const { return m_dev_addr_allocator; }
 	inline VkPipelineCache GetPipelineCacheHandle() const { return m_pipeline_cache; }
 	inline const Ptr<PhysicalDevice> &GetPhysicalDevicePtr() const { return m_physical_device_ptr; }
 	inline VkDevice GetHandle() const { return m_device; }

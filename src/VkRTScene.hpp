@@ -10,7 +10,6 @@
 
 #include <span>
 
-#include <myvk/ASBuffer.hpp>
 #include <myvk/Buffer.hpp>
 #include <myvk/Image.hpp>
 #include <myvk/ImageView.hpp>
@@ -18,7 +17,7 @@
 
 class VkRTScene {
 private:
-	myvk::Ptr<myvk::ASBuffer> m_vertex_buffer, m_vertex_index_buffer;
+	myvk::Ptr<myvk::Buffer> m_vertex_buffer, m_vertex_index_buffer;
 	myvk::Ptr<myvk::Buffer> m_texcoord_buffer, m_texcoord_index_buffer;
 	myvk::Ptr<myvk::Buffer> m_material_id_buffer, m_material_buffer;
 	std::vector<myvk::Ptr<myvk::ImageView>> m_textures;

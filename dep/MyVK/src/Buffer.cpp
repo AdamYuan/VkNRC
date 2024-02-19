@@ -21,6 +21,7 @@ Ptr<Buffer> Buffer::Create(const Ptr<Device> &device, const VkBufferCreateInfo &
 	auto ret = std::make_shared<Buffer>();
 	ret->m_device_ptr = device;
 	ret->m_size = create_info.size;
+	ret->m_usage = create_info.usage;
 
 	std::set<uint32_t> queue_family_set;
 	for (auto &i : access_queues)
@@ -42,24 +43,30 @@ Ptr<Buffer> Buffer::Create(const Ptr<Device> &device, const VkBufferCreateInfo &
 
 	VmaAllocationInfo allocation_info;
 
-	if (vmaCreateBuffer(device->GetAllocatorHandle(), &new_info, &alloc_create_info, &ret->m_buffer, &ret->m_allocation,
+	if (vmaCreateBuffer(ret->get_allocator_handle(), &new_info, &alloc_create_info, &ret->m_buffer, &ret->m_allocation,
 	                    &allocation_info) != VK_SUCCESS)
 		return nullptr;
 	ret->m_mapped_ptr = allocation_info.pMappedData;
+
+	if (ret->get_allocator_handle() == device->GetDeviceAddressAllocatorHandle()) {
+		VkBufferDeviceAddressInfo device_address_info = {.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
+		                                                 .buffer = ret->m_buffer};
+		ret->m_address = vkGetBufferDeviceAddress(device->GetHandle(), &device_address_info);
+	}
 
 	return ret;
 }
 
 void *Buffer::Map() const {
 	void *ret;
-	vmaMapMemory(m_device_ptr->GetAllocatorHandle(), m_allocation, &ret);
+	vmaMapMemory(get_allocator_handle(), m_allocation, &ret);
 	return ret;
 }
 
-void Buffer::Unmap() const { vmaUnmapMemory(m_device_ptr->GetAllocatorHandle(), m_allocation); }
+void Buffer::Unmap() const { vmaUnmapMemory(get_allocator_handle(), m_allocation); }
 
 Buffer::~Buffer() {
 	if (m_buffer)
-		vmaDestroyBuffer(m_device_ptr->GetAllocatorHandle(), m_buffer, m_allocation);
+		vmaDestroyBuffer(get_allocator_handle(), m_buffer, m_allocation);
 }
 }; // namespace myvk

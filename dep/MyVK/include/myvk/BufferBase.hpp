@@ -12,12 +12,14 @@ struct BufferSubresourceRange {
 class BufferBase : public DeviceObjectBase {
 protected:
 	VkBuffer m_buffer{VK_NULL_HANDLE};
+	VkBufferUsageFlags m_usage{};
 	VkDeviceSize m_size{0};
 
 public:
 	VkBuffer GetHandle() const { return m_buffer; }
 
 	VkDeviceSize GetSize() const { return m_size; }
+	VkBufferUsageFlags GetUsage() const { return m_usage; }
 
 	~BufferBase() override = default;
 

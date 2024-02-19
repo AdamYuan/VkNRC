@@ -25,8 +25,8 @@ Device::~Device() {
 		vkDestroyPipelineCache(m_device, m_pipeline_cache, nullptr);
 	if (m_allocator)
 		vmaDestroyAllocator(m_allocator);
-	if (m_as_allocator)
-		vmaDestroyAllocator(m_as_allocator);
+	if (m_dev_addr_allocator)
+		vmaDestroyAllocator(m_dev_addr_allocator);
 	if (m_device)
 		vkDestroyDevice(m_device, nullptr);
 }
@@ -51,15 +51,9 @@ Ptr<Device> Device::Create(const Ptr<PhysicalDevice> &physical_device, const Que
 	ret->m_allocator = Allocator::CreateHandle(ret, {});
 	if (ret->m_allocator == VK_NULL_HANDLE)
 		return nullptr;
-
-	// If use Acceleration Struct, create Allocator for Acceleration Structure Memory
-	if (std::ranges::any_of(extensions, [](const char *ext) {
-		    return std::string_view{ext} == std::string_view{VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME};
-	    })) {
-		ret->m_as_allocator = Allocator::CreateHandle(ret, {.flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT});
-		if (ret->m_as_allocator == VK_NULL_HANDLE)
-			return nullptr;
-	}
+	ret->m_dev_addr_allocator = Allocator::CreateHandle(ret, {.flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT});
+	if (ret->m_dev_addr_allocator == VK_NULL_HANDLE)
+		return nullptr;
 	if (ret->create_pipeline_cache() != VK_SUCCESS)
 		return nullptr;
 	ret->m_features = features;

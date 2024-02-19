@@ -13,6 +13,12 @@ private:
 
 	VmaAllocation m_allocation{VK_NULL_HANDLE};
 	void *m_mapped_ptr{};
+	VkDeviceAddress m_address{};
+
+	inline VmaAllocator get_allocator_handle() const {
+		return (m_usage & VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT) ? m_device_ptr->GetDeviceAddressAllocatorHandle()
+		                                                             : m_device_ptr->GetAllocatorHandle();
+	}
 
 public:
 	static Ptr<Buffer> Create(const Ptr<Device> &device, const VkBufferCreateInfo &create_info,
@@ -50,6 +56,7 @@ public:
 	inline void *GetMappedData() const { return m_mapped_ptr; }
 	void *Map() const;
 	void Unmap() const;
+	inline VkDeviceAddress GetDeviceAddress() const { return m_address; }
 
 	template <typename Iter> inline void UpdateData(Iter begin, Iter end, uint32_t byte_offset = 0) const {
 		using T = typename std::iterator_traits<Iter>::value_type;
