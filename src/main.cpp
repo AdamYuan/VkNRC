@@ -6,6 +6,8 @@
 #include <myvk_rg/pass/ImGuiPass.hpp>
 #include <myvk_rg/resource/SwapchainImage.hpp>
 
+#include <spdlog/spdlog.h>
+
 #include "VkAccelScene.hpp"
 
 class NRCRenderGraph : public myvk_rg::RenderGraphBase {
@@ -21,12 +23,19 @@ public:
 	}
 };
 
-int main() {
-	GLFWwindow *window = myvk::GLFWCreateWindow("Test", 640, 480, true);
+int main(int argc, char **argv) {
+	--argc, ++argv;
+	if (argc == 0) {
+		spdlog::error("No OBJ file");
+		return EXIT_FAILURE;
+	}
+	GLFWwindow *window = myvk::GLFWCreateWindow("VkNRC", 640, 480, true);
 
-	Scene scene = Scene::LoadOBJ("/home/adamyuan/models/sponza/sponza.obj");
-	printf("%zu Vertices, %zu Texcoords, %zu Materials, %zu Instances\n", scene.GetVertices().size(),
-	       scene.GetTexcoords().size(), scene.GetMaterials().size(), scene.GetInstances().size());
+	Scene scene = Scene::LoadOBJ(argv[0]);
+	if (scene.Empty())
+		return EXIT_FAILURE;
+	spdlog::info("Loaded {} Vertices, {} Texcoords, {} Materials, {} Instances", scene.GetVertices().size(),
+	             scene.GetTexcoords().size(), scene.GetMaterials().size(), scene.GetInstances().size());
 
 	auto instance = myvk::Instance::CreateWithGlfwExtensions();
 	myvk::Ptr<myvk::Queue> generic_queue;
@@ -36,8 +45,8 @@ int main() {
 	features.vk12.bufferDeviceAddress = VK_TRUE;
 	features.vk12.hostQueryReset = VK_TRUE;
 	VkPhysicalDeviceAccelerationStructureFeaturesKHR accel_features = {
-		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR,
-		.accelerationStructure = VK_TRUE,
+	    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR,
+	    .accelerationStructure = VK_TRUE,
 	};
 	features.vk13.pNext = &accel_features;
 	auto device = myvk::Device::Create(
