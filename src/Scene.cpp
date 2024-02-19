@@ -17,7 +17,7 @@ Scene Scene::LoadOBJ(const std::filesystem::path &filename) {
 	tinyobj::ObjReaderConfig reader_config;
 	tinyobj::ObjReader reader;
 
-	if (!reader.ParseFromFile(filename, reader_config)) {
+	if (!reader.ParseFromFile(filename.string(), reader_config)) {
 		if (!reader.Error().empty())
 			spdlog::error("TinyObjReader: {}", reader.Error());
 		return {};

@@ -117,7 +117,7 @@ void VkScene::load_textures(const Scene &scene, auto &&set_material_texture_id) 
 			int width, height, channels;
 			stbi_uc *data;
 			if (texture_filename.empty() ||
-			    (data = stbi_load(texture_filename.c_str(), &width, &height, &channels, 4)) == nullptr) {
+			    (data = stbi_load(texture_filename.string().c_str(), &width, &height, &channels, 4)) == nullptr) {
 				set_material_texture_id(material_id, -1);
 
 				if (!texture_filename.empty())
