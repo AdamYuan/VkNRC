@@ -6,7 +6,7 @@
 #include <myvk_rg/pass/ImGuiPass.hpp>
 #include <myvk_rg/resource/SwapchainImage.hpp>
 
-#include "VkRTScene.hpp"
+#include "VkAccelScene.hpp"
 
 class NRCRenderGraph : public myvk_rg::RenderGraphBase {
 public:
@@ -33,7 +33,12 @@ int main() {
 	myvk::Ptr<myvk::PresentQueue> present_queue;
 	auto physical_device = myvk::PhysicalDevice::Fetch(instance)[0];
 	auto features = physical_device->GetDefaultFeatures();
+	VkPhysicalDeviceAccelerationStructureFeaturesKHR accel_features = {
+	    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR,
+	    .accelerationStructure = VK_TRUE,
+	};
 	features.vk12.bufferDeviceAddress = true;
+	features.vk13.pNext = &accel_features;
 	auto device = myvk::Device::Create(
 	    physical_device,
 	    myvk::GenericPresentQueueSelector{&generic_queue, myvk::Surface::Create(instance, window), &present_queue},
@@ -42,7 +47,8 @@ int main() {
 	     VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME, VK_KHR_RAY_QUERY_EXTENSION_NAME});
 	myvk::ImGuiInit(window, myvk::CommandPool::Create(generic_queue));
 
-	myvk::Ptr<VkRTScene> rt_scene = myvk::MakePtr<VkRTScene>(generic_queue, scene);
+	auto vk_scene = myvk::MakePtr<VkScene>(generic_queue, scene);
+	auto vk_scene_as = myvk::MakePtr<VkAccelScene>(vk_scene);
 
 	auto frame_manager = myvk::FrameManager::Create(generic_queue, present_queue, false, 1);
 	auto render_graph = myvk::MakePtr<NRCRenderGraph>(frame_manager);

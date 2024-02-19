@@ -30,8 +30,9 @@ Scene Scene::LoadOBJ(const std::filesystem::path &filename) {
 	const std::vector<tinyobj::material_t> &materials = reader.GetMaterials();
 
 	for (const tinyobj::shape_t &shape : shapes) {
-		// Push IndexBegin
-		scene.m_instances.push_back({.index_begin = (uint32_t)scene.m_vertex_indices.size()});
+		// Push Instance
+		scene.m_instances.push_back({.first_index = (uint32_t)scene.m_vertex_indices.size(),
+		                             .index_count = (uint32_t)shape.mesh.indices.size()});
 
 		// Check Non-triangle faces
 		if (std::ranges::any_of(shape.mesh.num_face_vertices,
@@ -52,9 +53,6 @@ Scene Scene::LoadOBJ(const std::filesystem::path &filename) {
 			scene.m_vertex_indices.push_back(index.vertex_index);
 			scene.m_texcoord_indices.push_back(index.texcoord_index);
 		}
-
-		// Set IndexEnd
-		scene.m_instances.back().index_end = scene.m_vertex_indices.size();
 	}
 
 	// Read Vertices

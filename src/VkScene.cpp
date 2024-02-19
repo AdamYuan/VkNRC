@@ -2,7 +2,7 @@
 // Created by adamyuan on 2/18/24.
 //
 
-#include "VkRTScene.hpp"
+#include "VkScene.hpp"
 
 #include <future>
 #include <thread>
@@ -11,13 +11,45 @@
 #include <spdlog/spdlog.h>
 #include <stb_image.h>
 
-VkRTScene::VkRTScene(const myvk::Ptr<myvk::Queue> &queue, const Scene &scene) {
-	upload_buffers(queue, scene, make_materials(queue, scene));
+VkScene::VkScene(const myvk::Ptr<myvk::Queue> &queue, const Scene &scene)
+    : m_queue_ptr(queue), m_instances(scene.GetInstances()) {
+	upload_buffers(scene, make_materials(scene));
 }
 
-void VkRTScene::upload_buffers(const myvk::Ptr<myvk::Queue> &queue, const Scene &scene,
-                               std::span<const Material> materials) {
-	auto device = queue->GetDevicePtr();
+VkAccelerationStructureGeometryKHR VkScene::GetBLASGeometry() const {
+	VkAccelerationStructureGeometryDataKHR geometry_data = {
+	    .triangles = {.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR,
+	                  .pNext = nullptr,
+	                  .vertexFormat = VK_FORMAT_R32G32B32_SFLOAT,
+	                  .vertexData = {.deviceAddress = m_vertex_buffer->GetDeviceAddress()},
+	                  .vertexStride = sizeof(glm::vec3),
+	                  .maxVertex = GetVertexCount(),
+	                  .indexType = VK_INDEX_TYPE_UINT32,
+	                  .indexData = {.deviceAddress = m_vertex_index_buffer->GetDeviceAddress()},
+	                  .transformData = {.deviceAddress = 0}}};
+
+	VkAccelerationStructureGeometryKHR geometry = {.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR,
+	                                               .pNext = nullptr,
+	                                               .geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR,
+	                                               .geometry = geometry_data,
+	                                               .flags = VK_GEOMETRY_OPAQUE_BIT_KHR};
+	return geometry;
+}
+
+VkAccelerationStructureBuildRangeInfoKHR VkScene::GetInstanceBLASBuildRange(uint32_t instance_id) const {
+	const auto &instance = m_instances[instance_id];
+	printf("priOffset = %u / 3, priCount = %u / 3\n", instance.first_index, instance.index_count);
+	VkAccelerationStructureBuildRangeInfoKHR build_range = {
+	    .primitiveCount = instance.index_count / 3u,
+	    .primitiveOffset = instance.first_index * (uint32_t)sizeof(uint32_t),
+	    .firstVertex = 0,
+	    .transformOffset = 0,
+	};
+	return build_range;
+}
+
+void VkScene::upload_buffers(const Scene &scene, std::span<const Material> materials) {
+	auto device = m_queue_ptr->GetDevicePtr();
 
 	auto vertex_staging_buffer =
 	    myvk::Buffer::CreateStaging(device, scene.GetVertices().begin(), scene.GetVertices().end());
@@ -31,7 +63,7 @@ void VkRTScene::upload_buffers(const myvk::Ptr<myvk::Queue> &queue, const Scene 
 	    myvk::Buffer::CreateStaging(device, scene.GetMaterialIDs().begin(), scene.GetMaterialIDs().end());
 	auto material_staging_buffer = myvk::Buffer::CreateStaging(device, materials.begin(), materials.end());
 
-	auto command_buffer = myvk::CommandBuffer::Create(myvk::CommandPool::Create(queue));
+	auto command_buffer = myvk::CommandBuffer::Create(myvk::CommandPool::Create(m_queue_ptr));
 	const auto cmd_create_copy = [&]<typename Buffer_T = myvk::Buffer>(
 	    const myvk::Ptr<myvk::Buffer> &src, myvk::Ptr<Buffer_T> *p_dst, VkBufferUsageFlags base_usages) {
 		*p_dst = Buffer_T::Create(device, src->GetSize(), 0,
@@ -56,25 +88,25 @@ void VkRTScene::upload_buffers(const myvk::Ptr<myvk::Queue> &queue, const Scene 
 	fence->Wait();
 }
 
-std::vector<VkRTScene::Material> VkRTScene::make_materials(const myvk::Ptr<myvk::Queue> &queue, const Scene &scene) {
+std::vector<VkScene::Material> VkScene::make_materials(const Scene &scene) {
 	std::vector<Material> materials;
 	materials.reserve(scene.GetMaterials().size());
 	for (const auto &material : scene.GetMaterials())
 		materials.push_back({.albedo = material.albedo});
-	load_textures(queue, scene, [&](uint32_t material_id, uint32_t texture_id) {
+	load_textures(scene, [&](uint32_t material_id, uint32_t texture_id) {
 		materials[material_id].albedo_texture_id = texture_id;
 	});
 	return materials;
 }
 
-void VkRTScene::load_textures(const myvk::Ptr<myvk::Queue> &queue, const Scene &scene, auto &&set_material_texture_id) {
-	const auto &device = queue->GetDevicePtr();
+void VkScene::load_textures(const Scene &scene, auto &&set_material_texture_id) {
+	const auto &device = m_queue_ptr->GetDevicePtr();
 	m_textures.resize(scene.GetMaterials().size());
 
 	std::atomic_uint32_t atomic_material_id{0}, atomic_texture_id{0};
 
 	const auto load_texture = [&]() -> void {
-		auto command_pool = myvk::CommandPool::Create(queue);
+		auto command_pool = myvk::CommandPool::Create(m_queue_ptr);
 		while (true) {
 			uint32_t material_id = atomic_material_id.fetch_add(1, std::memory_order_relaxed);
 			if (material_id >= scene.GetMaterials().size())

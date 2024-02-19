@@ -30,6 +30,7 @@ add_subdirectory(shader)
 add_executable(VkNRC
         src/main.cpp
         src/Scene.cpp
-        src/VkRTScene.cpp
+        src/VkScene.cpp
+        src/VkAccelScene.cpp
 )
 target_link_libraries(VkNRC PRIVATE dep shader)

@@ -17,7 +17,7 @@ public:
 		std::filesystem::path albedo_texture;
 	};
 	struct Instance {
-		uint32_t index_begin, index_end;
+		uint32_t first_index, index_count;
 	};
 
 private:
