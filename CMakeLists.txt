@@ -34,3 +34,5 @@ add_executable(VkNRC
         src/VkAccelScene.cpp
 )
 target_link_libraries(VkNRC PRIVATE dep shader)
+
+install(TARGETS VkNRC RUNTIME DESTINATION)
