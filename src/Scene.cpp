@@ -85,17 +85,17 @@ namespace obj_sah_shape_instance {
 struct SAHSplit {
 	int axis{};
 	uint32_t left_size{};
-	float sah{std::numeric_limits<float>::max()};
+	float sah{std::numeric_limits<float>::infinity()};
 };
 struct Reference {
 	AABB aabb;
 	std::vector<uint32_t> vertex_indices, texcoord_indices, material_ids;
 
 	inline uint32_t GetTriangleCount() const { return material_ids.size(); }
-	template <int Axis> static void _AxisSplitSAH(std::span<Reference> refs, SAHSplit *p_split) {
+	template <int Axis> static AABB _AxisSplitSAH(std::span<Reference> refs, SAHSplit *p_split) {
 		// assert(refs.size() >= 2);
 		std::ranges::sort(refs, [](const Reference &l, const Reference &r) {
-			return l.aabb.GetCenter()[Axis] < r.aabb.GetCenter()[Axis];
+			return l.aabb.GetDimCenter<Axis>() < r.aabb.GetDimCenter<Axis>();
 		});
 		std::vector<AABB> right_aabbs(refs.size());
 		right_aabbs.back() = refs.back().aabb;
@@ -103,9 +103,11 @@ struct Reference {
 			right_aabbs[i] = AABB(refs[i].aabb, right_aabbs[i + 1]);
 
 		AABB left_aabb = refs.front().aabb;
-		for (uint32_t left_size = 1; left_size <= refs.size() - 1; ++left_size) {
-			float sah = float(left_size) * left_aabb.GetHalfArea() +
-			            float(refs.size() - left_size) * right_aabbs[left_size].GetHalfArea();
+		for (uint32_t left_size = 1; left_size < refs.size(); ++left_size) {
+			const AABB &right_aabb = right_aabbs[left_size];
+			float sah =
+			    float(left_size) * left_aabb.GetHalfArea() + float(refs.size() - left_size) * right_aabb.GetHalfArea();
+
 			if (sah < p_split->sah) {
 				*p_split = {
 				    .axis = Axis,
@@ -115,18 +117,22 @@ struct Reference {
 			}
 			left_aabb.Expand(refs[left_size].aabb);
 		}
+		return AABB{left_aabb}; // left_aabb is the full AABB at last
 	}
 	static std::tuple<std::span<Reference>, std::span<Reference>> SplitSAH(std::span<Reference> refs) {
 		SAHSplit sah_split{};
 		_AxisSplitSAH<0>(refs, &sah_split);
 		_AxisSplitSAH<1>(refs, &sah_split);
-		_AxisSplitSAH<2>(refs, &sah_split);
+		AABB aabb = _AxisSplitSAH<2>(refs, &sah_split);
+
+		if (sah_split.sah >= aabb.GetHalfArea() * float(refs.size()))
+			return {{}, {}};
 
 		std::span<Reference> left_refs{refs.begin(), refs.begin() + sah_split.left_size};
 		std::span<Reference> right_refs{refs.begin() + sah_split.left_size, refs.end()};
 		std::ranges::nth_element(refs, left_refs.end() - 1,
 		                         [axis = sah_split.axis](const Reference &l, const Reference &r) {
-			                         return l.aabb.GetCenter()[axis] < r.aabb.GetCenter()[axis];
+			                         return l.aabb.GetDimCenter(axis) < r.aabb.GetDimCenter(axis);
 		                         });
 		return {left_refs, right_refs};
 	}
@@ -191,16 +197,15 @@ void Scene::obj_sah_shape_instance(auto &&shapes, uint32_t max_level) {
 		const auto partition_sah_impl = [&](std::span<Reference> refs, uint32_t level, auto &&partition_sah) -> void {
 			if (refs.empty())
 				return;
-			if (level == max_level || !Reference::CanSplit(refs)) {
-				ref_push(refs);
-				return;
-			}
+			if (level == max_level || !Reference::CanSplit(refs))
+				return ref_push(refs);
 			if (refs.size() == 1) {
 				std::vector<Reference> tri_refs = ref_to_triangles(refs[0]);
-				partition_sah(tri_refs, level, partition_sah);
-				return;
+				return partition_sah(tri_refs, level, partition_sah);
 			}
 			auto [left_refs, right_refs] = Reference::SplitSAH(refs);
+			if (left_refs.empty() || right_refs.empty()) // No good SAH partition
+				return ref_push(refs);
 			partition_sah(left_refs, level + 1, partition_sah);
 			partition_sah(right_refs, level + 1, partition_sah);
 		};

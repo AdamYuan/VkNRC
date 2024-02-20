@@ -8,7 +8,7 @@
 
 #include <spdlog/spdlog.h>
 
-#include "VkAccelScene.hpp"
+#include "VkSceneTLAS.hpp"
 
 class NRCRenderGraph : public myvk_rg::RenderGraphBase {
 public:
@@ -31,7 +31,7 @@ int main(int argc, char **argv) {
 	}
 	GLFWwindow *window = myvk::GLFWCreateWindow("VkNRC", 640, 480, true);
 
-	Scene scene = Scene::LoadOBJShapeInstanceSAH(argv[0], 7); // 128 instances
+	Scene scene = Scene::LoadOBJShapeInstanceSAH(argv[0], 7); // at most 128 instances
 	if (scene.Empty())
 		return EXIT_FAILURE;
 	spdlog::info("Loaded {} Vertices, {} Texcoords, {} Materials, {} Instances", scene.GetVertices().size(),
@@ -58,7 +58,8 @@ int main(int argc, char **argv) {
 	myvk::ImGuiInit(window, myvk::CommandPool::Create(generic_queue));
 
 	auto vk_scene = myvk::MakePtr<VkScene>(generic_queue, scene);
-	auto vk_scene_as = myvk::MakePtr<VkAccelScene>(vk_scene);
+	auto vk_scene_blas = myvk::MakePtr<VkSceneBLAS>(vk_scene);
+	auto vk_scene_tlas = myvk::MakePtr<VkSceneTLAS>(vk_scene_blas);
 
 	auto frame_manager = myvk::FrameManager::Create(generic_queue, present_queue, false, 1);
 	auto render_graph = myvk::MakePtr<NRCRenderGraph>(frame_manager);

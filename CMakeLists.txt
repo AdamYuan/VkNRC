@@ -31,7 +31,9 @@ add_executable(VkNRC
         src/main.cpp
         src/Scene.cpp
         src/VkScene.cpp
-        src/VkAccelScene.cpp
+        src/VkSceneBLAS.cpp
+        src/VkSceneTLAS.cpp
+        src/VkSceneView.cpp
 )
 target_link_libraries(VkNRC PRIVATE dep shader)
 
