@@ -7,13 +7,26 @@
 #include <future>
 #include <thread>
 
+#include <glm/gtc/matrix_transform.hpp>
 #include <myvk/CommandBuffer.hpp>
 #include <spdlog/spdlog.h>
 #include <stb_image.h>
 
 VkScene::VkScene(const myvk::Ptr<myvk::Queue> &queue, const Scene &scene)
-    : m_queue_ptr(queue), m_instances(scene.GetInstances()) {
+    : m_queue_ptr(queue), m_instances(scene.GetInstances()),
+      m_transforms(scene.GetInstances().size(), {.rotate = glm::identity<glm::mat3>()}) {
 	upload_buffers(scene, make_materials(scene));
+}
+
+VkTransformMatrixKHR VkScene::GetVkTransform(uint32_t instance_id) const {
+	const auto &transform = m_transforms[instance_id];
+	const auto &t = transform.translate;
+	const auto &r = transform.rotate;
+	return VkTransformMatrixKHR{
+	    r[0][0], r[1][0], r[2][0], t[0], //
+	    r[0][1], r[1][1], r[2][1], t[1], //
+	    r[0][2], r[1][2], r[2][2], t[2], //
+	};
 }
 
 VkAccelerationStructureGeometryKHR VkScene::GetBLASGeometry() const {

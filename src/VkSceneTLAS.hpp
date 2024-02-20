@@ -14,7 +14,7 @@ private:
 	myvk::Ptr<VkSceneBLAS> m_scene_blas_ptr;
 	myvk::Ptr<myvk::AccelerationStructure> m_tlas;
 	myvk::Ptr<myvk::Buffer> m_instance_buffer;
-	VkAccelerationStructureInstanceKHR *m_p_instances;
+	VkAccelerationStructureInstanceKHR *m_p_instances{};
 
 	void create_instance_buffer();
 	void create_tlas();
@@ -22,6 +22,7 @@ private:
 public:
 	explicit VkSceneTLAS(const myvk::Ptr<VkSceneBLAS> &scene_blas_ptr);
 	const myvk::Ptr<myvk::Device> &GetDevicePtr() const final { return m_scene_ptr->GetDevicePtr(); }
+	const myvk::Ptr<VkScene> &GetScenePtr() const { return m_scene_ptr; }
 	inline void UpdateTLAS() { create_tlas(); }
 	const auto &GetTLAS() const { return m_tlas; }
 };

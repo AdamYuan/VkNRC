@@ -26,8 +26,7 @@ void VkSceneTLAS::create_tlas() {
 
 	for (uint32_t instance_id : m_scene_ptr->GetInstanceRange())
 		m_p_instances[instance_id] = VkAccelerationStructureInstanceKHR{
-		    .transform = {{1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f,
-		                   0.0f}}, // TODO: Read from dynamic
+		    .transform = m_scene_ptr->GetVkTransform(instance_id),
 		    .instanceCustomIndex = instance_id,
 		    .mask = 0xFFu,
 		    .instanceShaderBindingTableRecordOffset = 0,
@@ -62,7 +61,7 @@ void VkSceneTLAS::create_tlas() {
 	auto tlas = myvk::AccelerationStructure::Create(device, build_size.accelerationStructureSize,
 	                                                VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR);
 	auto scratch_buffer =
-	    myvk::Buffer::Create(device, build_size.buildScratchSize, 0,
+	    myvk::Buffer::Create(device, m_tlas ? build_size.updateScratchSize : build_size.buildScratchSize, 0,
 	                         VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 	build_geom.scratchData.deviceAddress = scratch_buffer->GetDeviceAddress();
 	build_geom.dstAccelerationStructure = tlas->GetHandle();
