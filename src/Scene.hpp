@@ -16,6 +16,10 @@ public:
 		glm::vec3 albedo;
 		std::filesystem::path albedo_texture;
 	};
+	struct Transform {
+		glm::mat3 rotate;
+		glm::vec3 translate;
+	};
 	struct Instance {
 		uint32_t first_index, index_count;
 	};
@@ -26,15 +30,21 @@ private:
 
 	std::vector<glm::vec3> m_vertices;
 	std::vector<glm::vec2> m_texcoords;
-	std::vector<uint32_t> m_vertex_indices, m_texcoord_indices; // Indices on each triangle vertex
+	std::vector<Material> m_materials;
 
 	std::vector<Instance> m_instances;
-
-	std::vector<Material> m_materials;
+	std::vector<uint32_t> m_vertex_indices, m_texcoord_indices; // Indices on each triangle vertex
 	std::vector<uint32_t> m_material_ids; // Material IDs on each triangle
 
+	bool obj_load(const std::filesystem::path &filename, auto &&make_instance);
+	void obj_single_instance(auto &&shapes);
+	void obj_shape_instance(auto &&shapes);
+	void obj_sah_shape_instance(auto &&shapes, uint32_t max_level);
+
 public:
-	static Scene LoadOBJ(const std::filesystem::path &filename);
+	static Scene LoadOBJSingleInstance(const std::filesystem::path &filename);
+	static Scene LoadOBJShapeInstance(const std::filesystem::path &filename);
+	static Scene LoadOBJShapeInstanceSAH(const std::filesystem::path &filename, uint32_t max_level);
 
 	inline bool Empty() const { return m_instances.empty(); }
 	inline explicit operator bool() const { return !Empty(); }

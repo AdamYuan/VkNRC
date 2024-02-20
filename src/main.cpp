@@ -31,7 +31,7 @@ int main(int argc, char **argv) {
 	}
 	GLFWwindow *window = myvk::GLFWCreateWindow("VkNRC", 640, 480, true);
 
-	Scene scene = Scene::LoadOBJ(argv[0]);
+	Scene scene = Scene::LoadOBJShapeInstanceSAH(argv[0], 7); // 128 instances
 	if (scene.Empty())
 		return EXIT_FAILURE;
 	spdlog::info("Loaded {} Vertices, {} Texcoords, {} Materials, {} Instances", scene.GetVertices().size(),

@@ -23,7 +23,7 @@ VkAccelerationStructureGeometryKHR VkScene::GetBLASGeometry() const {
 	                  .vertexFormat = VK_FORMAT_R32G32B32_SFLOAT,
 	                  .vertexData = {.deviceAddress = m_vertex_buffer->GetDeviceAddress()},
 	                  .vertexStride = sizeof(glm::vec3),
-	                  .maxVertex = GetVertexCount(),
+	                  .maxVertex = GetVertexCount() - 1u,
 	                  .indexType = VK_INDEX_TYPE_UINT32,
 	                  .indexData = {.deviceAddress = m_vertex_index_buffer->GetDeviceAddress()},
 	                  .transformData = {.deviceAddress = 0}}};
