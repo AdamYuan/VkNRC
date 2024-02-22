@@ -4,25 +4,16 @@
 
 namespace myvk_rg::interface {
 
-const myvk::Ptr<myvk::ImageView> &LastFrameImage::GetVkImageView() const {
-	return GetRenderGraphPtr()->GetExecutor()->GetVkImageView(this);
-}
 const myvk::Ptr<myvk::ImageView> &CombinedImage::GetVkImageView() const {
-	return GetRenderGraphPtr()->GetExecutor()->GetVkImageView(this);
+	return executor::Executor::GetVkImageView(this);
 }
 const myvk::Ptr<myvk::ImageView> &ManagedImage::GetVkImageView() const {
-	return GetRenderGraphPtr()->GetExecutor()->GetVkImageView(this);
+	return executor::Executor::GetVkImageView(this);
 }
 
-const myvk::Ptr<myvk::BufferBase> &LastFrameBuffer::GetVkBuffer() const {
-	return GetRenderGraphPtr()->GetExecutor()->GetVkBuffer(this);
-}
-const myvk::Ptr<myvk::BufferBase> &ManagedBuffer::GetVkBuffer() const {
-	return GetRenderGraphPtr()->GetExecutor()->GetVkBuffer(this);
-}
-
-void *ManagedBuffer::GetMappedData() const {
-	return GetRenderGraphPtr()->GetExecutor()->GetMappedData(this);
-}
+const BufferView &ManagedBuffer::GetBufferView() const { return executor::Executor::GetBufferView(this); }
+void *ManagedBuffer::GetMappedData() const { return executor::Executor::GetMappedData(this); }
+const BufferView &CombinedBuffer::GetBufferView() const { return executor::Executor::GetBufferView(this); }
+void *CombinedBuffer::GetMappedData() const { return executor::Executor::GetMappedData(this); }
 
 } // namespace myvk_rg::interface

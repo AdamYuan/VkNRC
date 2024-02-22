@@ -28,7 +28,6 @@ private:
 	static auto &get_vk_alloc(const ResourceBase *p_resource) { return GetResourceInfo(p_resource).vk_allocation; }
 
 	void init_alias_relation(const Args &args);
-	void check_double_buffer(const Args &args);
 	void create_vk_resources(const Args &args);
 	static std::tuple<VkDeviceSize, uint32_t> fetch_memory_requirements(std::ranges::input_range auto &&resources);
 	void alloc_naive(std::ranges::input_range auto &&resources, const VmaAllocationCreateInfo &create_info);
@@ -36,8 +35,7 @@ private:
 	                   const VmaAllocationCreateInfo &create_info);
 	void create_vk_allocations(const Args &args);
 	void bind_vk_resources(const Args &args);
-	void create_vk_image_views(const Args &args);
-	void set_lf_vk_resources(const Args &args);
+	void create_resource_views(const Args &args);
 
 public:
 	static VkAllocation Create(const myvk::Ptr<myvk::Device> &device_ptr, const Args &args);
@@ -47,19 +45,14 @@ public:
 		return m_resource_alias_relation.Get(Dependency::GetResourceRootID(p_l), Dependency::GetResourceRootID(p_r));
 	}
 
-	static bool IsDoubleBuffered(const ResourceBase *p_resource) {
-		return get_vk_alloc(Metadata::GetAllocResource(p_resource)).double_buffer;
+	static const myvk::Ptr<myvk::ImageView> &GetVkImageView(const InternalImage auto *p_image) {
+		return get_vk_alloc(p_image).image.myvk_image_view;
 	}
-
-	static const myvk::Ptr<myvk::ImageView> &GetVkImageView(const InternalImage auto *p_image, bool flip) {
-		return get_vk_alloc(p_image).image.myvk_image_views[flip];
+	static const BufferView &GetBufferView(const InternalBuffer auto *p_buffer) {
+		return get_vk_alloc(p_buffer).buffer.buffer_view;
 	}
-	static const myvk::Ptr<myvk::BufferBase> &GetVkBuffer(const InternalBuffer auto *p_buffer, bool flip) {
-		return get_vk_alloc(p_buffer).buffer.myvk_buffers[flip];
-	}
-	static void *GetMappedData(const InternalBuffer auto *p_buffer, bool flip) {
-		return get_vk_alloc(p_buffer).buffer.mapped_ptrs[flip];
-	}
+	static void *GetMappedData(const InternalBuffer auto *p_buffer) { return get_vk_alloc(p_buffer).buffer.mapped_ptr; }
+	static void UpdateExternal(const Args &args);
 };
 
 } // namespace myvk_rg_executor

@@ -25,13 +25,13 @@ public:
 		const ResourceBase *p_resource{};
 		PassEdgeType type{PassEdgeType::kBarrier};
 	};
-	enum class ResourceEdge { kSubResource, kLastFrame };
+	struct ResourceEdge {};
 
 private:
 	Graph<const PassBase *, PassEdge> m_pass_graph;
 	Graph<const ResourceBase *, ResourceEdge> m_resource_graph;
 	std::vector<const PassBase *> m_passes;
-	std::vector<const ResourceBase *> m_resources, m_lf_resources, m_root_resources;
+	std::vector<const ResourceBase *> m_resources, m_root_resources;
 
 	Relation m_pass_relation, m_resource_relation;
 
@@ -77,18 +77,20 @@ public:
 	static std::size_t GetResourceRootID(const ResourceBase *p_resource) { return get_dep_info(p_resource).root_id; }
 	const ResourceBase *GetRootIDResource(std::size_t root_id) const { return m_root_resources[root_id]; }
 	const auto &GetRootResources() const { return m_root_resources; }
-	const auto &GetLFResources() const { return m_lf_resources; }
 	const auto &GetResources() const { return m_resources; }
 
 	// Resource Pointers
 	static const ResourceBase *GetRootResource(const ResourceBase *p_resource) {
 		return get_dep_info(p_resource).p_root_resource;
 	}
+	static const ImageBase *GetRootResource(const ImageBase *p_resource) {
+		return static_cast<const ImageBase *>(get_dep_info(p_resource).p_root_resource);
+	}
+	static const BufferBase *GetRootResource(const BufferBase *p_resource) {
+		return static_cast<const BufferBase *>(get_dep_info(p_resource).p_root_resource);
+	}
 	static bool IsRootResource(const ResourceBase *p_resource) {
 		return get_dep_info(p_resource).p_root_resource == p_resource;
-	}
-	static const ResourceBase *GetLFResource(const ResourceBase *p_resource) {
-		return get_dep_info(p_resource).p_lf_resource;
 	}
 
 	// Relations

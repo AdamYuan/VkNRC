@@ -83,12 +83,10 @@ VkAllocation VkAllocation::Create(const myvk::Ptr<myvk::Device> &device_ptr, con
 	alloc.m_device_ptr = device_ptr;
 
 	alloc.init_alias_relation(args);
-	alloc.check_double_buffer(args);
 	alloc.create_vk_resources(args);
 	alloc.create_vk_allocations(args);
 	alloc.bind_vk_resources(args);
-	alloc.create_vk_image_views(args);
-	alloc.set_lf_vk_resources(args);
+	alloc.create_resource_views(args);
 
 	return alloc;
 }
@@ -97,30 +95,8 @@ void VkAllocation::init_alias_relation(const Args &args) {
 	m_resource_alias_relation.Reset(args.dependency.GetRootResourceCount(), args.dependency.GetRootResourceCount());
 }
 
-void VkAllocation::check_double_buffer(const VkAllocation::Args &args) {
-	const auto check_double_buffer = [&](const ResourceBase *p_resource) {
-		// Double Buffer if LastFrame Resource >= Resource
-		const ResourceBase *p_lf_resource = Dependency::GetLFResource(p_resource);
-		if (p_lf_resource == nullptr)
-			return;
-
-		bool double_buffer = !args.dependency.IsResourceLess(p_lf_resource, p_resource);
-		get_vk_alloc(p_resource).double_buffer = double_buffer;
-		// If resource have LF reference and is not double_buffered, then aliasing appears
-		if (!double_buffer) {
-			m_resource_alias_relation.Add(Dependency::GetResourceRootID(p_resource),
-			                              Dependency::GetResourceRootID(p_lf_resource));
-			m_resource_alias_relation.Add(Dependency::GetResourceRootID(p_lf_resource),
-			                              Dependency::GetResourceRootID(p_resource));
-		}
-	};
-
-	for (const ResourceBase *p_resource : args.metadata.GetAllocResources())
-		check_double_buffer(p_resource);
-}
-
 void VkAllocation::create_vk_resources(const Args &args) {
-	const auto create_image = [&](const ImageBase *p_image) {
+	const auto create_image = [&](const InternalImage auto *p_image) {
 		auto &vk_alloc = get_vk_alloc(p_image);
 
 		auto &alloc_info = Meta::GetAllocInfo(p_image);
@@ -164,14 +140,11 @@ void VkAllocation::create_vk_resources(const Args &args) {
 			}
 		}
 
-		vk_alloc.image.myvk_images[0] = std::make_shared<RGImage>(m_device_ptr, create_info);
-		vkGetImageMemoryRequirements(m_device_ptr->GetHandle(), vk_alloc.image.myvk_images[0]->GetHandle(),
+		vk_alloc.image.myvk_image = std::make_shared<RGImage>(m_device_ptr, create_info);
+		vkGetImageMemoryRequirements(m_device_ptr->GetHandle(), vk_alloc.image.myvk_image->GetHandle(),
 		                             &vk_alloc.vk_mem_reqs);
-
-		vk_alloc.image.myvk_images[1] = vk_alloc.double_buffer ? std::make_shared<RGImage>(m_device_ptr, create_info)
-		                                                       : vk_alloc.image.myvk_images[0];
 	};
-	const auto create_buffer = [&](const BufferBase *p_buffer) {
+	const auto create_buffer = [&](const InternalBuffer auto *p_buffer) {
 		auto &vk_alloc = get_vk_alloc(p_buffer);
 
 		auto &alloc_info = Meta::GetAllocInfo(p_buffer);
@@ -182,16 +155,13 @@ void VkAllocation::create_vk_resources(const Args &args) {
 		create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 		create_info.size = view_info.size;
 
-		vk_alloc.buffer.myvk_buffers[0] = std::make_shared<RGBuffer>(m_device_ptr, create_info);
-		vkGetBufferMemoryRequirements(m_device_ptr->GetHandle(), vk_alloc.buffer.myvk_buffers[0]->GetHandle(),
+		vk_alloc.buffer.myvk_buffer = std::make_shared<RGBuffer>(m_device_ptr, create_info);
+		vkGetBufferMemoryRequirements(m_device_ptr->GetHandle(), vk_alloc.buffer.myvk_buffer->GetHandle(),
 		                              &vk_alloc.vk_mem_reqs);
-
-		vk_alloc.buffer.myvk_buffers[1] = vk_alloc.double_buffer ? std::make_shared<RGBuffer>(m_device_ptr, create_info)
-		                                                         : vk_alloc.buffer.myvk_buffers[0];
 	};
 
-	for (const ResourceBase *p_resource : args.metadata.GetAllocResources())
-		p_resource->Visit(overloaded(create_image, create_buffer));
+	for (const ResourceBase *p_resource : args.metadata.GetIntRootResources())
+		p_resource->Visit(overloaded(create_image, create_buffer, [](auto &&) {}));
 }
 
 inline static constexpr VkDeviceSize DivCeil(VkDeviceSize l, VkDeviceSize r) { return (l / r) + (l % r ? 1 : 0); }
@@ -211,16 +181,8 @@ void VkAllocation::alloc_naive(std::ranges::input_range auto &&resources, const 
 	VkDeviceSize mem_total = 0;
 	for (const ResourceBase *p_resource : resources) {
 		auto &vk_alloc = get_vk_alloc(p_resource);
-
-		VkDeviceSize mem_size = DivCeil(vk_alloc.vk_mem_reqs.size, alignment);
-
-		vk_alloc.mem_offsets[0] = mem_total * alignment;
-		mem_total += mem_size;
-
-		if (vk_alloc.double_buffer) {
-			vk_alloc.mem_offsets[1] = mem_total * alignment;
-			mem_total += mem_size;
-		}
+		vk_alloc.mem_offset = mem_total * alignment;
+		mem_total += DivCeil(vk_alloc.vk_mem_reqs.size, alignment);
 	}
 	if (mem_total == 0)
 		return;
@@ -299,7 +261,7 @@ void VkAllocation::alloc_optimal(const Args &args, std::ranges::input_range auto
 			}
 		}
 
-		get_vk_alloc(p_resource).mem_offsets[0] = optimal_mem_pos * alignment;
+		get_vk_alloc(p_resource).mem_offset = optimal_mem_pos * alignment;
 		mem_total = std::max(mem_total, optimal_mem_pos + required_mem_size);
 
 		blocks.push_back({optimal_mem_pos, optimal_mem_pos + required_mem_size, p_resource});
@@ -311,8 +273,8 @@ void VkAllocation::alloc_optimal(const Args &args, std::ranges::input_range auto
 		for (const ResourceBase *p_r : resources) {
 			const auto &alloc_r = get_vk_alloc(p_r);
 			// Check Overlapping
-			if (alloc_l.mem_offsets[0] + alloc_l.vk_mem_reqs.size > alloc_r.mem_offsets[0] &&
-			    alloc_r.mem_offsets[0] + alloc_r.vk_mem_reqs.size > alloc_l.mem_offsets[0])
+			if (alloc_l.mem_offset + alloc_l.vk_mem_reqs.size > alloc_r.mem_offset &&
+			    alloc_r.mem_offset + alloc_r.vk_mem_reqs.size > alloc_l.mem_offset)
 				m_resource_alias_relation.Add(Dependency::GetResourceRootID(p_l), Dependency::GetResourceRootID(p_r));
 		}
 	}
@@ -331,44 +293,30 @@ void VkAllocation::alloc_optimal(const Args &args, std::ranges::input_range auto
 }
 
 void VkAllocation::create_vk_allocations(const Args &args) {
-	std::vector<const ResourceBase *> local_resources, lf_resources, random_mapped_resources,
-	    seq_write_mapped_resources;
+	std::vector<const ResourceBase *> optimal_resources, random_mapped_resources, seq_write_mapped_resources;
 
-	for (const ResourceBase *p_resource : args.metadata.GetAllocResources())
-		p_resource->Visit(overloaded(
-		    [&](const LocalInternalImage auto *p_image) {
-			    if (Dependency::GetLFResource(p_image))
-				    lf_resources.push_back(p_image);
-			    else
-				    local_resources.push_back(p_image);
-		    },
-		    [&](const LocalInternalBuffer auto *p_buffer) {
-			    switch (p_buffer->GetMapType()) {
-			    case myvk_rg::BufferMapType::kNone: {
-				    if (Dependency::GetLFResource(p_buffer))
-					    lf_resources.push_back(p_buffer);
-				    else
-					    local_resources.push_back(p_buffer);
-			    } break;
-			    case myvk_rg::BufferMapType::kRandom:
-				    random_mapped_resources.push_back(p_buffer);
-				    break;
-			    case myvk_rg::BufferMapType::kSeqWrite:
-				    seq_write_mapped_resources.push_back(p_buffer);
-				    break;
-			    }
-		    },
-		    [](auto &&) {}));
+	for (const ResourceBase *p_resource : args.metadata.GetIntRootResources())
+		p_resource->Visit(overloaded([&](const InternalImage auto *p_image) { optimal_resources.push_back(p_image); },
+		                             [&](const InternalBuffer auto *p_buffer) {
+			                             switch (Meta::GetAllocInfo(p_buffer).map_type) {
+			                             case myvk_rg::BufferMapType::kNone: {
+				                             optimal_resources.push_back(p_buffer);
+			                             } break;
+			                             case myvk_rg::BufferMapType::kRandom:
+				                             random_mapped_resources.push_back(p_buffer);
+				                             break;
+			                             case myvk_rg::BufferMapType::kSeqWrite:
+				                             seq_write_mapped_resources.push_back(p_buffer);
+				                             break;
+			                             }
+		                             },
+		                             [](auto &&) {}));
 
-	alloc_optimal(args, local_resources,
+	alloc_optimal(args, optimal_resources,
 	              VmaAllocationCreateInfo{
 	                  .flags = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT | VMA_ALLOCATION_CREATE_CAN_ALIAS_BIT,
 	                  .requiredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 	              });
-	alloc_naive(lf_resources, VmaAllocationCreateInfo{
-	                              .flags = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT,
-	                              .requiredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-	                          });
 	alloc_naive(random_mapped_resources,
 	            VmaAllocationCreateInfo{
 	                .flags = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT |
@@ -384,51 +332,41 @@ void VkAllocation::create_vk_allocations(const Args &args) {
 }
 
 void VkAllocation::bind_vk_resources(const Args &args) {
-	for (const ResourceBase *p_resource : args.metadata.GetAllocResources()) {
+	for (const ResourceBase *p_resource : args.metadata.GetIntRootResources()) {
 		auto &vk_alloc = get_vk_alloc(p_resource);
-		auto vma_allocation = vk_alloc.myvk_mem_alloc->GetHandle();
 
 		p_resource->Visit(overloaded(
-		    [&](const ImageResource auto *p_image) {
-			    auto &myvk_images = vk_alloc.image.myvk_images;
+		    [&](const InternalImage auto *p_image) {
+			    auto &myvk_image = vk_alloc.image.myvk_image;
 
-			    vmaBindImageMemory2(m_device_ptr->GetAllocatorHandle(), vma_allocation, vk_alloc.mem_offsets[0],
-			                        myvk_images[0]->GetHandle(), nullptr);
-			    static_cast<RGImage *>(myvk_images[0].get())->SetAllocPtr(vk_alloc.myvk_mem_alloc);
-			    if (vk_alloc.double_buffer) {
-				    vmaBindImageMemory2(m_device_ptr->GetAllocatorHandle(), vma_allocation, vk_alloc.mem_offsets[1],
-				                        myvk_images[1]->GetHandle(), nullptr);
-				    static_cast<RGImage *>(myvk_images[1].get())->SetAllocPtr(vk_alloc.myvk_mem_alloc);
-			    }
+			    auto vma_allocation = vk_alloc.myvk_mem_alloc->GetHandle();
+			    vmaBindImageMemory2(m_device_ptr->GetAllocatorHandle(), vma_allocation, vk_alloc.mem_offset,
+			                        myvk_image->GetHandle(), nullptr);
+			    static_cast<RGImage *>(myvk_image.get())->SetAllocPtr(vk_alloc.myvk_mem_alloc);
 		    },
-		    [&](const BufferResource auto *p_buffer) {
+		    [&](const InternalBuffer auto *p_buffer) {
 			    auto *p_mapped = (uint8_t *)vk_alloc.myvk_mem_alloc->GetInfo().pMappedData;
-			    auto &myvk_buffers = vk_alloc.buffer.myvk_buffers;
-			    auto &mapped_ptrs = vk_alloc.buffer.mapped_ptrs;
+			    auto &myvk_buffer = vk_alloc.buffer.myvk_buffer;
+			    auto &mapped_ptr = vk_alloc.buffer.mapped_ptr;
 
-			    vmaBindBufferMemory2(m_device_ptr->GetAllocatorHandle(), vma_allocation, vk_alloc.mem_offsets[0],
-			                         myvk_buffers[0]->GetHandle(), nullptr);
-			    mapped_ptrs[0] = p_mapped + vk_alloc.mem_offsets[0];
-			    static_cast<RGBuffer *>(myvk_buffers[0].get())->SetAllocPtr(vk_alloc.myvk_mem_alloc);
-			    if (vk_alloc.double_buffer) {
-				    vmaBindBufferMemory2(m_device_ptr->GetAllocatorHandle(), vma_allocation, vk_alloc.mem_offsets[1],
-				                         myvk_buffers[1]->GetHandle(), nullptr);
-				    mapped_ptrs[1] = p_mapped + vk_alloc.mem_offsets[1];
-				    static_cast<RGBuffer *>(myvk_buffers[1].get())->SetAllocPtr(vk_alloc.myvk_mem_alloc);
-			    } else
-				    mapped_ptrs[1] = mapped_ptrs[0];
-		    }));
+			    auto vma_allocation = vk_alloc.myvk_mem_alloc->GetHandle();
+			    vmaBindBufferMemory2(m_device_ptr->GetAllocatorHandle(), vma_allocation, vk_alloc.mem_offset,
+			                         myvk_buffer->GetHandle(), nullptr);
+			    mapped_ptr = p_mapped ? p_mapped + vk_alloc.mem_offset : nullptr;
+			    static_cast<RGBuffer *>(myvk_buffer.get())->SetAllocPtr(vk_alloc.myvk_mem_alloc);
+		    },
+		    [](auto &&) {}));
 	}
 }
 
-void VkAllocation::create_vk_image_views(const Args &args) {
-	const auto create_image_view = [&](const LocalInternalImage auto *p_image) {
-		const auto &root_vk_alloc = get_vk_alloc(Meta::GetAllocResource(p_image)).image;
+void VkAllocation::create_resource_views(const Args &args) {
+	const auto create_image_view = [&](const InternalImage auto *p_image) {
+		const auto &root_vk_alloc = get_vk_alloc(Dependency::GetRootResource(p_image)).image;
 
 		const auto &view = Meta::GetViewInfo(p_image);
 
 		VkImageViewCreateInfo create_info = {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
-		create_info.format = root_vk_alloc.myvk_images[0]->GetFormat();
+		create_info.format = root_vk_alloc.myvk_image->GetFormat();
 		create_info.viewType = p_image->GetViewType();
 		create_info.subresourceRange.baseArrayLayer = view.base_layer;
 		create_info.subresourceRange.layerCount = view.size.GetArrayLayers();
@@ -436,34 +374,33 @@ void VkAllocation::create_vk_image_views(const Args &args) {
 		create_info.subresourceRange.levelCount = view.size.GetMipLevels();
 		create_info.subresourceRange.aspectMask = VkImageAspectFlagsFromVkFormat(create_info.format);
 
-		auto &vk_alloc = get_vk_alloc(p_image).image;
-		vk_alloc.myvk_image_views[0] = myvk::ImageView::Create(root_vk_alloc.myvk_images[0], create_info);
-		vk_alloc.myvk_image_views[1] = root_vk_alloc.myvk_images[1] != root_vk_alloc.myvk_images[0]
-		                                   ? myvk::ImageView::Create(root_vk_alloc.myvk_images[1], create_info)
-		                                   : vk_alloc.myvk_image_views[0];
+		auto &vk_image_alloc = get_vk_alloc(p_image).image;
+		vk_image_alloc.myvk_image_view = myvk::ImageView::Create(root_vk_alloc.myvk_image, create_info);
 	};
-	for (const ResourceBase *p_resource : args.metadata.GetViewResources())
-		p_resource->Visit(overloaded(create_image_view, [](auto &&) {}));
-}
+	const auto create_buffer_view = [&](const InternalBuffer auto *p_buffer) {
+		const auto &root_vk_alloc = get_vk_alloc(Dependency::GetRootResource(p_buffer)).buffer;
+		const auto &view = Meta::GetViewInfo(p_buffer);
 
-void VkAllocation::set_lf_vk_resources(const VkAllocation::Args &args) {
-	const auto lf_swap = [](auto &arr) { std::swap(arr[0], arr[1]); };
-
-	for (const auto *p_resource : args.dependency.GetLFResources()) {
-		auto &vk_alloc = get_vk_alloc(p_resource);
-		auto &cur_vk_alloc = get_vk_alloc(Dependency::GetLFResource(p_resource));
+		auto &vk_buffer_alloc = get_vk_alloc(p_buffer).buffer;
+		vk_buffer_alloc.buffer_view = {
+		    .buffer = root_vk_alloc.myvk_buffer,
+		    .offset = view.offset,
+		    .size = view.size,
+		};
+		vk_buffer_alloc.mapped_ptr =
+		    root_vk_alloc.mapped_ptr ? static_cast<char *>(root_vk_alloc.mapped_ptr) + view.offset : nullptr;
+	};
+	for (const ResourceBase *p_resource : args.metadata.GetIntResources())
 		p_resource->Visit(overloaded(
-		    [&](const LastFrameImage *p_lf_image) {
-			    vk_alloc.image.myvk_image_views = cur_vk_alloc.image.myvk_image_views;
-			    lf_swap(vk_alloc.image.myvk_image_views);
+		    create_image_view, create_buffer_view,
+		    [](const ExternalImageBase *p_ext_image) {
+			    auto &vk_alloc = get_vk_alloc(p_ext_image);
+			    vk_alloc.image.myvk_image_view = p_ext_image->GetVkImageView();
+			    vk_alloc.ext_changed = true;
 		    },
-		    [&](const LastFrameBuffer *p_lf_buffer) {
-			    vk_alloc.buffer = cur_vk_alloc.buffer;
-			    lf_swap(vk_alloc.buffer.myvk_buffers);
-			    lf_swap(vk_alloc.buffer.mapped_ptrs);
-		    },
-		    [](auto &&) {}));
-	}
+		    [](const ExternalBufferBase *p_ext_buffer) {
+			    auto &vk_alloc = get_vk_alloc(p_ext_buffer);
+		    }));
 }
 
 } // namespace myvk_rg_executor

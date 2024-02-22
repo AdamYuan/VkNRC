@@ -197,25 +197,29 @@ private:
 		    overloaded([](const AttachmentImage auto *p_att_image) { return p_att_image->GetLoadOp(); },
 		               [](auto &&) { return VK_ATTACHMENT_LOAD_OP_DONT_CARE; });
 		const auto get_ext_src = overloaded(
-		    [](const ExternalImageBase *p_ext_image) -> State {
-			    return {.stage_mask = p_ext_image->GetSrcPipelineStages(),
-			            .access_mask = p_ext_image->GetSrcAccessFlags(),
-			            .layout = p_ext_image->GetSrcLayout()};
-		    },
-		    [](const ExternalBufferBase *p_ext_buffer) -> State {
-			    return {.stage_mask = p_ext_buffer->GetSrcPipelineStages(),
-			            .access_mask = p_ext_buffer->GetSrcAccessFlags()};
+		    [](const ExternalResource auto *p_ext_image) -> State {
+			    switch (p_ext_image->GetSyncType()) {
+			    case myvk_rg::ExternalSyncType::kLastFrame:
+				    return GetSrcState(Schedule::GetLastInputs(p_ext_image));
+			    case myvk_rg::ExternalSyncType::kCustom:
+				    return {.stage_mask = p_ext_image->GetSrcPipelineStages(),
+				            .access_mask = p_ext_image->GetSrcAccessFlags(),
+				            .layout = p_ext_image->GetSrcLayout()};
+			    }
+			    return {};
 		    },
 		    [](auto &&) -> State { return {}; });
 		const auto get_ext_dst = overloaded(
-		    [](const ExternalImageBase *p_ext_image) -> State {
-			    return {.stage_mask = p_ext_image->GetDstPipelineStages(),
-			            .access_mask = p_ext_image->GetDstAccessFlags(),
-			            .layout = p_ext_image->GetDstLayout()};
-		    },
-		    [](const ExternalBufferBase *p_ext_buffer) -> State {
-			    return {.stage_mask = p_ext_buffer->GetDstPipelineStages(),
-			            .access_mask = p_ext_buffer->GetDstAccessFlags()};
+		    [](const ExternalResource auto *p_ext_image) -> State {
+			    switch (p_ext_image->GetSyncType()) {
+			    case myvk_rg::ExternalSyncType::kLastFrame:
+				    return {.layout = UsageGetImageLayout(Schedule::GetLastInputs(p_ext_image)[0]->GetUsage())};
+			    case myvk_rg::ExternalSyncType::kCustom:
+				    return {.stage_mask = p_ext_image->GetDstPipelineStages(),
+				            .access_mask = p_ext_image->GetDstAccessFlags(),
+				            .layout = p_ext_image->GetDstLayout()};
+			    }
+			    return {};
 		    },
 		    [](auto &&) -> State { return {}; });
 
@@ -224,22 +228,12 @@ private:
 			case Schedule::BarrierType::kLocal:
 				add_local_barrier(pass_barrier);
 				break;
-			case Schedule::BarrierType::kValidate:
+			case Schedule::BarrierType::kIntValidate:
 				add_validate_barrier(args, pass_barrier, pass_barrier.p_resource->Visit(get_load_op));
-				break;
-			case Schedule::BarrierType::kLFInput:
-				add_input_barrier(
-				    pass_barrier,
-				    GetSrcState(Schedule::GetLastInputs(Dependency::GetLFResource(pass_barrier.p_resource))),
-				    VK_ATTACHMENT_LOAD_OP_LOAD);
 				break;
 			case Schedule::BarrierType::kExtInput:
 				add_input_barrier(pass_barrier, pass_barrier.p_resource->Visit(get_ext_src),
 				                  pass_barrier.p_resource->Visit(get_load_op));
-				break;
-			case Schedule::BarrierType::kLFOutput:
-				// Mark as Store, also not changing its layout
-				add_output_barrier(pass_barrier, {.layout = UsageGetImageLayout(pass_barrier.src_s[0]->GetUsage())});
 				break;
 			case Schedule::BarrierType::kExtOutput:
 				add_output_barrier(pass_barrier, pass_barrier.p_resource->Visit(get_ext_dst));

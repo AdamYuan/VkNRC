@@ -124,10 +124,8 @@ Schedule::BarrierType Schedule::get_valid_barrier_type(const ResourceBase *p_val
 	switch (p_valid_resource->GetState()) {
 	case ResourceState::kExternal:
 		return BarrierType::kExtInput;
-	case ResourceState::kLastFrame:
-		return BarrierType::kLFInput;
 	default:
-		return BarrierType::kValidate;
+		return BarrierType::kIntValidate;
 	}
 }
 
@@ -317,19 +315,12 @@ void Schedule::finalize_last_inputs(const Schedule::Args &args) {
 }
 
 void Schedule::make_output_barriers(const Args &args) {
-	for (const ResourceBase *p_resource : args.dependency.GetRootResources())
-		if (p_resource->GetState() == ResourceState::kExternal) {
-			m_pass_barriers.push_back({.p_resource = p_resource,
-			                           .src_s = get_sched_info(p_resource).last_inputs,
-			                           .dst_s = {},
-			                           .type = BarrierType::kExtOutput});
-		} else if (p_resource->GetState() == ResourceState::kLastFrame) {
-			p_resource = Dependency::GetLFResource(p_resource); // Barrier on LFResource in current frame
-			m_pass_barriers.push_back({.p_resource = p_resource,
-			                           .src_s = get_sched_info(p_resource).last_inputs,
-			                           .dst_s = {},
-			                           .type = BarrierType::kLFOutput});
-		}
+	// External Resources
+	for (const ResourceBase *p_resource : args.metadata.GetExtResources())
+		m_pass_barriers.push_back({.p_resource = p_resource,
+		                           .src_s = get_sched_info(p_resource).last_inputs,
+		                           .dst_s = {},
+		                           .type = BarrierType::kExtOutput});
 }
 
 } // namespace myvk_rg_executor

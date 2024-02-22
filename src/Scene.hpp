@@ -16,10 +16,6 @@ public:
 		glm::vec3 albedo;
 		std::filesystem::path albedo_texture;
 	};
-	struct Transform {
-		glm::mat3 rotate;
-		glm::vec3 translate;
-	};
 	struct Instance {
 		uint32_t first_index, index_count;
 	};

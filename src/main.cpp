@@ -10,6 +10,8 @@
 
 #include "VkSceneTLAS.hpp"
 
+constexpr uint32_t kFrameCount = 3;
+
 class NRCRenderGraph : public myvk_rg::RenderGraphBase {
 public:
 	explicit NRCRenderGraph(const myvk::Ptr<myvk::FrameManager> &frame_manager)
@@ -38,7 +40,7 @@ int main(int argc, char **argv) {
 	             scene.GetTexcoords().size(), scene.GetMaterials().size(), scene.GetInstances().size());
 
 	auto instance = myvk::Instance::CreateWithGlfwExtensions();
-	myvk::Ptr<myvk::Queue> generic_queue;
+	myvk::Ptr<myvk::Queue> generic_queue, compute_queue;
 	myvk::Ptr<myvk::PresentQueue> present_queue;
 	auto physical_device = myvk::PhysicalDevice::Fetch(instance)[0];
 	auto features = physical_device->GetDefaultFeatures();
@@ -61,8 +63,10 @@ int main(int argc, char **argv) {
 	auto vk_scene_blas = myvk::MakePtr<VkSceneBLAS>(vk_scene);
 	auto vk_scene_tlas = myvk::MakePtr<VkSceneTLAS>(vk_scene_blas);
 
-	auto frame_manager = myvk::FrameManager::Create(generic_queue, present_queue, false, 1);
-	auto render_graph = myvk::MakePtr<NRCRenderGraph>(frame_manager);
+	auto frame_manager = myvk::FrameManager::Create(generic_queue, present_queue, false, kFrameCount);
+	std::array<myvk::Ptr<NRCRenderGraph>, kFrameCount> render_graphs;
+	for (auto &rg : render_graphs)
+		rg = myvk::MakePtr<NRCRenderGraph>(frame_manager);
 
 	while (!glfwWindowShouldClose(window)) {
 		glfwPollEvents();
@@ -75,6 +79,7 @@ int main(int argc, char **argv) {
 
 		if (frame_manager->NewFrame()) {
 			const auto &command_buffer = frame_manager->GetCurrentCommandBuffer();
+			auto &render_graph = render_graphs[frame_manager->GetCurrentFrame()];
 
 			command_buffer->Begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 			render_graph->SetCanvasSize(frame_manager->GetExtent());

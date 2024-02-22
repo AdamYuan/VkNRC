@@ -11,6 +11,8 @@
 #include "../Hash.hpp"
 #include "../VkHelper.hpp"
 
+#include <span>
+
 namespace myvk_rg_executor {
 
 class VkDescriptor {
@@ -29,13 +31,13 @@ private:
 
 	static void collect_pass_bindings(const PassBase *p_pass);
 	void create_vk_sets(const Args &args);
-	void pass_vk_bind_static(const PassBase *p_pass);
+	void vk_update_internal(std::span<const PassBase *const> passes);
 
 public:
 	static VkDescriptor Create(const myvk::Ptr<myvk::Device> &device_ptr, const Args &args);
-	void BindDynamic(const PassBase *p_pass, bool flip) const;
-	static const myvk::Ptr<myvk::DescriptorSet> &GetVkDescriptorSet(const PassBase *p_pass, bool flip) {
-		return get_desc_info(p_pass).myvk_sets[flip];
+	void VkUpdateExternal(std::span<const PassBase *const> passes) const;
+	static const myvk::Ptr<myvk::DescriptorSet> &GetVkDescriptorSet(const PassBase *p_pass) {
+		return get_desc_info(p_pass).myvk_set;
 	}
 	static const myvk::Ptr<myvk::DescriptorSetLayout> &GetVkDescriptorSetLayout(const PassBase *p_pass) {
 		return get_desc_info(p_pass).myvk_layout;

@@ -8,6 +8,11 @@
 
 namespace myvk_rg_executor {
 
+VkRunner VkRunner::Create(const VkRunner::Args &args) {
+	args.collection.ClearInfo(&ResourceInfo::vk_runner);
+	return {};
+}
+
 void VkRunner::cmd_pipeline_barriers(const myvk::Ptr<myvk::CommandBuffer> &command_buffer,
                                      std::span<const BarrierCmd> barrier_cmds) {
 	if (barrier_cmds.empty())
@@ -28,13 +33,13 @@ void VkRunner::cmd_pipeline_barriers(const myvk::Ptr<myvk::CommandBuffer> &comma
 			    CopyVkBarrier(cmd, &image_barriers.back());
 		    },
 		    [&](const BufferResource auto *p_buffer) {
-			    const auto &myvk_buffer = p_buffer->GetVkBuffer();
+			    const auto &view = p_buffer->GetBufferView();
 			    buffer_barriers.push_back({.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2,
 			                               .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
 			                               .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-			                               .buffer = myvk_buffer->GetHandle(),
-			                               .offset = 0u,
-			                               .size = myvk_buffer->GetSize()});
+			                               .buffer = view.buffer->GetHandle(),
+			                               .offset = view.offset,
+			                               .size = view.size});
 			    CopyVkBarrier(cmd, &buffer_barriers.back());
 		    }));
 	}
@@ -47,15 +52,34 @@ void VkRunner::cmd_pipeline_barriers(const myvk::Ptr<myvk::CommandBuffer> &comma
 	vkCmdPipelineBarrier2(command_buffer->GetHandle(), &dep_info);
 }
 
-void VkRunner::Run(const myvk::Ptr<myvk::CommandBuffer> &command_buffer, const VkCommand &vk_command,
-                   const VkDescriptor &vk_descriptor, bool flip) {
+void VkRunner::update_ext_cache(const VkRunner::Args &args) {
+	for (const ResourceBase *p_ext_resource : args.metadata.GetExtResources()) {
+		auto &cache = get_runner_cache(p_ext_resource);
+		p_ext_resource->Visit(overloaded(
+		    [&](const ExternalImageBase *p_ext_image) {
+			    const auto &image_view = p_ext_image->GetVkImageView();
+			    cache.ext_changed = image_view != cache.ext_image_view_cache;
+			    cache.ext_image_view_cache = image_view;
+		    },
+		    [&](const ExternalBufferBase *p_ext_buffer) {
+			    const auto &buffer_view = p_ext_buffer->GetBufferView();
+			    cache.ext_changed = buffer_view != cache.ext_buffer_view_cache;
+			    cache.ext_buffer_view_cache = buffer_view;
+		    },
+		    [](auto &&) {}));
+	}
+}
+
+void VkRunner::Run(const myvk::Ptr<myvk::CommandBuffer> &command_buffer, const Args &args) {
+	update_ext_cache(args);
+	args.vk_descriptor.VkUpdateExternal(args.dependency.GetPasses());
+
 	const auto run_pass = [&](const PassBase *p_pass) {
 		VkCommand::CreatePipeline(p_pass);
-		vk_descriptor.BindDynamic(p_pass, flip);
 		p_pass->CmdExecute(command_buffer);
 	};
 
-	for (const auto &pass_cmd : vk_command.GetPassCommands()) {
+	for (const auto &pass_cmd : args.vk_command.GetPassCommands()) {
 		cmd_pipeline_barriers(command_buffer, pass_cmd.prior_barriers);
 
 		if (pass_cmd.myvk_render_pass) {
@@ -105,69 +129,7 @@ void VkRunner::Run(const myvk::Ptr<myvk::CommandBuffer> &command_buffer, const V
 			run_pass(pass_cmd.subpasses.front());
 		}
 	}
-	cmd_pipeline_barriers(command_buffer, vk_command.GetPostBarriers());
-}
-
-void VkRunner::LastFrameInit(const myvk::Ptr<myvk::Queue> &queue, const Dependency &dependency) {
-	std::vector<const ResourceBase *> transfer_resources;
-	std::vector<BarrierCmd> prior_barriers, post_barriers;
-
-	for (const ResourceBase *p_lf_resource : dependency.GetLFResources()) {
-		bool has_init_transfer = p_lf_resource->Visit(overloaded(
-		    [](const LastFrameResource auto *p_lf_resource) { return bool(p_lf_resource->GetInitTransferFunc()); },
-		    [](auto &&) { return false; }));
-
-		if (has_init_transfer)
-			transfer_resources.push_back(p_lf_resource);
-
-		// Add barriers for Image
-		if (p_lf_resource->GetType() != ResourceType::kImage)
-			continue;
-
-		if (has_init_transfer) {
-			prior_barriers.push_back({.p_resource = p_lf_resource,
-			                          .src_stage_mask = VK_PIPELINE_STAGE_2_NONE,
-			                          .dst_stage_mask = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
-			                          .src_access_mask = 0,
-			                          .dst_access_mask = VK_ACCESS_2_TRANSFER_WRITE_BIT,
-			                          .old_layout = VK_IMAGE_LAYOUT_UNDEFINED,
-			                          .new_layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL});
-			post_barriers.push_back({.p_resource = p_lf_resource,
-			                         .src_stage_mask = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
-			                         .src_access_mask = VK_ACCESS_2_TRANSFER_WRITE_BIT,
-			                         .old_layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL});
-		} else
-			post_barriers.push_back({.p_resource = p_lf_resource,
-			                         .src_stage_mask = VK_PIPELINE_STAGE_2_NONE,
-			                         .src_access_mask = 0,
-			                         .old_layout = VK_IMAGE_LAYOUT_UNDEFINED});
-		// Transfer ImageLayout to the last inputs
-		AddDstBarrier(&post_barriers.back(),
-		              GetDstState(Schedule::GetLastInputs(Dependency::GetLFResource(p_lf_resource))));
-	}
-
-	if (transfer_resources.empty() && prior_barriers.empty() && post_barriers.empty())
-		return;
-
-	auto command_buffer = myvk::CommandBuffer::Create(myvk::CommandPool::Create(queue));
-	command_buffer->Begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
-	cmd_pipeline_barriers(command_buffer, prior_barriers);
-	for (const ResourceBase *p_resource : transfer_resources) {
-		p_resource->Visit(overloaded(
-		    [&](const LastFrameImage *p_lf_image) {
-			    p_lf_image->GetInitTransferFunc()(command_buffer, p_lf_image->GetVkImageView()->GetImagePtr());
-		    },
-		    [&](const LastFrameBuffer *p_lf_buffer) {
-			    p_lf_buffer->GetInitTransferFunc()(command_buffer, p_lf_buffer->GetVkBuffer());
-		    },
-		    [](auto &&) {}));
-	}
-	cmd_pipeline_barriers(command_buffer, post_barriers);
-	command_buffer->End();
-
-	auto fence = myvk::Fence::Create(queue->GetDevicePtr());
-	command_buffer->Submit(fence);
-	fence->Wait();
+	cmd_pipeline_barriers(command_buffer, args.vk_command.GetPostBarriers());
 }
 
 } // namespace myvk_rg_executor

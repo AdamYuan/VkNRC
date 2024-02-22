@@ -27,13 +27,16 @@ Ptr<AccelerationStructure> AccelerationStructure::Create(const Ptr<BufferBase> &
 	ret->m_buffer = buffer;
 	ret->m_accel_struct = accel_struct;
 	ret->m_device_address = device_address;
+	ret->m_offset = create_info.offset;
+	ret->m_size = create_info.size;
 	return ret;
 }
 
 Ptr<AccelerationStructure> AccelerationStructure::Create(const Ptr<Device> &device, VkDeviceSize size,
                                                          VkAccelerationStructureTypeKHR type,
-                                                         VkAccelerationStructureCreateFlagsKHR create_flags) {
-	return Create(myvk::Buffer::Create(device, size, 0, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR),
+                                                         const std::vector<Ptr<Queue>> &access_queues) {
+	return Create(myvk::Buffer::Create(device, size, 0, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR,
+	                                   VMA_MEMORY_USAGE_AUTO, access_queues),
 	              {.size = size, .type = type});
 }
 

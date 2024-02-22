@@ -8,11 +8,11 @@
 namespace myvk_rg::interface {
 
 template <typename Derived>
-class ResourcePool : public Pool<Derived, Variant<ManagedBuffer, ExternalBufferBase, LastFrameBuffer, ManagedImage,
-                                                  CombinedImage, ExternalImageBase, LastFrameImage>> {
+class ResourcePool : public Pool<Derived, Variant<ManagedBuffer, CombinedBuffer, ExternalBufferBase, ManagedImage,
+                                                  CombinedImage, ExternalImageBase>> {
 private:
-	using PoolBase = Pool<Derived, Variant<ManagedBuffer, ExternalBufferBase, LastFrameBuffer, ManagedImage,
-	                                       CombinedImage, ExternalImageBase, LastFrameImage>>;
+	using PoolBase = Pool<Derived, Variant<ManagedBuffer, CombinedBuffer, ExternalBufferBase, ManagedImage,
+	                                       CombinedImage, ExternalImageBase>>;
 
 public:
 	inline ResourcePool() = default;

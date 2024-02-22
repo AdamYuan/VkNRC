@@ -16,6 +16,8 @@ private:
 
 	void create_blas_s();
 
+	// TODO: Create AS in Async Compute Queue
+
 public:
 	explicit VkSceneBLAS(const myvk::Ptr<VkScene> &scene_ptr);
 	const myvk::Ptr<VkScene> &GetScenePtr() const { return m_scene_ptr; }

@@ -87,6 +87,10 @@ struct ImageNotMerge {
 	GlobalKey key;
 	inline std::string Format() const { return "Image " + key.Format() + " failed to merge"; }
 };
+struct BufferNotMerge {
+	GlobalKey key;
+	inline std::string Format() const { return "Buffer " + key.Format() + " failed to merge"; }
+};
 struct DupAttachmentIndex {
 	GlobalKey key;
 	inline std::string Format() const { return "Duplicated attachment index with " + key.Format(); }

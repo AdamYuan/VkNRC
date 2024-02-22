@@ -32,7 +32,7 @@ struct Barrier {
 };
 
 inline static void SetVkLayout(VkImageLayout *p_dst, VkImageLayout src) {
-	assert(*p_dst == VK_IMAGE_LAYOUT_UNDEFINED || src == VK_IMAGE_LAYOUT_UNDEFINED || layout == r.layout);
+	assert(*p_dst == VK_IMAGE_LAYOUT_UNDEFINED || src == VK_IMAGE_LAYOUT_UNDEFINED || *p_dst == src);
 	if (*p_dst == VK_IMAGE_LAYOUT_UNDEFINED)
 		*p_dst = src;
 }
@@ -141,7 +141,7 @@ template <typename Src_T, typename Dst_T> inline static void CopyVkBarrier(const
 		              dst_t.newLayout;
 	              }) {
 		p_dst->oldLayout = src.old_layout;
-		p_dst->newLayout = src.new_layout;
+		p_dst->newLayout = src.new_layout == VK_IMAGE_LAYOUT_UNDEFINED ? src.old_layout : src.new_layout;
 	}
 }
 

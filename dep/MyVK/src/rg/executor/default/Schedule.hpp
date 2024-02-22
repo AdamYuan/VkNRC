@@ -15,7 +15,7 @@ namespace myvk_rg_executor {
 
 class Schedule {
 public:
-	enum class BarrierType { kLocal, kValidate, kLFInput, kExtInput, kLFOutput, kExtOutput };
+	enum class BarrierType { kLocal, kIntValidate, kExtInput, kExtOutput };
 	struct PassBarrier {
 		const ResourceBase *p_resource;
 		std::vector<const InputBase *> src_s, dst_s;

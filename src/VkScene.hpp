@@ -34,7 +34,7 @@ private:
 	myvk::Ptr<myvk::Queue> m_queue_ptr;
 	myvk::Ptr<myvk::Buffer> m_vertex_buffer, m_vertex_index_buffer;
 	myvk::Ptr<myvk::Buffer> m_texcoord_buffer, m_texcoord_index_buffer;
-	myvk::Ptr<myvk::Buffer> m_material_id_buffer, m_material_buffer;
+	myvk::Ptr<myvk::Buffer> m_material_buffer, m_material_id_buffer;
 	std::vector<myvk::Ptr<myvk::ImageView>> m_textures;
 	std::vector<Transform> m_transforms;
 
@@ -56,6 +56,8 @@ public:
 	inline const auto &GetTransform(uint32_t instance_id) const { return m_transforms[instance_id]; }
 	inline auto &GetTransform(uint32_t instance_id) { return m_transforms[instance_id]; }
 	VkTransformMatrixKHR GetVkTransform(uint32_t instance_id) const;
+
+	inline const auto &GetTextures() const { return m_textures; }
 
 	inline const auto &GetQueuePtr() const { return m_queue_ptr; }
 	inline const myvk::Ptr<myvk::Device> &GetDevicePtr() const final { return m_queue_ptr->GetDevicePtr(); }

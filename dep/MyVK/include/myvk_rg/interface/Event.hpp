@@ -27,12 +27,10 @@ enum class Event {
 	kBufferResized,
 	kBufferMapTypeChanged,
 
-	kInitTransferChanged,
-	kInitTransferFuncChanged,
-
 	kExternalStageChanged,
 	kExternalAccessChanged,
 	kExternalImageLayoutChanged,
+	kExternalSyncChanged,
 };
 
 }

@@ -59,7 +59,6 @@ void Executor::OnEvent(interface::ObjectBase *p_object, interface::Event event) 
 	case Event::kBufferResized:
 	case Event::kImageResized:
 	case Event::kRenderAreaChanged:
-	case Event::kInitTransferChanged:
 		m_compile_flags |= kMetadata;
 		break;
 	case Event::kBufferMapTypeChanged:
@@ -74,14 +73,12 @@ void Executor::OnEvent(interface::ObjectBase *p_object, interface::Event event) 
 	case Event::kExternalImageLayoutChanged:
 	case Event::kExternalAccessChanged:
 	case Event::kExternalStageChanged:
+	case Event::kExternalSyncChanged:
 	case Event::kImageLoadOpChanged:
 		m_compile_flags |= kVkCommand;
 		break;
 	case Event::kUpdatePipeline:
 		VkCommand::UpdatePipeline(static_cast<const interface::PassBase *>(p_object));
-		break;
-	case Event::kInitTransferFuncChanged:
-		m_lf_init = true;
 		break;
 	}
 }
@@ -147,42 +144,40 @@ void Executor::compile(const interface::RenderGraphBase *p_render_graph, const m
 		                                              .metadata = m_p_compile_info->metadata,
 		                                              .schedule = m_p_compile_info->schedule,
 		                                              .vk_allocation = m_p_compile_info->vk_allocation});
-	m_lf_init = true;
 }
 
 void Executor::CmdExecute(const interface::RenderGraphBase *p_render_graph,
                           const myvk::Ptr<myvk::CommandBuffer> &command_buffer) {
 	const auto &queue = command_buffer->GetCommandPoolPtr()->GetQueuePtr();
 	compile(p_render_graph, queue);
-	if (m_lf_init) {
-		VkRunner::LastFrameInit(queue, m_p_compile_info->dependency);
-		m_lf_init = false;
-	}
-	VkRunner::Run(command_buffer, m_p_compile_info->vk_command, m_p_compile_info->vk_descriptor, m_flip);
-	m_flip = !m_flip;
+	VkRunner::Run(command_buffer, {.render_graph = *p_render_graph,
+	                               .collection = m_p_compile_info->collection,
+	                               .dependency = m_p_compile_info->dependency,
+	                               .metadata = m_p_compile_info->metadata,
+	                               .schedule = m_p_compile_info->schedule,
+	                               .vk_allocation = m_p_compile_info->vk_allocation,
+	                               .vk_command = m_p_compile_info->vk_command,
+	                               .vk_descriptor = m_p_compile_info->vk_descriptor});
 }
 
-const myvk::Ptr<myvk::ImageView> &Executor::GetVkImageView(const interface::ManagedImage *p_managed_image) const {
-	return VkAllocation::GetVkImageView(p_managed_image, m_flip);
+const myvk::Ptr<myvk::ImageView> &Executor::GetVkImageView(const interface::ManagedImage *p_managed_image) {
+	return VkAllocation::GetVkImageView(p_managed_image);
 }
-const myvk::Ptr<myvk::ImageView> &Executor::GetVkImageView(const interface::LastFrameImage *p_lf_image) const {
-	return VkAllocation::GetVkImageView(p_lf_image, m_flip);
-}
-const myvk::Ptr<myvk::ImageView> &Executor::GetVkImageView(const interface::CombinedImage *p_combined_image) const {
-	return VkAllocation::GetVkImageView(p_combined_image, m_flip);
+const myvk::Ptr<myvk::ImageView> &Executor::GetVkImageView(const interface::CombinedImage *p_combined_image) {
+	return VkAllocation::GetVkImageView(p_combined_image);
 }
 
-const myvk::Ptr<myvk::BufferBase> &Executor::GetVkBuffer(const interface::ManagedBuffer *p_managed_buffer) const {
-	return VkAllocation::GetVkBuffer(p_managed_buffer, m_flip);
+const interface::BufferView &Executor::GetBufferView(const interface::ManagedBuffer *p_managed_buffer) {
+	return VkAllocation::GetBufferView(p_managed_buffer);
 }
-const myvk::Ptr<myvk::BufferBase> &Executor::GetVkBuffer(const interface::LastFrameBuffer *p_lf_buffer) const {
-	return VkAllocation::GetVkBuffer(p_lf_buffer, m_flip);
+void *Executor::GetMappedData(const interface::ManagedBuffer *p_managed_buffer) {
+	return VkAllocation::GetMappedData(p_managed_buffer);
 }
-void *Executor::GetMappedData(const interface::ManagedBuffer *p_managed_buffer) const {
-	return VkAllocation::GetMappedData(p_managed_buffer, m_flip);
+const interface::BufferView &Executor::GetBufferView(const interface::CombinedBuffer *p_combined_buffer) {
+	return VkAllocation::GetBufferView(p_combined_buffer);
 }
-void *Executor::GetMappedData(const interface::LastFrameBuffer *p_lf_buffer) const {
-	return VkAllocation::GetMappedData(p_lf_buffer, m_flip);
+void *Executor::GetMappedData(const interface::CombinedBuffer *p_combined_buffer) {
+	return VkAllocation::GetMappedData(p_combined_buffer);
 }
 
 uint32_t Executor::GetSubpass(const interface::PassBase *p_pass) { return Schedule::GetU32SubpassID(p_pass); }
@@ -192,8 +187,8 @@ const myvk::Ptr<myvk::RenderPass> &Executor::GetVkRenderPass(const interface::Pa
 const myvk::Ptr<myvk::DescriptorSetLayout> &Executor::GetVkDescriptorSetLayout(const interface::PassBase *p_pass) {
 	return VkDescriptor::GetVkDescriptorSetLayout(p_pass);
 }
-const myvk::Ptr<myvk::DescriptorSet> &Executor::GetVkDescriptorSet(const interface::PassBase *p_pass) const {
-	return VkDescriptor::GetVkDescriptorSet(p_pass, m_flip);
+const myvk::Ptr<myvk::DescriptorSet> &Executor::GetVkDescriptorSet(const interface::PassBase *p_pass) {
+	return VkDescriptor::GetVkDescriptorSet(p_pass);
 }
 const interface::ImageBase *Executor::GetInputImage(const interface::InputBase *p_input) {
 	assert(Dependency::GetInputResource(p_input)->GetType() == interface::ResourceType::kImage);

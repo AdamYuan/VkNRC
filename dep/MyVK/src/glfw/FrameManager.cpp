@@ -20,6 +20,9 @@ void FrameManager::recreate_swapchain() {
 	m_swapchain_image_views.resize(m_swapchain->GetImageCount());
 	for (uint32_t i = 0; i < m_swapchain->GetImageCount(); ++i)
 		m_swapchain_image_views[i] = myvk::ImageView::Create(m_swapchain_images[i]);
+
+	if (m_resize_func)
+		m_resize_func(GetExtent());
 }
 
 void FrameManager::initialize(const Ptr<Queue> &graphics_queue, const Ptr<PresentQueue> &present_queue, bool use_vsync,
@@ -44,6 +47,9 @@ void FrameManager::initialize(const Ptr<Queue> &graphics_queue, const Ptr<Presen
 		m_acquire_done_semaphores[i] = Semaphore::Create(m_swapchain->GetDevicePtr());
 		m_frame_command_buffers[i] = myvk::CommandBuffer::Create(myvk::CommandPool::Create(graphics_queue));
 	}
+
+	if (m_resize_func)
+		m_resize_func(GetExtent());
 }
 
 bool FrameManager::NewFrame() {
@@ -53,7 +59,6 @@ bool FrameManager::NewFrame() {
 	    m_swapchain->AcquireNextImage(&m_current_image_index, m_acquire_done_semaphores[m_current_frame], nullptr);
 	if (result == VK_ERROR_OUT_OF_DATE_KHR) {
 		recreate_swapchain();
-		m_resize_func(GetExtent());
 		return false;
 	} else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
 		// throw std::runtime_error("failed to acquire swap chain image!");
@@ -79,8 +84,6 @@ void FrameManager::Render() {
 	if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || m_resized) {
 		m_resized = false;
 		recreate_swapchain();
-		if (m_resize_func)
-			m_resize_func(GetExtent());
 	}
 
 	m_current_frame = (m_current_frame + 1u) % m_frame_count;

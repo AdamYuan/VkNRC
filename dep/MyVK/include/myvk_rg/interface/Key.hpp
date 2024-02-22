@@ -16,7 +16,7 @@ namespace myvk_rg::interface {
 class PoolKey {
 public:
 	using LengthType = uint8_t;
-	using IDType = uint8_t;
+	using IDType = uint32_t;
 	inline constexpr static const std::size_t kMaxStrLen = 32 - sizeof(LengthType) - sizeof(IDType);
 
 private:

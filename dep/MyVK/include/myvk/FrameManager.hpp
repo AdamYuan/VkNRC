@@ -45,6 +45,10 @@ public:
 	inline const Ptr<myvk::Device> &GetDevicePtr() const override { return m_swapchain->GetDevicePtr(); }
 
 	void SetResizeFunc(const ResizeFunc &resize_func) { m_resize_func = resize_func; }
+	void SetCallResizeFunc(const ResizeFunc &resize_func) {
+		m_resize_func = resize_func;
+		m_resize_func(m_swapchain->GetExtent());
+	}
 	void Resize() { m_resized = true; }
 
 	bool NewFrame();

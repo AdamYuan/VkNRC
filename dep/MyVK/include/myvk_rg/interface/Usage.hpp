@@ -25,6 +25,7 @@ enum class Usage {
 	kTransferImageDst,
 	kTransferBufferSrc,
 	kTransferBufferDst,
+	kAccelerationStructureR,
 	___USAGE_NUM
 };
 }
@@ -44,7 +45,7 @@ struct UsageInfo {
 	bool is_descriptor;
 	VkDescriptorType descriptor_type;
 };
-inline constexpr VkPipelineStageFlags2 __PIPELINE_STAGE_ALL_SHADERS_BIT =
+inline constexpr VkPipelineStageFlags2 PIPELINE_STAGE_ALL_SHADERS_BIT =
     VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_2_TESSELLATION_CONTROL_SHADER_BIT |
     VK_PIPELINE_STAGE_2_TESSELLATION_EVALUATION_SHADER_BIT | VK_PIPELINE_STAGE_2_GEOMETRY_SHADER_BIT |
     VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
@@ -102,15 +103,10 @@ inline constexpr UsageInfo kUsageInfo<Usage::kInputAttachment> = {VK_ACCESS_2_IN
                                                                   true,
                                                                   VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT};
 template <>
-inline constexpr UsageInfo kUsageInfo<Usage::kSampledImage> = {VK_ACCESS_2_SHADER_SAMPLED_READ_BIT,
-                                                               0,
-                                                               ResourceType::kImage,
-                                                               VK_IMAGE_USAGE_SAMPLED_BIT,
-                                                               VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                                                               0,
-                                                               __PIPELINE_STAGE_ALL_SHADERS_BIT,
-                                                               true,
-                                                               VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER};
+inline constexpr UsageInfo kUsageInfo<Usage::kSampledImage> = {
+    VK_ACCESS_2_SHADER_SAMPLED_READ_BIT,      0, ResourceType::kImage,           VK_IMAGE_USAGE_SAMPLED_BIT,
+    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 0, PIPELINE_STAGE_ALL_SHADERS_BIT, true,
+    VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER};
 template <>
 inline constexpr UsageInfo kUsageInfo<Usage::kStorageImageR> = {VK_ACCESS_2_SHADER_STORAGE_READ_BIT, //
                                                                 0,
@@ -118,7 +114,7 @@ inline constexpr UsageInfo kUsageInfo<Usage::kStorageImageR> = {VK_ACCESS_2_SHAD
                                                                 VK_IMAGE_USAGE_STORAGE_BIT,
                                                                 VK_IMAGE_LAYOUT_GENERAL,
                                                                 0,
-                                                                __PIPELINE_STAGE_ALL_SHADERS_BIT,
+                                                                PIPELINE_STAGE_ALL_SHADERS_BIT,
                                                                 true,
                                                                 VK_DESCRIPTOR_TYPE_STORAGE_IMAGE};
 template <>
@@ -128,7 +124,7 @@ inline constexpr UsageInfo kUsageInfo<Usage::kStorageImageW> = {0,
                                                                 VK_IMAGE_USAGE_STORAGE_BIT,
                                                                 VK_IMAGE_LAYOUT_GENERAL,
                                                                 0,
-                                                                __PIPELINE_STAGE_ALL_SHADERS_BIT,
+                                                                PIPELINE_STAGE_ALL_SHADERS_BIT,
                                                                 true,
                                                                 VK_DESCRIPTOR_TYPE_STORAGE_IMAGE};
 template <>
@@ -138,7 +134,7 @@ inline constexpr UsageInfo kUsageInfo<Usage::kStorageImageRW> = {VK_ACCESS_2_SHA
                                                                  VK_IMAGE_USAGE_STORAGE_BIT,
                                                                  VK_IMAGE_LAYOUT_GENERAL,
                                                                  0,
-                                                                 __PIPELINE_STAGE_ALL_SHADERS_BIT,
+                                                                 PIPELINE_STAGE_ALL_SHADERS_BIT,
                                                                  true,
                                                                  VK_DESCRIPTOR_TYPE_STORAGE_IMAGE};
 template <>
@@ -148,7 +144,7 @@ inline constexpr UsageInfo kUsageInfo<Usage::kUniformBuffer> = {VK_ACCESS_2_UNIF
                                                                 VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
                                                                 {},
                                                                 0,
-                                                                __PIPELINE_STAGE_ALL_SHADERS_BIT,
+                                                                PIPELINE_STAGE_ALL_SHADERS_BIT,
                                                                 true,
                                                                 VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER};
 template <>
@@ -158,7 +154,7 @@ inline constexpr UsageInfo kUsageInfo<Usage::kStorageBufferR> = {VK_ACCESS_2_SHA
                                                                  VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
                                                                  {},
                                                                  0,
-                                                                 __PIPELINE_STAGE_ALL_SHADERS_BIT,
+                                                                 PIPELINE_STAGE_ALL_SHADERS_BIT,
                                                                  true,
                                                                  VK_DESCRIPTOR_TYPE_STORAGE_BUFFER};
 template <>
@@ -168,7 +164,7 @@ inline constexpr UsageInfo kUsageInfo<Usage::kStorageBufferW> = {0, //
                                                                  VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
                                                                  {},
                                                                  0,
-                                                                 __PIPELINE_STAGE_ALL_SHADERS_BIT,
+                                                                 PIPELINE_STAGE_ALL_SHADERS_BIT,
                                                                  true,
                                                                  VK_DESCRIPTOR_TYPE_STORAGE_BUFFER};
 template <>
@@ -178,7 +174,7 @@ inline constexpr UsageInfo kUsageInfo<Usage::kStorageBufferRW> = {VK_ACCESS_2_SH
                                                                   VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
                                                                   {},
                                                                   0,
-                                                                  __PIPELINE_STAGE_ALL_SHADERS_BIT,
+                                                                  PIPELINE_STAGE_ALL_SHADERS_BIT,
                                                                   true,
                                                                   VK_DESCRIPTOR_TYPE_STORAGE_BUFFER};
 template <>
@@ -255,6 +251,18 @@ inline constexpr UsageInfo kUsageInfo<Usage::kTransferBufferDst> = {
     VK_PIPELINE_STAGE_2_COPY_BIT | VK_PIPELINE_STAGE_2_CLEAR_BIT, // Copy or Fill as DST
     false,
     {}};
+template <>
+inline constexpr UsageInfo kUsageInfo<Usage::kAccelerationStructureR> = {
+    .read_access_flags = VK_ACCESS_2_ACCELERATION_STRUCTURE_READ_BIT_KHR,
+    .write_access_flags = 0,
+    .resource_type = ResourceType::kBuffer,
+    .resource_creation_usages = 0,
+    .image_layout = {},
+    .specified_pipeline_stages = 0,
+    .optional_pipeline_stages =
+        PIPELINE_STAGE_ALL_SHADERS_BIT | VK_PIPELINE_STAGE_2_ACCELERATION_STRUCTURE_COPY_BIT_KHR,
+    .is_descriptor = true,
+    .descriptor_type = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR};
 template <typename IndexSequence> class UsageInfoTable;
 template <std::size_t... Indices> class UsageInfoTable<std::index_sequence<Indices...>> {
 private:

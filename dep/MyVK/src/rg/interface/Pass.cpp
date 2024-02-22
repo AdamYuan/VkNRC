@@ -12,13 +12,13 @@ const myvk::Ptr<myvk::DescriptorSetLayout> &GraphicsPassBase::GetVkDescriptorSet
 	return executor::Executor::GetVkDescriptorSetLayout(this);
 }
 const myvk::Ptr<myvk::DescriptorSet> &GraphicsPassBase::GetVkDescriptorSet() const {
-	return GetRenderGraphPtr()->GetExecutor()->GetVkDescriptorSet(this);
+	return executor::Executor::GetVkDescriptorSet(this);
 }
 const myvk::Ptr<myvk::DescriptorSetLayout> &ComputePassBase::GetVkDescriptorSetLayout() const {
 	return executor::Executor::GetVkDescriptorSetLayout(this);
 }
 const myvk::Ptr<myvk::DescriptorSet> &ComputePassBase::GetVkDescriptorSet() const {
-	return GetRenderGraphPtr()->GetExecutor()->GetVkDescriptorSet(this);
+	return executor::Executor::GetVkDescriptorSet(this);
 }
 
 const ImageBase *GraphicsPassBase::GetInputImage(const PoolKey &input_key) const {
