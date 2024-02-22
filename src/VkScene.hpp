@@ -13,7 +13,7 @@
 
 #include <myvk/AccelerationStructure.hpp>
 #include <myvk/Buffer.hpp>
-#include <myvk/Image.hpp>
+#include <myvk/CommandBuffer.hpp>
 #include <myvk/ImageView.hpp>
 #include <myvk/Queue.hpp>
 
@@ -27,6 +27,8 @@ public:
 		glm::mat3 rotate;
 		glm::vec3 translate;
 	};
+	static_assert(sizeof(Transform) == 12 * sizeof(float));
+
 	using Instance = Scene::Instance;
 
 private:
@@ -50,6 +52,7 @@ public:
 
 	inline uint32_t GetVertexCount() const { return m_vertex_buffer->GetSize() / sizeof(glm::vec3); }
 	inline uint32_t GetInstanceCount() const { return m_instances.size(); }
+	inline Instance GetInstance(uint32_t instance_id) const { return m_instances[instance_id]; }
 	inline auto GetInstanceRange() const { return std::views::iota((uint32_t)0, GetInstanceCount()); }
 	VkAccelerationStructureGeometryKHR GetBLASGeometry() const;
 	VkAccelerationStructureBuildRangeInfoKHR GetInstanceBLASBuildRange(uint32_t instance_id) const;
@@ -61,6 +64,16 @@ public:
 
 	inline const auto &GetQueuePtr() const { return m_queue_ptr; }
 	inline const myvk::Ptr<myvk::Device> &GetDevicePtr() const final { return m_queue_ptr->GetDevicePtr(); }
+
+	inline const auto &GetVertexBuffer() const { return m_vertex_buffer; }
+	inline const auto &GetVertexIndexBuffer() const { return m_vertex_index_buffer; }
+	inline const auto &GetTexcoordBuffer() const { return m_texcoord_buffer; }
+	inline const auto &GetTexcoordIndexBuffer() const { return m_texcoord_index_buffer; }
+	inline const auto &GetMaterialBuffer() const { return m_material_buffer; }
+	inline const auto &GetMaterialIDBuffer() const { return m_material_id_buffer; }
+
+	myvk::Ptr<myvk::Buffer> MakeTransformBuffer(VkBufferUsageFlags usages) const;
+	void UpdateTransformBuffer(const myvk::Ptr<myvk::Buffer> &transform_buffer) const;
 };
 
 #endif // VKNRC_VKSCENE_HPP

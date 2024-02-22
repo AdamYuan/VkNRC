@@ -8,7 +8,7 @@
 #include <thread>
 
 #include <glm/gtc/matrix_transform.hpp>
-#include <myvk/CommandBuffer.hpp>
+#include <myvk/Image.hpp>
 #include <spdlog/spdlog.h>
 #include <stb_image.h>
 
@@ -58,6 +58,21 @@ VkAccelerationStructureBuildRangeInfoKHR VkScene::GetInstanceBLASBuildRange(uint
 	    .transformOffset = 0,
 	};
 	return build_range;
+}
+
+myvk::Ptr<myvk::Buffer> VkScene::MakeTransformBuffer(VkBufferUsageFlags usages) const {
+	return myvk::Buffer::Create(
+	    GetDevicePtr(), GetInstanceCount() * sizeof(Transform),
+	    VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT, usages);
+}
+
+void VkScene::UpdateTransformBuffer(const myvk::Ptr<myvk::Buffer> &transform_buffer) const {
+	auto *ts = static_cast<glm::mat3x4 *>(transform_buffer->GetMappedData());
+	for (uint32_t i = 0; i < GetInstanceCount(); ++i) {
+		auto &t = GetTransform(i);
+		ts[i] = glm::transpose(glm::mat4x3{t.rotate[0], t.rotate[1], t.rotate[2], t.translate});
+		// Transpose it to avoid alignment issue
+	}
 }
 
 void VkScene::upload_buffers(const Scene &scene, std::span<const Material> materials) {

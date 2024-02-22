@@ -5,6 +5,8 @@ set(SHADER_HEADER
 )
 
 set(SHADER_SRC
+        vbuffer.frag
+        vbuffer.vert
 )
 
 set(SHADER_INCLUDE_PATH ${CMAKE_CURRENT_LIST_DIR}/include/shader)
@@ -12,7 +14,6 @@ set(SHADER_INCLUDE_PATH ${CMAKE_CURRENT_LIST_DIR}/include/shader)
 list(TRANSFORM SHADER_HEADER PREPEND ${SHADER_INCLUDE_PATH}/)
 
 find_program(GLSLC "glslc" REQUIRED)
-# IF (GLSLC)
 function(add_spirv_shader INPUT_FILE)
     add_custom_command(OUTPUT ${SHADER_INCLUDE_PATH}/${INPUT_FILE}.u32
             COMMAND glslc src/${INPUT_FILE} -I${SHADER_INCLUDE_PATH} -DGLSL -o ${SHADER_INCLUDE_PATH}/${INPUT_FILE}.u32 -mfmt=num --target-env=vulkan1.3 -O
@@ -24,7 +25,6 @@ endfunction()
 foreach (X IN LISTS SHADER_SRC)
     add_spirv_shader(${X})
 endforeach ()
-# ENDIF ()
 
 set(SHADER_U32)
 foreach (X IN LISTS SHADER_SRC)

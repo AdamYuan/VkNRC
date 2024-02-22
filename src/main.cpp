@@ -2,28 +2,13 @@
 #include <myvk/GLFWHelper.hpp>
 #include <myvk/ImGuiHelper.hpp>
 
-#include <myvk_rg/RenderGraph.hpp>
-#include <myvk_rg/pass/ImGuiPass.hpp>
-#include <myvk_rg/resource/SwapchainImage.hpp>
-
 #include <spdlog/spdlog.h>
 
+#include "Camera.hpp"
 #include "VkSceneTLAS.hpp"
+#include "rg/NRCRenderGraph.hpp"
 
 constexpr uint32_t kFrameCount = 3;
-
-class NRCRenderGraph : public myvk_rg::RenderGraphBase {
-public:
-	explicit NRCRenderGraph(const myvk::Ptr<myvk::FrameManager> &frame_manager)
-	    : RenderGraphBase(frame_manager->GetDevicePtr()) {
-		auto swapchain_image = CreateResource<myvk_rg::SwapchainImage>({"swapchain_image"}, frame_manager);
-		swapchain_image->SetLoadOp(VK_ATTACHMENT_LOAD_OP_CLEAR);
-		swapchain_image->SetClearColorValue({.float32 = {0.5f, 0.5f, 0.5f, 1.0f}});
-
-		auto imgui_pass = CreatePass<myvk_rg::ImGuiPass>({"imgui_pass"}, swapchain_image->Alias());
-		AddResult({"result"}, imgui_pass->GetImageOutput());
-	}
-};
 
 int main(int argc, char **argv) {
 	--argc, ++argv;
@@ -59,16 +44,26 @@ int main(int argc, char **argv) {
 	     VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME, VK_KHR_RAY_QUERY_EXTENSION_NAME});
 	myvk::ImGuiInit(window, myvk::CommandPool::Create(generic_queue));
 
+	auto camera = myvk::MakePtr<Camera>();
+
 	auto vk_scene = myvk::MakePtr<VkScene>(generic_queue, scene);
 	auto vk_scene_blas = myvk::MakePtr<VkSceneBLAS>(vk_scene);
 	auto vk_scene_tlas = myvk::MakePtr<VkSceneTLAS>(vk_scene_blas);
 
-	auto frame_manager = myvk::FrameManager::Create(generic_queue, present_queue, false, kFrameCount);
-	std::array<myvk::Ptr<NRCRenderGraph>, kFrameCount> render_graphs;
+	auto frame_manager = myvk::FrameManager::Create(generic_queue, present_queue, false, kFrameCount,
+	                                                VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
+	std::array<myvk::Ptr<rg::NRCRenderGraph>, kFrameCount> render_graphs;
 	for (auto &rg : render_graphs)
-		rg = myvk::MakePtr<NRCRenderGraph>(frame_manager);
+		rg = myvk::MakePtr<rg::NRCRenderGraph>(frame_manager, vk_scene_tlas, camera);
 
+	double prev_time = glfwGetTime();
 	while (!glfwWindowShouldClose(window)) {
+		double delta;
+		{
+			double cur_time = glfwGetTime();
+			delta = cur_time - prev_time;
+			prev_time = cur_time;
+		}
 		glfwPollEvents();
 
 		myvk::ImGuiNewFrame();
@@ -77,9 +72,12 @@ int main(int argc, char **argv) {
 		ImGui::End();
 		ImGui::Render();
 
+		camera->DragControl(window, delta);
+
 		if (frame_manager->NewFrame()) {
 			const auto &command_buffer = frame_manager->GetCurrentCommandBuffer();
 			auto &render_graph = render_graphs[frame_manager->GetCurrentFrame()];
+			render_graph->UpdateScene();
 
 			command_buffer->Begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 			render_graph->SetCanvasSize(frame_manager->GetExtent());

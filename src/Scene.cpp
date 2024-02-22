@@ -29,6 +29,15 @@ bool Scene::obj_load(const std::filesystem::path &filename, auto &&make_instance
 	// Read Vertices
 	m_vertices.resize(attrib.vertices.size() / 3);
 	std::ranges::copy(attrib.vertices, (float *)m_vertices.data());
+	{
+		AABB obj_aabb{};
+		for (const auto &vertex : m_vertices)
+			obj_aabb.Expand(vertex);
+		glm::vec3 obj_extent = obj_aabb.GetExtent(), obj_center = obj_aabb.GetCenter();
+		float inv_max_extent = 1.0f / glm::max(obj_extent.x, glm::max(obj_extent.y, obj_extent.z));
+		for (auto &vertex : m_vertices)
+			vertex = (vertex - obj_center) * inv_max_extent;
+	}
 
 	// Read Texcoords
 	m_texcoords.resize(attrib.texcoords.size() / 2);

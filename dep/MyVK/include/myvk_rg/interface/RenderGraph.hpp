@@ -44,6 +44,9 @@ public:
 		}
 	}
 	inline const VkExtent2D &GetCanvasSize() const { return m_canvas_size; }
+	template <std::floating_point Float = float> inline Float GetCanvasAspectRatio() const {
+		return Float(m_canvas_size.width) / Float(m_canvas_size.height);
+	}
 	inline const executor::Executor *GetExecutor() const { return m_executor.get(); }
 
 	void CmdExecute(const myvk::Ptr<myvk::CommandBuffer> &command_buffer) {

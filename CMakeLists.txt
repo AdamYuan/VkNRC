@@ -29,10 +29,15 @@ add_subdirectory(shader)
 
 add_executable(VkNRC
         src/main.cpp
+        src/Camera.cpp
         src/Scene.cpp
         src/VkScene.cpp
         src/VkSceneBLAS.cpp
         src/VkSceneTLAS.cpp
+
+        src/rg/NRCRenderGraph.cpp
+        src/rg/PathTracerPass.cpp
+        src/rg/VBufferPass.cpp
 )
 target_link_libraries(VkNRC PRIVATE dep shader)
 
