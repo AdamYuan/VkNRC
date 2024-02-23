@@ -15,7 +15,7 @@ if (MINGW)
     set(CMAKE_EXE_LINKER_FLAGS "-static-libgcc -static-libstdc++ -static")
 endif ()
 
-if (CMAKE_BUILD_TYPE STREQUAL "Release")
+if (CMAKE_BUILD_TYPE STREQUAL "Release" AND NOT MINGW)
     include(CheckIPOSupported)
     check_ipo_supported(RESULT IPO_SUPPORTED)
     if (IPO_SUPPORTED)

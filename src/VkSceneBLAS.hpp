@@ -20,6 +20,7 @@ private:
 
 public:
 	explicit VkSceneBLAS(const myvk::Ptr<VkScene> &scene_ptr);
+	inline ~VkSceneBLAS() final = default;
 	const myvk::Ptr<VkScene> &GetScenePtr() const { return m_scene_ptr; }
 	const auto &GetBLASs() const { return m_blas_s; }
 	const myvk::Ptr<myvk::Device> &GetDevicePtr() const final { return m_scene_ptr->GetDevicePtr(); }

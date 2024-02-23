@@ -49,6 +49,7 @@ private:
 
 public:
 	VkScene(const myvk::Ptr<myvk::Queue> &queue, const Scene &scene);
+	inline ~VkScene() final = default;
 
 	inline uint32_t GetVertexCount() const { return m_vertex_buffer->GetSize() / sizeof(glm::vec3); }
 	inline uint32_t GetInstanceCount() const { return m_instances.size(); }

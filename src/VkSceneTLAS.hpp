@@ -21,6 +21,7 @@ private:
 
 public:
 	explicit VkSceneTLAS(const myvk::Ptr<VkSceneBLAS> &scene_blas_ptr);
+	inline ~VkSceneTLAS() final = default;
 	const myvk::Ptr<myvk::Device> &GetDevicePtr() const final { return m_scene_ptr->GetDevicePtr(); }
 	const myvk::Ptr<VkScene> &GetScenePtr() const { return m_scene_ptr; }
 	inline void UpdateTLAS() { create_tlas(); }
