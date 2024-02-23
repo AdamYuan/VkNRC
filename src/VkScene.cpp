@@ -163,12 +163,11 @@ void VkScene::load_textures(const Scene &scene, auto &&set_material_texture_id) 
 
 			// Create Image and ImageView
 			VkExtent2D extent = {(uint32_t)width, (uint32_t)height};
-			auto image = myvk::Image::CreateTexture2D(
-			    device, extent, myvk::Image::QueryMipLevel(extent), VK_FORMAT_R8G8B8A8_SRGB,
-			    VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
+			auto image = myvk::Image::CreateTexture2D(device, extent, 1, VK_FORMAT_R8G8B8A8_SRGB,
+			                                          VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
 			m_textures[texture_id] = myvk::ImageView::Create(image, VK_IMAGE_VIEW_TYPE_2D);
 
-			// Copy buffer to image and generate mipmap
+			// Copy buffer to image
 			auto command_buffer = myvk::CommandBuffer::Create(command_pool);
 			command_buffer->Begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 			VkBufferImageCopy copy = {.imageSubresource = {.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
@@ -181,15 +180,11 @@ void VkScene::load_textures(const Scene &scene, auto &&set_material_texture_id) 
 			    image->GetDstMemoryBarriers({copy}, 0, VK_ACCESS_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
 			                                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL));
 			command_buffer->CmdCopy(staging_buffer, image, {copy});
-			command_buffer->CmdPipelineBarrier(VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, {}, {},
-			                                   image->GetDstMemoryBarriers({copy}, VK_ACCESS_TRANSFER_WRITE_BIT,
-			                                                               VK_ACCESS_TRANSFER_READ_BIT,
-			                                                               VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-			                                                               VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL));
-			command_buffer->CmdGenerateMipmap2D(image, VK_PIPELINE_STAGE_TRANSFER_BIT,
-			                                    VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_TRANSFER_READ_BIT,
-			                                    VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-			                                    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+			command_buffer->CmdPipelineBarrier(
+			    VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT, {}, {},
+			    image->GetDstMemoryBarriers({copy}, VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
+			                                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+			                                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
 			command_buffer->End();
 
 			auto fence = myvk::Fence::Create(device);

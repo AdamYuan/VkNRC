@@ -62,8 +62,7 @@ SceneResources NRCRenderGraph::create_scene_resources() {
 	    .material_ids =
 	        CreateResource<myvk_rg::InputBuffer>({"material_ids"}, m_scene_ptr->GetMaterialIDBuffer())->Alias(),
 	    .transforms = CreateResource<myvk_rg::InputBuffer>({"transforms"}, transform_buffer)->Alias(),
-	    .texture_sampler = myvk::Sampler::Create(GetDevicePtr(), VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_REPEAT,
-	                                             VK_SAMPLER_MIPMAP_MODE_LINEAR),
+	    .texture_sampler = myvk::Sampler::Create(GetDevicePtr(), VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_REPEAT),
 	};
 	for (uint32_t tex_id = 0; const auto &texture : m_scene_ptr->GetTextures())
 		sr.textures.push_back(CreateResource<myvk_rg::InputImage>({"texture", tex_id++}, texture)->Alias());

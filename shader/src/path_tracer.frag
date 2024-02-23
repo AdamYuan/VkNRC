@@ -54,7 +54,6 @@ void ResolvePrimaryRay(in const uint primitive_id,
 	vec3 vertex_0 = GetTransformedVertex(instance_id, primitive_id, 0);
 	vec3 vertex_1 = GetTransformedVertex(instance_id, primitive_id, 1);
 	vec3 vertex_2 = GetTransformedVertex(instance_id, primitive_id, 2);
-
 	vec3 v01 = vertex_1 - vertex_0, v02 = vertex_2 - vertex_0, v0o = ray_o - vertex_0;
 	vec3 n = cross(v01, v02);
 	vec3 q = cross(v0o, ray_d);
@@ -62,7 +61,6 @@ void ResolvePrimaryRay(in const uint primitive_id,
 	float u = d * dot(-q, v02);
 	float v = d * dot(q, v01);
 	vec3 barycentric = vec3(1.0 - u - v, u, v);
-
 	o_normal = normalize(n);
 	o_position = mat3(vertex_0, vertex_1, vertex_2) * barycentric;
 	o_texcoord = mat3x2(texcoord_0, texcoord_1, texcoord_2) * barycentric;
