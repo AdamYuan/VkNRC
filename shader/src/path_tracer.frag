@@ -1,4 +1,4 @@
-#version 450
+#version 460
 #extension GL_EXT_ray_tracing : enable
 #extension GL_EXT_ray_query : enable
 
@@ -70,6 +70,13 @@ vec3 GetMaterialAlbedo(in const Material mat, in const vec2 texcoord) {
 	return mat.albedo_texture_id == -1 ? mat.albedo : texture(uTextures[mat.albedo_texture_id], texcoord).rgb;
 }
 
+vec3 ToneMapFilmic_Hejl2015(in const vec3 hdr, in const float white_pt) {
+	vec4 vh = vec4(hdr, white_pt);
+	vec4 va = (1.425 * vh) + 0.05;
+	vec4 vf = (vh * va + 0.004) / ((vh * (va + 0.55) + 0.0491)) - 0.0821;
+	return vf.rgb / vf.w;
+}
+
 void main() {
 	uvec2 primitive_id_instance_id = subpassLoad(uPrimitiveID_InstanceID).rg;
 	uint primitive_id = primitive_id_instance_id.x, instance_id = primitive_id_instance_id.y;
@@ -83,5 +90,16 @@ void main() {
 	ResolvePrimaryRay(primitive_id, instance_id, uOrigin, normalize(vDir), position, normal, texcoord);
 	Material mat = GetMaterial(primitive_id);
 
-	oColor = vec4(GetMaterialAlbedo(mat, texcoord), 1.0);
+	rayQueryEXT ray_query;
+	rayQueryInitializeEXT(ray_query, uTLAS, gl_RayFlagsTerminateOnFirstHitEXT, 0xFF, position, 0.001,
+	                      normalize(vec3(1, 12, 2)), 4.0);
+
+	while (rayQueryProceedEXT(ray_query))
+		;
+
+	bool shadow = rayQueryGetIntersectionTypeEXT(ray_query, true) != gl_RayQueryCommittedIntersectionNoneEXT;
+
+	vec3 color = GetMaterialAlbedo(mat, texcoord) * (shadow ? 0.1 : 1.0);
+	color = ToneMapFilmic_Hejl2015(color, 3.2);
+	oColor = vec4(pow(color, vec3(1 / 2.2)), 1.0);
 }
