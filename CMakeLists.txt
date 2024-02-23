@@ -31,10 +31,12 @@ add_executable(VkNRC
         src/main.cpp
         src/Camera.cpp
         src/Scene.cpp
+        src/Sobol.cpp
+        src/BlueNoise.cpp
         src/VkScene.cpp
         src/VkSceneBLAS.cpp
         src/VkSceneTLAS.cpp
-        src/VkNRCResource.cpp
+        src/VkNRCState.cpp
 
         src/rg/NRCRenderGraph.cpp
         src/rg/PathTracerPass.cpp

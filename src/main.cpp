@@ -4,9 +4,9 @@
 
 #include <spdlog/spdlog.h>
 
-#include "Camera.hpp"
-#include "VkSceneTLAS.hpp"
 #include "rg/NRCRenderGraph.hpp"
+
+#include "Sobol.hpp"
 
 constexpr uint32_t kFrameCount = 3;
 
