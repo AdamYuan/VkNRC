@@ -9,7 +9,7 @@
 #include <cinttypes>
 #include <span>
 
-class BlueNoise {
+struct BlueNoise {
 	static std::span<const uint8_t, 256 * 256 * 2> Get256RG();
 };
 
