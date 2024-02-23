@@ -8,12 +8,15 @@
 
 namespace rg {
 
+namespace path_tracer_pass {
 struct PushConstant_Data {
 	glm::vec3 position;
 	glm::vec3 look;
 	glm::vec3 side;
 	glm::vec3 up;
 };
+} // namespace path_tracer_pass
+using path_tracer_pass::PushConstant_Data;
 
 PathTracerPass::PathTracerPass(myvk_rg::Parent parent, const PathTracerPass::Args &args)
     : myvk_rg::GraphicsPassBase(parent), m_camera_ptr(args.camera_ptr), m_scene_ptr(args.scene_ptr) {

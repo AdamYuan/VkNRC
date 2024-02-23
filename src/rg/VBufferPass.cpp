@@ -6,10 +6,13 @@
 
 namespace rg {
 
+namespace vbuffer_pass {
 struct PushConstant_Data {
 	glm::mat4 view_proj;
 	uint32_t primitive_base;
 };
+} // namespace vbuffer_pass
+using vbuffer_pass::PushConstant_Data;
 
 VBufferPass::VBufferPass(myvk_rg::Parent parent, const Args &args)
     : myvk_rg::GraphicsPassBase(parent), m_scene_ptr(args.scene_ptr), m_camera_ptr(args.camera_ptr) {

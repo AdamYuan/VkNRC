@@ -91,7 +91,7 @@ void main() {
 	Material mat = GetMaterial(primitive_id);
 
 	rayQueryEXT ray_query;
-	rayQueryInitializeEXT(ray_query, uTLAS, gl_RayFlagsTerminateOnFirstHitEXT, 0xFF, position, 0.001,
+	rayQueryInitializeEXT(ray_query, uTLAS, gl_RayFlagsTerminateOnFirstHitEXT, 0xFF, position, 1e-6,
 	                      normalize(vec3(1, 12, 2)), 4.0);
 
 	while (rayQueryProceedEXT(ray_query))
