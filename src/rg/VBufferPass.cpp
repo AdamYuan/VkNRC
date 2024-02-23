@@ -6,22 +6,16 @@
 
 namespace rg {
 
-VBufferPass::VBufferPass(myvk_rg::Parent parent, const myvk::Ptr<VkScene> &scene_ptr,
-                         const SceneResources &scene_resources, const myvk::Ptr<Camera> &camera_ptr)
-    : myvk_rg::GraphicsPassBase(parent), m_scene_ptr(scene_ptr), m_camera_ptr(camera_ptr) {
-	AddInput<myvk_rg::Usage::kVertexBuffer>({"vertices"}, scene_resources.vertices);
-	AddInput<myvk_rg::Usage::kVertexBuffer>({"transforms"}, scene_resources.transforms);
-	AddInput<myvk_rg::Usage::kIndexBuffer>({"vertex_indices"}, scene_resources.vertex_indices);
+struct PushConstant_Data {
+	glm::mat4 view_proj;
+	uint32_t primitive_base;
+};
 
-	/* AddDescriptorInput<myvk_rg::Usage::kStorageBufferR, VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT>(
-	    {0}, {"material_ids"}, scene_resources.material_ids);
-	AddDescriptorInput<myvk_rg::Usage::kStorageBufferR, VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT>(
-	    {1}, {"materials"}, scene_resources.materials);
-	for (uint32_t texture_id = 0; const auto &texture : scene_resources.textures) {
-	    AddDescriptorInput<myvk_rg::Usage::kSampledImage, VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT>(
-	        {2, texture_id}, {"textures", texture_id}, texture, scene_resources.texture_sampler);
-	    ++texture_id;
-	} */
+VBufferPass::VBufferPass(myvk_rg::Parent parent, const Args &args)
+    : myvk_rg::GraphicsPassBase(parent), m_scene_ptr(args.scene_ptr), m_camera_ptr(args.camera_ptr) {
+	AddInput<myvk_rg::Usage::kVertexBuffer>({"vertices"}, args.scene_resources.vertices);
+	AddInput<myvk_rg::Usage::kVertexBuffer>({"transforms"}, args.scene_resources.transforms);
+	AddInput<myvk_rg::Usage::kIndexBuffer>({"vertex_indices"}, args.scene_resources.vertex_indices);
 
 	// Primitive ID + Instance ID
 	auto v_buffer = CreateResource<myvk_rg::ManagedImage>({"v_buffer"}, VK_FORMAT_R32G32_UINT);
@@ -38,8 +32,8 @@ VBufferPass::VBufferPass(myvk_rg::Parent parent, const myvk::Ptr<VkScene> &scene
 void VBufferPass::CreatePipeline() {
 	auto &device = GetRenderGraphPtr()->GetDevicePtr();
 
-	auto pipeline_layout =
-	    myvk::PipelineLayout::Create(device, {}, {{VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(glm::mat4)}});
+	auto pipeline_layout = myvk::PipelineLayout::Create(
+	    device, {}, {{VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstant_Data)}});
 
 	constexpr uint32_t kVertSpv[] = {
 #include <shader/vbuffer.vert.u32>
@@ -66,7 +60,7 @@ void VBufferPass::CreatePipeline() {
 	     {.location = 3, .binding = 1, .format = VK_FORMAT_R32G32B32A32_SFLOAT, .offset = 8 * sizeof(float)}});
 	pipeline_state.m_input_assembly_state.Enable(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
 	pipeline_state.m_rasterization_state.Initialize(VK_POLYGON_MODE_FILL, VK_FRONT_FACE_COUNTER_CLOCKWISE,
-	                                                VK_CULL_MODE_BACK_BIT);
+	                                                VK_CULL_MODE_NONE);
 	pipeline_state.m_depth_stencil_state.Enable(VK_TRUE, VK_TRUE);
 	pipeline_state.m_multisample_state.Enable(VK_SAMPLE_COUNT_1_BIT);
 	pipeline_state.m_color_blend_state.Enable(1, VK_FALSE);
@@ -80,19 +74,25 @@ void VBufferPass::CreatePipeline() {
 }
 
 void VBufferPass::CmdExecute(const myvk::Ptr<myvk::CommandBuffer> &command_buffer) const {
-	glm::mat4 view_proj = m_camera_ptr->GetVkViewProjection(GetRenderGraphPtr()->GetCanvasAspectRatio(), 0.01f, 2.0f);
+	PushConstant_Data pc_data{
+	    .view_proj = m_camera_ptr->GetVkViewProjection(GetRenderGraphPtr()->GetCanvasAspectRatio(), 0.01f, 2.0f)};
 	std::array<VkBuffer, 2> vertex_buffers = {GetInputBuffer({"vertices"})->GetBufferView().buffer->GetHandle(),
 	                                          GetInputBuffer({"transforms"})->GetBufferView().buffer->GetHandle()};
 	std::array<VkDeviceSize, 2> vertex_buffer_offsets = {};
 
 	command_buffer->CmdBindPipeline(m_pipeline);
-	command_buffer->CmdPushConstants(m_pipeline->GetPipelineLayoutPtr(), VK_SHADER_STAGE_VERTEX_BIT, 0,
-	                                 sizeof(view_proj), &view_proj);
+	command_buffer->CmdPushConstants(
+	    m_pipeline->GetPipelineLayoutPtr(), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+	    offsetof(PushConstant_Data, view_proj), sizeof(pc_data.view_proj), &pc_data.view_proj);
 	vkCmdBindVertexBuffers(command_buffer->GetHandle(), 0, 2, vertex_buffers.data(), vertex_buffer_offsets.data());
 	command_buffer->CmdBindIndexBuffer(GetInputBuffer({"vertex_indices"})->GetBufferView().buffer, 0,
 	                                   VK_INDEX_TYPE_UINT32);
 	for (uint32_t instance_id : m_scene_ptr->GetInstanceRange()) {
 		auto instance = m_scene_ptr->GetInstance(instance_id);
+		pc_data.primitive_base = instance.first_index / 3;
+		command_buffer->CmdPushConstants(
+		    m_pipeline->GetPipelineLayoutPtr(), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+		    offsetof(PushConstant_Data, primitive_base), sizeof(pc_data.primitive_base), &pc_data.primitive_base);
 		command_buffer->CmdDrawIndexed(instance.index_count, 1, instance.first_index, 0, instance_id);
 	}
 }

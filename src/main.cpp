@@ -31,10 +31,12 @@ int main(int argc, char **argv) {
 	auto features = physical_device->GetDefaultFeatures();
 	features.vk12.bufferDeviceAddress = VK_TRUE;
 	features.vk12.hostQueryReset = VK_TRUE;
+	VkPhysicalDeviceRayQueryFeaturesKHR ray_query_features = {
+	    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR, .rayQuery = true};
 	VkPhysicalDeviceAccelerationStructureFeaturesKHR accel_features = {
 	    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR,
-	    .accelerationStructure = VK_TRUE,
-	};
+	    .pNext = &ray_query_features,
+	    .accelerationStructure = VK_TRUE};
 	features.vk13.pNext = &accel_features;
 	auto device = myvk::Device::Create(
 	    physical_device,
@@ -50,8 +52,7 @@ int main(int argc, char **argv) {
 	auto vk_scene_blas = myvk::MakePtr<VkSceneBLAS>(vk_scene);
 	auto vk_scene_tlas = myvk::MakePtr<VkSceneTLAS>(vk_scene_blas);
 
-	auto frame_manager = myvk::FrameManager::Create(generic_queue, present_queue, false, kFrameCount,
-	                                                VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
+	auto frame_manager = myvk::FrameManager::Create(generic_queue, present_queue, false, kFrameCount);
 	std::array<myvk::Ptr<rg::NRCRenderGraph>, kFrameCount> render_graphs;
 	for (auto &rg : render_graphs)
 		rg = myvk::MakePtr<rg::NRCRenderGraph>(frame_manager, vk_scene_tlas, camera);

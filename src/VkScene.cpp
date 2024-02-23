@@ -119,7 +119,7 @@ std::vector<VkScene::Material> VkScene::make_materials(const Scene &scene) {
 	std::vector<Material> materials;
 	materials.reserve(scene.GetMaterials().size());
 	for (const auto &material : scene.GetMaterials())
-		materials.push_back({.albedo = material.albedo});
+		materials.push_back({.albedo = material.albedo, .albedo_texture_id = -1u});
 	load_textures(scene, [&](uint32_t material_id, uint32_t texture_id) {
 		materials[material_id].albedo_texture_id = texture_id;
 	});

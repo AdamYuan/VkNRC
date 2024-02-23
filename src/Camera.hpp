@@ -16,7 +16,7 @@ public:
 	float yaw{0.0f}, pitch{0.0f};
 	float sensitive{0.005f}, speed{.5f}, fov{glm::pi<float>() / 3.f};
 
-	struct LookSideUp {
+	struct VkLookSideUp {
 		glm::vec3 look, side, up;
 	};
 
@@ -34,20 +34,20 @@ public:
 		ret[1][1] *= -1;
 		ret = glm::rotate(ret, -pitch, glm::vec3(1.0f, 0.0f, 0.0f));
 		ret = glm::rotate(ret, -yaw, glm::vec3(0.0f, 1.0f, 0.0f));
-		ret = glm::translate(ret, {position.x, -position.y, position.z});
+		ret = glm::translate(ret, -position);
 		return ret;
 	}
 	inline glm::vec3 GetLook() const {
 		float xz_len = glm::cos(pitch);
 		return glm::vec3{xz_len * glm::sin(yaw), glm::sin(pitch), xz_len * glm::cos(yaw)};
 	}
-	inline LookSideUp GetLookSideUp(float aspect_ratio) const {
+	inline VkLookSideUp GetVkLookSideUp(float aspect_ratio) const {
 		auto trans = glm::identity<glm::mat4>();
 		trans = glm::rotate(trans, yaw, glm::vec3(0.0f, 1.0f, 0.0f));
-		trans = glm::rotate(trans, pitch, glm::vec3(-1.0f, 0.0f, 0.0f));
+		trans = glm::rotate(trans, pitch, glm::vec3(1.0f, 0.0f, 0.0f));
 		float tg = glm::tan(fov * 0.5f);
-		glm::vec3 look = (trans * glm::vec4(0.0, 0.0, 1.0, 0.0));
-		glm::vec3 side = (trans * glm::vec4(1.0, 0.0, 0.0, 0.0));
+		glm::vec3 look = -trans[2];
+		glm::vec3 side = trans[0];
 		look = glm::normalize(look);
 		side = glm::normalize(side) * tg * aspect_ratio;
 		glm::vec3 up = glm::normalize(glm::cross(look, side)) * tg;

@@ -4,6 +4,7 @@
 
 #include "NRCRenderGraph.hpp"
 
+#include "PathTracerPass.hpp"
 #include "VBufferPass.hpp"
 
 #include <myvk_rg/pass/ImGuiPass.hpp>
@@ -21,15 +22,21 @@ NRCRenderGraph::NRCRenderGraph(const myvk::Ptr<myvk::FrameManager> &frame_manage
       m_scene_ptr(scene_tlas_ptr->GetScenePtr()) {
 	SceneResources scene_resources = create_scene_resources();
 
-	auto vbuffer_pass = CreatePass<VBufferPass>({"vbuffer_pass"}, m_scene_ptr, scene_resources, camera_ptr);
+	auto vbuffer_pass = CreatePass<VBufferPass>(
+	    {"vbuffer_pass"},
+	    VBufferPass::Args{.scene_ptr = m_scene_ptr, .scene_resources = scene_resources, .camera_ptr = camera_ptr});
 
 	auto swapchain_image = CreateResource<myvk_rg::SwapchainImage>({"swapchain_image"}, frame_manager);
 	swapchain_image->SetLoadOp(VK_ATTACHMENT_LOAD_OP_DONT_CARE);
 
-	auto blit_pass = CreatePass<myvk_rg::ImageBlitPass>({"blit_pass"}, vbuffer_pass->GetDepthOutput(),
-	                                                    swapchain_image->Alias(), VK_FILTER_NEAREST);
+	auto path_tracer_pass = CreatePass<PathTracerPass>(
+	    {"path_tracer_pass"}, PathTracerPass::Args{.vbuffer_image = vbuffer_pass->GetVBufferOutput(),
+	                                               .out_image = swapchain_image->Alias(),
+	                                               .scene_ptr = m_scene_ptr,
+	                                               .scene_resources = scene_resources,
+	                                               .camera_ptr = camera_ptr});
 
-	auto imgui_pass = CreatePass<myvk_rg::ImGuiPass>({"imgui_pass"}, blit_pass->GetDstOutput());
+	auto imgui_pass = CreatePass<myvk_rg::ImGuiPass>({"imgui_pass"}, path_tracer_pass->GetImageOutput());
 	AddResult({"result"}, imgui_pass->GetImageOutput());
 }
 

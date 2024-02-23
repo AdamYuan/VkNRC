@@ -2,23 +2,27 @@ cmake_minimum_required(VERSION 3.15)
 project(SE3306_Final)
 
 set(SHADER_HEADER
+        Config.glsl
 )
 
 set(SHADER_SRC
         vbuffer.frag
         vbuffer.vert
+        path_tracer.frag
+        path_tracer.vert
 )
 
-set(SHADER_INCLUDE_PATH ${CMAKE_CURRENT_LIST_DIR}/include/shader)
+set(SHADER_SOURCE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/src)
+set(SHADER_INCLUDE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/include/shader)
 
-list(TRANSFORM SHADER_HEADER PREPEND ${SHADER_INCLUDE_PATH}/)
+list(TRANSFORM SHADER_HEADER PREPEND ${SHADER_SOURCE_PATH}/)
 
 find_program(GLSLC "glslc" REQUIRED)
 function(add_spirv_shader INPUT_FILE)
     add_custom_command(OUTPUT ${SHADER_INCLUDE_PATH}/${INPUT_FILE}.u32
-            COMMAND glslc src/${INPUT_FILE} -I${SHADER_INCLUDE_PATH} -DGLSL -o ${SHADER_INCLUDE_PATH}/${INPUT_FILE}.u32 -mfmt=num --target-env=vulkan1.3 -O
+            COMMAND glslc src/${INPUT_FILE} -DGLSL -o ${SHADER_INCLUDE_PATH}/${INPUT_FILE}.u32 -mfmt=num --target-env=vulkan1.3 -O
             WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-            DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/${INPUT_FILE} ${SHADER_HEADER}
+            DEPENDS ${SHADER_SOURCE_PATH}/${INPUT_FILE} ${SHADER_HEADER}
     )
 endfunction()
 

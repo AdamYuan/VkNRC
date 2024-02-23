@@ -144,6 +144,15 @@ void Executor::compile(const interface::RenderGraphBase *p_render_graph, const m
 		                                              .metadata = m_p_compile_info->metadata,
 		                                              .schedule = m_p_compile_info->schedule,
 		                                              .vk_allocation = m_p_compile_info->vk_allocation});
+
+	VkRunner::Create({.render_graph = *p_render_graph,
+	                  .collection = m_p_compile_info->collection,
+	                  .dependency = m_p_compile_info->dependency,
+	                  .metadata = m_p_compile_info->metadata,
+	                  .schedule = m_p_compile_info->schedule,
+	                  .vk_allocation = m_p_compile_info->vk_allocation,
+	                  .vk_command = m_p_compile_info->vk_command,
+	                  .vk_descriptor = m_p_compile_info->vk_descriptor});
 }
 
 void Executor::CmdExecute(const interface::RenderGraphBase *p_render_graph,
