@@ -14,20 +14,24 @@ class Camera {
 public:
 	glm::vec3 position{0.0f, 0.0f, 0.0f};
 	float yaw{0.0f}, pitch{0.0f};
-	float sensitive{0.005f}, speed{.5f}, fov{glm::pi<float>() / 3.f};
+	float fov{glm::pi<float>() / 3.f};
+
+	inline bool operator==(const Camera &) const = default;
 
 	struct VkLookSideUp {
 		glm::vec3 look, side, up;
 	};
+	struct Control {
+		float sensitivity, speed;
+		glm::dvec2 prev_cursor_pos;
+	};
 
 private:
-	glm::dvec2 m_last_mouse_pos{0.0, 0.0};
-
 	void move_forward(float dist, float dir);
 
 public:
-	void DragControl(GLFWwindow *window, double delta);
-	void MoveControl(GLFWwindow *window, double delta);
+	bool DragControl(GLFWwindow *window, Control *p_control, double delta);
+	bool MoveControl(GLFWwindow *window, Control *p_control, double delta);
 
 	inline glm::mat4 GetVkViewProjection(float aspect_ratio, float near, float far) const {
 		glm::mat4 ret = glm::perspectiveZO(fov, aspect_ratio, near, far);

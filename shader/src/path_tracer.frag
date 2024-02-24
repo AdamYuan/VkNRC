@@ -97,8 +97,7 @@ Hit GetRayQueryHit(in const rayQueryEXT ray_query, in const vec3 ray_o, in const
 	vec3 vertex_2 = GetTransformedVertex(instance_id, primitive_id, 2);
 	vec3 normal = normalize(cross(vertex_1 - vertex_0, vertex_2 - vertex_0));
 
-	vec3 barycentric;
-	barycentric.yz = rayQueryGetIntersectionBarycentricsEXT(ray_query, true);
+	vec3 barycentric = vec3(0, rayQueryGetIntersectionBarycentricsEXT(ray_query, true));
 	barycentric.x = 1.0 - barycentric.y - barycentric.z;
 
 	Hit hit;
@@ -179,17 +178,22 @@ void main() {
 	uvec2 primitive_id_instance_id = subpassLoad(uPrimitiveID_InstanceID).rg;
 	uint primitive_id = primitive_id_instance_id.x, instance_id = primitive_id_instance_id.y;
 
+	ivec2 coord = ivec2(gl_FragCoord.xy);
+
 	vec3 color;
 	if (primitive_id == -1u)
 		color = kConstLight;
 	else {
-		ivec2 coord = ivec2(gl_FragCoord.xy);
 		vec2 noise = GetNoise(coord);
 
 		Hit hit = GetVBufferHit(primitive_id, instance_id, uOrigin, normalize(vDir));
 		color = PathTrace(hit, noise);
 	}
-	color = pow(ToneMapFilmic_Hejl2015(color, 3.2), vec3(1 / 2.2));
 
+	color += imageLoad(uResult, coord).rgb * float(uSampleCount);
+	color /= float(uSampleCount + 1);
+	imageStore(uResult, coord, vec4(color, 0));
+
+	color = pow(ToneMapFilmic_Hejl2015(color, 3.2), vec3(1 / 2.2));
 	oColor = vec4(color, 1.0);
 }

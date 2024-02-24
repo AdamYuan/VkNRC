@@ -47,6 +47,7 @@ int main(int argc, char **argv) {
 	myvk::ImGuiInit(window, myvk::CommandPool::Create(generic_queue));
 
 	auto camera = myvk::MakePtr<Camera>();
+	Camera::Control cam_control{.sensitivity = 0.005f, .speed = 0.5f, .prev_cursor_pos = {}};
 
 	auto vk_scene = myvk::MakePtr<VkScene>(generic_queue, scene);
 	auto vk_scene_blas = myvk::MakePtr<VkSceneBLAS>(vk_scene);
@@ -74,7 +75,8 @@ int main(int argc, char **argv) {
 		ImGui::End();
 		ImGui::Render();
 
-		camera->DragControl(window, delta);
+		if (camera->DragControl(window, &cam_control, delta))
+			vk_nrc_state->Reset();
 
 		if (frame_manager->NewFrame()) {
 			const auto &command_buffer = frame_manager->GetCurrentCommandBuffer();

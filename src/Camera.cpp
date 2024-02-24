@@ -9,13 +9,15 @@ void Camera::move_forward(float dist, float dir) {
 	position.z -= glm::cos(yaw + dir) * dist;
 }
 
-void Camera::DragControl(GLFWwindow *window, double delta) {
+bool Camera::DragControl(GLFWwindow *window, Control *p_control, double delta) {
+	Camera prev_cam = *this;
+
 	glm::dvec2 cur_pos;
 	glfwGetCursorPos(window, &cur_pos.x, &cur_pos.y);
 
 	if (!ImGui::GetCurrentContext()->NavWindow ||
 	    (ImGui::GetCurrentContext()->NavWindow->Flags & ImGuiWindowFlags_NoBringToFrontOnFocus)) {
-		auto delta_speed = float(delta * this->speed);
+		auto delta_speed = float(delta * p_control->speed);
 		if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
 			move_forward(delta_speed, 0.0f);
 		if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
@@ -31,8 +33,8 @@ void Camera::DragControl(GLFWwindow *window, double delta) {
 
 		if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT)) {
 			glfwGetCursorPos(window, &cur_pos.x, &cur_pos.y);
-			float offset_x = float(cur_pos.x - m_last_mouse_pos.x) * sensitive;
-			float offset_y = float(cur_pos.y - m_last_mouse_pos.y) * sensitive;
+			float offset_x = float(cur_pos.x - p_control->prev_cursor_pos.x) * p_control->sensitivity;
+			float offset_y = float(cur_pos.y - p_control->prev_cursor_pos.y) * p_control->sensitivity;
 
 			yaw -= offset_x;
 			pitch -= offset_y;
@@ -41,11 +43,15 @@ void Camera::DragControl(GLFWwindow *window, double delta) {
 			yaw = glm::mod(yaw, glm::pi<float>() * 2);
 		}
 	}
-	m_last_mouse_pos = cur_pos;
+	p_control->prev_cursor_pos = cur_pos;
+
+	return *this != prev_cam;
 }
 
-void Camera::MoveControl(GLFWwindow *window, double delta) {
-	auto delta_speed = float(delta * this->speed);
+bool Camera::MoveControl(GLFWwindow *window, Control *p_control, double delta) {
+	Camera prev_cam = *this;
+
+	auto delta_speed = float(delta * p_control->speed);
 	if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
 		move_forward(delta_speed, 0.0f);
 	if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
@@ -61,8 +67,8 @@ void Camera::MoveControl(GLFWwindow *window, double delta) {
 
 	glm::dvec2 cur_pos;
 	glfwGetCursorPos(window, &cur_pos.x, &cur_pos.y);
-	float offset_x = float(cur_pos.x - m_last_mouse_pos.x) * sensitive;
-	float offset_y = float(cur_pos.y - m_last_mouse_pos.y) * sensitive;
+	float offset_x = float(cur_pos.x - p_control->prev_cursor_pos.x) * p_control->sensitivity;
+	float offset_y = float(cur_pos.y - p_control->prev_cursor_pos.y) * p_control->sensitivity;
 
 	yaw -= offset_x;
 	pitch -= offset_y;
@@ -74,5 +80,7 @@ void Camera::MoveControl(GLFWwindow *window, double delta) {
 	glfwGetWindowSize(window, &w, &h);
 	glfwSetCursorPos(window, w * 0.5, h * 0.5);
 
-	m_last_mouse_pos = {w * 0.5, h * 0.5};
+	p_control->prev_cursor_pos = {w * 0.5, h * 0.5};
+
+	return *this != prev_cam;
 }
