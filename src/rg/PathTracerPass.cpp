@@ -16,7 +16,6 @@ struct PushConstant_Data {
 	alignas(sizeof(glm::vec4)) glm::vec3 up;
 	uint32_t samples;
 };
-static_assert(sizeof(VkExtent2D) == 2 * sizeof(uint32_t));
 } // namespace path_tracer_pass
 using path_tracer_pass::PushConstant_Data;
 

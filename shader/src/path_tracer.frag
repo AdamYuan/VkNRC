@@ -152,11 +152,11 @@ vec3 PathTrace(in const Hit start_hit, uint rng_state) {
 		vec3 dir = SampleDiffuse(normal, sample2, pdf);
 
 		rayQueryEXT ray_query;
-		rayQueryInitializeEXT(ray_query, uTLAS, gl_RayFlagsTerminateOnFirstHitEXT, 0xFF, origin, T_MIN, dir, T_MAX);
+		rayQueryInitializeEXT(ray_query, uTLAS, gl_RayFlagsOpaqueEXT, 0xFF, origin, T_MIN, dir, T_MAX);
 		while (rayQueryProceedEXT(ray_query))
 			;
 
-		if (rayQueryGetIntersectionTypeEXT(ray_query, true) != gl_RayQueryCommittedIntersectionNoneEXT) {
+		if (rayQueryGetIntersectionTypeEXT(ray_query, true) == gl_RayQueryCommittedIntersectionTriangleEXT) {
 			Hit hit = GetRayQueryHit(ray_query, origin, dir);
 			vec3 albedo = GetMaterialAlbedo(hit.material, hit.texcoord);
 			acc_color *= albedo; // * ndd * DIFFUSE_BRDF / pdf;
