@@ -78,7 +78,7 @@ void VBufferPass::CreatePipeline() {
 
 void VBufferPass::CmdExecute(const myvk::Ptr<myvk::CommandBuffer> &command_buffer) const {
 	PushConstant_Data pc_data{
-	    .view_proj = m_camera_ptr->GetVkViewProjection(GetRenderGraphPtr()->GetCanvasAspectRatio(), 0.01f, 2.0f)};
+	    .view_proj = m_camera_ptr->GetVkViewProjection(GetRenderGraphPtr()->GetCanvasAspectRatio(), 0.01f, 8.0f)};
 	std::array<VkBuffer, 2> vertex_buffers = {GetInputBuffer({"vertices"})->GetBufferView().buffer->GetHandle(),
 	                                          GetInputBuffer({"transforms"})->GetBufferView().buffer->GetHandle()};
 	std::array<VkDeviceSize, 2> vertex_buffer_offsets = {};

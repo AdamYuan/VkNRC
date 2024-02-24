@@ -64,6 +64,16 @@ bool Scene::obj_load(const std::filesystem::path &filename, auto &&make_instance
 
 	make_instance(shapes);
 
+	// Check empty
+	if (m_materials.empty()) {
+		spdlog::error("No materials");
+		return false;
+	}
+	if (m_texcoords.empty()) {
+		m_texcoords.emplace_back();
+		std::ranges::fill(m_texcoord_indices, 0);
+	}
+
 	return true;
 }
 

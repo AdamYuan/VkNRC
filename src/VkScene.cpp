@@ -76,7 +76,7 @@ void VkScene::UpdateTransformBuffer(const myvk::Ptr<myvk::Buffer> &transform_buf
 }
 
 void VkScene::upload_buffers(const Scene &scene, std::span<const Material> materials) {
-	auto device = m_queue_ptr->GetDevicePtr();
+	const auto &device = GetDevicePtr();
 
 	auto vertex_staging_buffer =
 	    myvk::Buffer::CreateStaging(device, scene.GetVertices().begin(), scene.GetVertices().end());
@@ -120,36 +120,56 @@ std::vector<VkScene::Material> VkScene::make_materials(const Scene &scene) {
 	materials.reserve(scene.GetMaterials().size());
 	for (const auto &material : scene.GetMaterials())
 		materials.push_back({.albedo = material.albedo, .albedo_texture_id = -1u});
-	load_textures(scene, [&](uint32_t material_id, uint32_t texture_id) {
-		materials[material_id].albedo_texture_id = texture_id;
-	});
+	load_textures<TexLoad{&Scene::Material::albedo_texture, &Material::albedo_texture_id}>(
+	    scene, [&](uint32_t material_id) -> Material & { return materials[material_id]; });
 	return materials;
 }
 
-void VkScene::load_textures(const Scene &scene, auto &&set_material_texture_id) {
-	const auto &device = m_queue_ptr->GetDevicePtr();
-	m_textures.resize(scene.GetMaterials().size());
+template <VkScene::TexLoad... Loads> void VkScene::load_textures(const Scene &scene, auto &&get_material) {
+	const auto &device = GetDevicePtr();
 
-	std::atomic_uint32_t atomic_material_id{0}, atomic_texture_id{0};
+	std::unordered_map<std::filesystem::path, uint32_t> path_id_map;
+	std::vector<std::filesystem::path> paths;
+
+	for (uint32_t mat_id = 0; mat_id < scene.GetMaterials().size(); ++mat_id)
+		(
+		    [&]() {
+			    const auto &path = scene.GetMaterials()[mat_id].*Loads.p_path;
+			    auto &dst_mat = get_material(mat_id);
+			    auto it = path_id_map.find(path);
+			    if (it != path_id_map.end()) {
+				    dst_mat.*Loads.p_id = it->second;
+				    return;
+			    }
+			    uint32_t path_id = paths.size();
+			    path_id_map[path] = path_id;
+			    paths.push_back(path);
+			    dst_mat.*Loads.p_id = path_id;
+		    }(),
+		    ...);
+
+	std::vector<uint32_t> path_id_texture_ids(paths.size());
+
+	m_textures.resize(paths.size());
+
+	std::atomic_uint32_t atomic_path_id{0}, atomic_texture_id{0};
 
 	const auto load_texture = [&]() -> void {
 		auto command_pool = myvk::CommandPool::Create(m_queue_ptr);
 		while (true) {
-			uint32_t material_id = atomic_material_id.fetch_add(1, std::memory_order_relaxed);
-			if (material_id >= scene.GetMaterials().size())
+			uint32_t path_id = atomic_path_id.fetch_add(1, std::memory_order_relaxed);
+			if (path_id >= paths.size())
 				break;
 
-			auto texture_filename = scene.GetMaterials()[material_id].albedo_texture;
+			const auto &path = paths[path_id];
 
 			// Load texture data from file
 			int width, height, channels;
 			stbi_uc *data;
-			if (texture_filename.empty() ||
-			    (data = stbi_load(texture_filename.string().c_str(), &width, &height, &channels, 4)) == nullptr) {
-				set_material_texture_id(material_id, -1);
-
-				if (!texture_filename.empty())
-					spdlog::warn("Texture {} fails to load", texture_filename.string());
+			if (path.empty() || (data = stbi_load(path.string().c_str(), &width, &height, &channels, 4)) == nullptr) {
+				if (!path.empty())
+					spdlog::warn("Texture {} fails to load", path.string());
+				path_id_texture_ids[path_id] = -1;
 				continue;
 			}
 			// Create staging buffer
@@ -159,7 +179,7 @@ void VkScene::load_textures(const Scene &scene, auto &&set_material_texture_id) 
 
 			// Assign TextureID
 			uint32_t texture_id = atomic_texture_id.fetch_add(1, std::memory_order_relaxed);
-			set_material_texture_id(material_id, texture_id);
+			path_id_texture_ids[path_id] = texture_id;
 
 			// Create Image and ImageView
 			VkExtent2D extent = {(uint32_t)width, (uint32_t)height};
@@ -191,7 +211,7 @@ void VkScene::load_textures(const Scene &scene, auto &&set_material_texture_id) 
 			command_buffer->Submit(fence);
 			fence->Wait();
 
-			spdlog::info("Texture {} loaded", texture_filename.string());
+			spdlog::info("Texture {} loaded", path.string());
 		}
 	};
 
@@ -205,4 +225,33 @@ void VkScene::load_textures(const Scene &scene, auto &&set_material_texture_id) 
 	// Pop empty textures
 	while (!m_textures.empty() && m_textures.back() == nullptr)
 		m_textures.pop_back();
+
+	// Set Texture ID
+	for (uint32_t mat_id = 0; mat_id < scene.GetMaterials().size(); ++mat_id)
+		(
+		    [&]() {
+			    auto &dst_mat = get_material(mat_id);
+			    dst_mat.*Loads.p_id = path_id_texture_ids[dst_mat.*Loads.p_id];
+		    }(),
+		    ...);
+
+	// If Textures are empty, insert an empty one
+	if (m_textures.empty()) {
+		auto image =
+		    myvk::Image::CreateTexture2D(device, {1, 1}, 1, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_USAGE_SAMPLED_BIT);
+		m_textures.push_back(myvk::ImageView::Create(image, VK_IMAGE_VIEW_TYPE_2D));
+
+		// Copy buffer to image
+		auto command_buffer = myvk::CommandBuffer::Create(myvk::CommandPool::Create(m_queue_ptr));
+		command_buffer->Begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+		command_buffer->CmdPipelineBarrier(
+		    VK_PIPELINE_STAGE_NONE, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, {}, {},
+		    {image->GetMemoryBarrier(VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, VK_IMAGE_LAYOUT_UNDEFINED,
+		                             VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)});
+		command_buffer->End();
+
+		auto fence = myvk::Fence::Create(device);
+		command_buffer->Submit(fence);
+		fence->Wait();
+	}
 }

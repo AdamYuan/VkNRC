@@ -42,7 +42,11 @@ private:
 
 	static_assert(sizeof(Material) == 4 * sizeof(float));
 
-	void load_textures(const Scene &scene, auto &&set_material_texture_id);
+	struct TexLoad {
+		std::filesystem::path Scene::Material::*p_path;
+		uint32_t Material::*p_id;
+	};
+	template <TexLoad... Loads> void load_textures(const Scene &scene, auto &&get_material);
 
 	std::vector<Material> make_materials(const Scene &scene);
 	void upload_buffers(const Scene &scene, std::span<const Material> materials);
