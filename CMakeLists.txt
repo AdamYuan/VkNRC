@@ -31,8 +31,8 @@ add_executable(VkNRC
         src/main.cpp
         src/Camera.cpp
         src/Scene.cpp
-        src/Sobol.cpp
-        src/BlueNoise.cpp
+        # src/Sobol.cpp
+        # src/BlueNoise.cpp
         src/VkScene.cpp
         src/VkSceneBLAS.cpp
         src/VkSceneTLAS.cpp

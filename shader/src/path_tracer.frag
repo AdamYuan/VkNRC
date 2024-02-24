@@ -1,6 +1,7 @@
 #version 460
 #extension GL_EXT_ray_tracing : enable
 #extension GL_EXT_ray_query : enable
+#define M_PI 3.1415926535897932384626433832795
 
 layout(constant_id = 0) const uint kTextureNum = 1024;
 
@@ -38,9 +39,7 @@ layout(binding = 8) uniform sampler2D uTextures[kTextureNum];
 // V-Buffer
 layout(input_attachment_index = 0, binding = 9) uniform usubpassInput uPrimitiveID_InstanceID;
 // NRC
-layout(binding = 10) uniform uuSobol { float uSobol[64]; };
-layout(binding = 11) uniform sampler2D uNoise256;
-layout(binding = 12, rgba32f) uniform image2D uResult;
+layout(binding = 10, rgba32f) uniform image2D uResult;
 
 mat3x4 GetTransform(in const uint instance_id) { return uTransforms[instance_id]; }
 vec3 GetVertex(in const uint primitive_id, in const uint vert_id) {
@@ -55,8 +54,14 @@ vec2 GetTexcoord(in const uint primitive_id, in const uint vert_id) {
 }
 Material GetMaterial(in const uint primitive_id) { return uMaterials[uMaterialIDs[primitive_id]]; }
 
-vec2 GetNoise(in const ivec2 i_frag_coord) { return texelFetch(uNoise256, i_frag_coord & 0xFF, 0).rg; }
-float GetSobol(in const uint idx) { return uSobol[idx]; }
+// Steps the RNG and returns a floating-point value between 0 and 1 inclusive.
+float RNGNext(inout uint rng_state) {
+	// Condensed version of pcg_output_rxs_m_xs_32_32, with simple conversion to floating-point [0,1].
+	rng_state = rng_state * 747796405 + 1;
+	uint word = ((rng_state >> ((rng_state >> 28) + 4)) ^ rng_state) * 277803737;
+	word = (word >> 22) ^ word;
+	return float(word) / 4294967295.0f;
+}
 
 Hit GetVBufferHit(in const uint primitive_id, in const uint instance_id, in const vec3 ray_o, in const vec3 ray_d) {
 	vec2 texcoord_0 = GetTexcoord(primitive_id, 0);
@@ -118,23 +123,22 @@ vec3 AlignDirection(in const vec3 dir, in const vec3 target) {
 	return dir.x * u + dir.y * v + dir.z * target;
 }
 
-#define PI 3.1415926535897932384626433832795
-#define DIFFUSE_BRDF (1.0 / PI)
+#define DIFFUSE_BRDF (1.0 / M_PI)
 vec3 SampleDiffuse(in const vec3 normal, in const vec2 samp, out float pdf) {
 	// cosine hemisphere sampling
-	float r = sqrt(samp.x), phi = 2 * PI * samp.y;
+	float r = sqrt(samp.x), phi = 2 * M_PI * samp.y;
 	vec3 d = vec3(r * cos(phi), r * sin(phi), sqrt(1.0 - samp.x));
-	// calculate pdf (dot(n, d) / PI)
-	pdf = d.z / PI;
+	// calculate pdf (dot(n, d) / M_PI)
+	pdf = d.z / M_PI;
 	return AlignDirection(d, normal);
 }
 float GetDiffusePDF(in const float norm_dot_dir) { return norm_dot_dir * DIFFUSE_BRDF; }
 
-const vec3 kConstLight = vec3(12, 8, 8);
+const vec3 kConstLight = vec3(10, 8, 8);
 
 #define T_MIN 1e-6
 #define T_MAX 4.0
-vec3 PathTrace(in const Hit start_hit, in const vec2 noise) {
+vec3 PathTrace(in const Hit start_hit, uint rng_state) {
 	vec3 acc_color = vec3(1), irradiance = vec3(0);
 	vec3 origin = start_hit.position, normal = start_hit.normal;
 
@@ -142,7 +146,7 @@ vec3 PathTrace(in const Hit start_hit, in const vec2 noise) {
 
 	float bsdf_pdf;
 	for (uint bounce = 0; bounce < 4; ++bounce) {
-		vec2 sample2 = fract(vec2(GetSobol(bounce << 1), GetSobol(bounce << 1 | 1)) + noise);
+		vec2 sample2 = vec2(RNGNext(rng_state), RNGNext(rng_state));
 
 		float pdf;
 		vec3 dir = SampleDiffuse(normal, sample2, pdf);
@@ -184,10 +188,10 @@ void main() {
 	if (primitive_id == -1u)
 		color = kConstLight;
 	else {
-		vec2 noise = GetNoise(coord);
-
 		Hit hit = GetVBufferHit(primitive_id, instance_id, uOrigin, normalize(vDir));
-		color = PathTrace(hit, noise);
+		// Seed on 256 x 256 Tile
+		uint seed = (((coord.y & 0xFF) << 8) | (coord.x & 0xFF)) + uSampleCount * ((1 << 16u) + 1);
+		color = PathTrace(hit, seed);
 	}
 
 	color += imageLoad(uResult, coord).rgb * float(uSampleCount);

@@ -11,9 +11,7 @@
 namespace rg {
 
 struct NRCResources {
-	myvk_rg::Buffer sobol;
-	myvk_rg::Image noise, result;
-	myvk::Ptr<myvk::Sampler> noise_sampler;
+	myvk_rg::Image result;
 };
 
 } // namespace rg

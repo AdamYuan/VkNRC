@@ -16,6 +16,7 @@ struct PushConstant_Data {
 	alignas(sizeof(glm::vec4)) glm::vec3 up;
 	uint32_t samples;
 };
+static_assert(sizeof(VkExtent2D) == 2 * sizeof(uint32_t));
 } // namespace path_tracer_pass
 using path_tracer_pass::PushConstant_Data;
 
@@ -47,12 +48,8 @@ PathTracerPass::PathTracerPass(myvk_rg::Parent parent, const PathTracerPass::Arg
 	// V-Buffer
 	AddInputAttachmentInput(0, {9}, {"v_buffer"}, args.vbuffer_image);
 	// NRC
-	AddDescriptorInput<myvk_rg::Usage::kUniformBuffer, VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT>(
-	    {10}, {"sobol"}, args.nrc_resources.sobol);
-	AddDescriptorInput<myvk_rg::Usage::kSampledImage, VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT>(
-	    {11}, {"noise"}, args.nrc_resources.noise, args.nrc_resources.noise_sampler);
 	AddDescriptorInput<myvk_rg::Usage::kStorageImageRW, VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT>(
-	    {12}, {"result"}, args.nrc_resources.result);
+	    {10}, {"result"}, args.nrc_resources.result);
 
 	AddColorAttachmentInput<myvk_rg::Usage::kColorAttachmentW>(0, {"out_in"}, args.out_image);
 }

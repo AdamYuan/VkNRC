@@ -1,9 +1,6 @@
 #version 450
 
-layout(push_constant) uniform uuPushConstant {
-	vec3 uOrigin, uLook, uSide, uUp;
-	uint uSampleCount;
-};
+layout(push_constant) uniform uuPushConstant { vec3 uOrigin, uLook, uSide, uUp; };
 
 layout(location = 0) out vec3 vDir;
 

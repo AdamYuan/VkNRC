@@ -50,8 +50,6 @@ void NRCRenderGraph::Update() const {
 	    GetResource<myvk_rg::InputBuffer>({"transforms"})->GetBufferView().buffer));
 
 	GetResource<myvk_rg::InputImage>({"result"})->SetVkImageView(m_nrc_state_ptr->GetResultImageView());
-	m_nrc_state_ptr->UpdateSobolBuffer(
-	    std::static_pointer_cast<myvk::Buffer>(GetResource<myvk_rg::InputBuffer>({"sobol"})->GetBufferView().buffer));
 }
 
 SceneResources NRCRenderGraph::create_scene_resources() {
@@ -78,13 +76,8 @@ SceneResources NRCRenderGraph::create_scene_resources() {
 }
 
 NRCResources NRCRenderGraph::create_nrc_resources() {
-	auto sobol_buffer = m_nrc_state_ptr->MakeSobolBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
-
 	NRCResources nr = {
-	    .sobol = CreateResource<myvk_rg::InputBuffer>({"sobol"}, sobol_buffer)->Alias(),
-	    .noise = CreateResource<myvk_rg::InputImage>({"noise"}, m_nrc_state_ptr->GetNoiseImageView())->Alias(),
 	    .result = CreateResource<myvk_rg::InputImage>({"result"}, m_nrc_state_ptr->GetResultImageView())->Alias(),
-	    .noise_sampler = myvk::Sampler::Create(GetDevicePtr(), VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_REPEAT),
 	};
 	return nr;
 }
