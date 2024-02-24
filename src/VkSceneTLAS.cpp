@@ -24,14 +24,16 @@ void VkSceneTLAS::create_instance_buffer() {
 void VkSceneTLAS::create_tlas() {
 	const auto &device = m_scene_ptr->GetDevicePtr();
 
-	for (uint32_t instance_id : m_scene_ptr->GetInstanceRange())
+	for (uint32_t primitive_id_base = 0; uint32_t instance_id : m_scene_ptr->GetInstanceRange()) {
 		m_p_instances[instance_id] = VkAccelerationStructureInstanceKHR{
 		    .transform = m_scene_ptr->GetVkTransform(instance_id),
-		    .instanceCustomIndex = instance_id,
+		    .instanceCustomIndex = primitive_id_base,
 		    .mask = 0xFFu,
 		    .instanceShaderBindingTableRecordOffset = 0,
 		    .flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR,
 		    .accelerationStructureReference = m_scene_blas_ptr->GetBLASs()[instance_id]->GetDeviceAddress()};
+		primitive_id_base += m_scene_ptr->GetInstance(instance_id).index_count / 3;
+	}
 
 	VkAccelerationStructureGeometryKHR geometry{
 	    .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR,

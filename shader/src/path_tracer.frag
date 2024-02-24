@@ -84,7 +84,9 @@ Hit GetVBufferHit(in const uint primitive_id, in const uint instance_id, in cons
 }
 
 Hit GetRayQueryHit(in const rayQueryEXT ray_query, in const vec3 ray_o, in const vec3 ray_d) {
-	uint primitive_id = rayQueryGetIntersectionPrimitiveIndexEXT(ray_query, true);
+	// Base PrimitiveID + Instance PrimitiveID
+	uint primitive_id = rayQueryGetIntersectionInstanceCustomIndexEXT(ray_query, true) +
+	                    rayQueryGetIntersectionPrimitiveIndexEXT(ray_query, true);
 	uint instance_id = rayQueryGetIntersectionInstanceIdEXT(ray_query, true);
 
 	vec2 texcoord_0 = GetTexcoord(primitive_id, 0);
@@ -96,8 +98,8 @@ Hit GetRayQueryHit(in const rayQueryEXT ray_query, in const vec3 ray_o, in const
 	vec3 normal = normalize(cross(vertex_1 - vertex_0, vertex_2 - vertex_0));
 
 	vec3 barycentric;
-	barycentric.xy = rayQueryGetIntersectionBarycentricsEXT(ray_query, true);
-	barycentric.z = 1 - barycentric.x - barycentric.y;
+	barycentric.yz = rayQueryGetIntersectionBarycentricsEXT(ray_query, true);
+	barycentric.x = 1.0 - barycentric.y - barycentric.z;
 
 	Hit hit;
 	hit.normal = dot(normal, ray_d) < 0 ? normal : -normal;
