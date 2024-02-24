@@ -194,8 +194,10 @@ void main() {
 		color = PathTrace(hit, seed);
 	}
 
-	color += imageLoad(uResult, coord).rgb * float(uSampleCount);
-	color /= float(uSampleCount + 1);
+	if (uSampleCount != 0) {
+		color += imageLoad(uResult, coord).rgb * float(uSampleCount);
+		color /= float(uSampleCount + 1);
+	}
 	imageStore(uResult, coord, vec4(color, 0));
 
 	color = pow(ToneMapFilmic_Hejl2015(color, 3.2), vec3(1 / 2.2));
