@@ -8,7 +8,7 @@
 
 #include "Sobol.hpp"
 
-constexpr uint32_t kFrameCount = 3;
+constexpr uint32_t kFrameCount = 3, kWidth = 1280, kHeight = 720;
 
 int main(int argc, char **argv) {
 	--argc, ++argv;
@@ -16,7 +16,7 @@ int main(int argc, char **argv) {
 		spdlog::error("No OBJ file");
 		return EXIT_FAILURE;
 	}
-	GLFWwindow *window = myvk::GLFWCreateWindow("VkNRC", 640, 480, true);
+	GLFWwindow *window = myvk::GLFWCreateWindow("VkNRC", kWidth, kHeight, true);
 
 	Scene scene = Scene::LoadOBJShapeInstanceSAH(argv[0], 7); // at most 128 instances
 	if (scene.Empty())
@@ -51,11 +51,12 @@ int main(int argc, char **argv) {
 	auto vk_scene = myvk::MakePtr<VkScene>(generic_queue, scene);
 	auto vk_scene_blas = myvk::MakePtr<VkSceneBLAS>(vk_scene);
 	auto vk_scene_tlas = myvk::MakePtr<VkSceneTLAS>(vk_scene_blas);
+	auto vk_nrc_state = myvk::MakePtr<VkNRCState>(generic_queue, VkExtent2D{kWidth, kHeight});
 
 	auto frame_manager = myvk::FrameManager::Create(generic_queue, present_queue, false, kFrameCount);
 	std::array<myvk::Ptr<rg::NRCRenderGraph>, kFrameCount> render_graphs;
 	for (auto &rg : render_graphs)
-		rg = myvk::MakePtr<rg::NRCRenderGraph>(frame_manager, vk_scene_tlas, camera);
+		rg = myvk::MakePtr<rg::NRCRenderGraph>(frame_manager, vk_scene_tlas, vk_nrc_state, camera);
 
 	double prev_time = glfwGetTime();
 	while (!glfwWindowShouldClose(window)) {
@@ -78,7 +79,9 @@ int main(int argc, char **argv) {
 		if (frame_manager->NewFrame()) {
 			const auto &command_buffer = frame_manager->GetCurrentCommandBuffer();
 			auto &render_graph = render_graphs[frame_manager->GetCurrentFrame()];
-			render_graph->UpdateScene();
+
+			vk_nrc_state->SetExtent(frame_manager->GetExtent());
+			render_graph->Update();
 
 			command_buffer->Begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 			render_graph->SetCanvasSize(frame_manager->GetExtent());
@@ -87,6 +90,9 @@ int main(int argc, char **argv) {
 
 			frame_manager->Render();
 		}
+
+		// Next Sample
+		vk_nrc_state->Next();
 	}
 
 	frame_manager->WaitIdle();

@@ -8,7 +8,9 @@
 
 #include "../Camera.hpp"
 #include "../VkScene.hpp"
+#include "../VkNRCState.hpp"
 #include "SceneResources.hpp"
+#include "NRCResources.hpp"
 #include <myvk_rg/RenderGraph.hpp>
 
 namespace rg {
@@ -20,12 +22,15 @@ public:
 		const myvk_rg::Image &out_image;
 		const myvk::Ptr<VkScene> &scene_ptr;
 		const SceneResources &scene_resources;
+		const myvk::Ptr<VkNRCState> &nrc_state_ptr;
+		const NRCResources &nrc_resources;
 		const myvk::Ptr<Camera> &camera_ptr;
 	};
 
 private:
 	myvk::Ptr<myvk::GraphicsPipeline> m_pipeline;
 	myvk::Ptr<VkScene> m_scene_ptr;
+	myvk::Ptr<VkNRCState> m_nrc_state_ptr;
 	myvk::Ptr<Camera> m_camera_ptr;
 
 public:

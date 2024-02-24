@@ -9,8 +9,8 @@
 #include <algorithm>
 #include <myvk/CommandBuffer.hpp>
 
-void VkNRCState::create_result_image(VkExtent2D extent) {
-	auto image = myvk::Image::CreateTexture2D(GetDevicePtr(), extent, 1, VK_FORMAT_R32G32B32A32_SFLOAT,
+void VkNRCState::create_result_image() {
+	auto image = myvk::Image::CreateTexture2D(GetDevicePtr(), m_extent, 1, VK_FORMAT_R32G32B32A32_SFLOAT,
 	                                          VK_IMAGE_USAGE_STORAGE_BIT);
 	m_result_view = myvk::ImageView::Create(image, VK_IMAGE_VIEW_TYPE_2D);
 
@@ -30,6 +30,7 @@ void VkNRCState::create_result_image(VkExtent2D extent) {
 void VkNRCState::create_noise_image() {
 	constexpr uint32_t kSize = 256;
 	const auto &kData = BlueNoise::Get256RG();
+
 	auto image = myvk::Image::CreateTexture2D(GetDevicePtr(), {kSize, kSize}, 1, VK_FORMAT_R8G8_UNORM,
 	                                          VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
 	m_noise_view = myvk::ImageView::Create(image, VK_IMAGE_VIEW_TYPE_2D);

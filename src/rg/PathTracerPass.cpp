@@ -10,16 +10,19 @@ namespace rg {
 
 namespace path_tracer_pass {
 struct PushConstant_Data {
-	glm::vec3 position;
-	glm::vec3 look;
-	glm::vec3 side;
-	glm::vec3 up;
+	alignas(sizeof(glm::vec4)) glm::vec3 position;
+	alignas(sizeof(glm::vec4)) glm::vec3 look;
+	alignas(sizeof(glm::vec4)) glm::vec3 side;
+	alignas(sizeof(glm::vec4)) glm::vec3 up;
+	uint32_t samples;
 };
 } // namespace path_tracer_pass
 using path_tracer_pass::PushConstant_Data;
 
 PathTracerPass::PathTracerPass(myvk_rg::Parent parent, const PathTracerPass::Args &args)
-    : myvk_rg::GraphicsPassBase(parent), m_camera_ptr(args.camera_ptr), m_scene_ptr(args.scene_ptr) {
+    : myvk_rg::GraphicsPassBase(parent), m_camera_ptr(args.camera_ptr), m_scene_ptr(args.scene_ptr),
+      m_nrc_state_ptr(args.nrc_state_ptr) {
+	// Scene
 	AddDescriptorInput<myvk_rg::Usage::kAccelerationStructureR, VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT>(
 	    {0}, {"tlas"}, args.scene_resources.tlas);
 	AddDescriptorInput<myvk_rg::Usage::kStorageBufferR, VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT>(
@@ -41,7 +44,16 @@ PathTracerPass::PathTracerPass(myvk_rg::Parent parent, const PathTracerPass::Arg
 		    {8, texture_id}, {"textures", texture_id}, texture, args.scene_resources.texture_sampler);
 		++texture_id;
 	}
+	// V-Buffer
 	AddInputAttachmentInput(0, {9}, {"v_buffer"}, args.vbuffer_image);
+	// NRC
+	AddDescriptorInput<myvk_rg::Usage::kUniformBuffer, VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT>(
+	    {10}, {"sobol"}, args.nrc_resources.sobol);
+	AddDescriptorInput<myvk_rg::Usage::kSampledImage, VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT>(
+	    {11}, {"noise"}, args.nrc_resources.noise, args.nrc_resources.noise_sampler);
+	AddDescriptorInput<myvk_rg::Usage::kStorageImageRW, VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT>(
+	    {12}, {"result"}, args.nrc_resources.result);
+
 	AddColorAttachmentInput<myvk_rg::Usage::kColorAttachmentW>(0, {"out_in"}, args.out_image);
 }
 
@@ -90,7 +102,8 @@ void PathTracerPass::CmdExecute(const myvk::Ptr<myvk::CommandBuffer> &command_bu
 		pc_data = {.position = m_camera_ptr->position,
 		           .look = look_side_up.look,
 		           .side = look_side_up.side,
-		           .up = look_side_up.up};
+		           .up = look_side_up.up,
+		           .samples = m_nrc_state_ptr->GetSampleCount()};
 	}
 	command_buffer->CmdBindPipeline(m_pipeline);
 	command_buffer->CmdBindDescriptorSets({GetVkDescriptorSet()}, m_pipeline);
