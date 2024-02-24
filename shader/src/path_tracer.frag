@@ -134,7 +134,7 @@ vec3 SampleDiffuse(in const vec3 normal, in const vec2 samp, out float pdf) {
 }
 float GetDiffusePDF(in const float norm_dot_dir) { return norm_dot_dir * DIFFUSE_BRDF; }
 
-const vec3 kConstLight = vec3(10, 8, 8);
+const vec3 kConstLight = vec3(10, 10, 10);
 
 #define T_MIN 1e-6
 #define T_MAX 4.0
