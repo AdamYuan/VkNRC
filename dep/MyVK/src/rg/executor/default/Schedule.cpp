@@ -17,6 +17,7 @@ Schedule Schedule::Create(const Args &args) {
 	s.make_barriers(args);
 	finalize_last_inputs(args);
 	s.make_output_barriers(args);
+	s.check_ext_read_only(args);
 	return s;
 }
 
@@ -321,6 +322,20 @@ void Schedule::make_output_barriers(const Args &args) {
 		                           .src_s = get_sched_info(p_resource).last_inputs,
 		                           .dst_s = {},
 		                           .type = BarrierType::kExtOutput});
+}
+
+void Schedule::check_ext_read_only(const Schedule::Args &args) {
+	for (const PassBase *p_pass : args.dependency.GetPasses())
+		for (const InputBase *p_input : Dependency::GetPassInputs(p_pass)) {
+			auto usage = p_input->GetUsage();
+			const ResourceBase *p_resource = Dependency::GetInputResource(p_input);
+			// Attachment and Layout Transition means implicit Writes
+			if (!UsageIsReadOnly(usage) || UsageIsAttachment(usage) ||
+			    UsageGetImageLayout(usage) != UsageGetImageLayout(GetLastInputs(p_resource)[0]->GetUsage())) {
+				// Set ext_read_only flag, only valid for External Resources
+				get_sched_info(p_resource).ext_read_only = false;
+			}
+		}
 }
 
 } // namespace myvk_rg_executor

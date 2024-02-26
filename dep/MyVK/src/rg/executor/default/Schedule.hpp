@@ -62,6 +62,8 @@ private:
 	static void update_first_inputs(const ResourceBase *p_resource, std::span<const InputBase *const> accesses);
 	static void finalize_last_inputs(const Schedule::Args &args);
 
+	void check_ext_read_only(const Schedule::Args &args);
+
 public:
 	static Schedule Create(const Args &args);
 	inline const auto &GetPassGroups() const { return m_pass_groups; }
@@ -72,6 +74,12 @@ public:
 	static const auto &GetLastInputs(const ResourceBase *p_resource) { return get_sched_info(p_resource).last_inputs; }
 	static const auto &GetFirstInputs(const ResourceBase *p_resource) {
 		return get_sched_info(p_resource).first_inputs;
+	}
+	static bool IsExtReadOnly(const ExternalResource auto *p_ext_resource) {
+		return get_sched_info(p_ext_resource).ext_read_only;
+	}
+	static VkImageLayout GetLastVkLayout(const ResourceBase *p_resource) {
+		return UsageGetImageLayout(GetLastInputs(p_resource)[0]->GetUsage());
 	}
 };
 

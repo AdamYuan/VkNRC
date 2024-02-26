@@ -115,6 +115,7 @@ struct ResourceInfo {
 
 	private:
 		std::vector<const InputBase *> first_inputs, last_inputs;
+		bool ext_read_only{true};
 	} schedule{};
 
 	// VkAllocation
@@ -137,12 +138,14 @@ struct ResourceInfo {
 		bool ext_changed{};
 	} vk_allocation{};
 
+	// VkRunner
 	struct {
 		friend class VkRunner;
+
+	private:
 		myvk::Ptr<myvk::ImageView> ext_image_view_cache{};
 		BufferView ext_buffer_view_cache{};
 		bool ext_changed{};
-	private:
 	} vk_runner{};
 };
 

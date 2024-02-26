@@ -20,6 +20,26 @@ inline static State GetAttachmentLoadOpState(const ResourceBase *p_attachment, V
 	return {.stage_mask = VkAttachmentLoadOpStages(vk_format),
 	        .access_mask = VkAttachmentLoadOpAccesses(vk_load_op, vk_format)};
 }
+inline static State GetLastInputSrcState(const ResourceBase *p_resource) {
+	return GetSrcState(Schedule::GetLastInputs(p_resource));
+}
+inline static State GetLastInputSrcState(const ResourceBase *p_resource, VkAttachmentStoreOp vk_store_op) {
+	State src_state = GetLastInputSrcState(p_resource);
+	// If LastInput is Attachment, add StoreOp States
+	if (UsageIsAttachment(Schedule::GetLastInputs(p_resource)[0]->GetUsage()))
+		src_state |= GetAttachmentStoreOpState(p_resource, vk_store_op);
+	return src_state;
+}
+inline static State GetLastInputValidateSrcState(const ResourceBase *p_resource) {
+	return GetValidateSrcState(Schedule::GetLastInputs(p_resource));
+}
+inline static State GetLastInputValidateSrcState(const ResourceBase *p_resource, VkAttachmentStoreOp vk_store_op) {
+	State src_state = GetLastInputValidateSrcState(p_resource);
+	// If LastInput is Attachment, add StoreOp Stages
+	if (UsageIsAttachment(Schedule::GetLastInputs(p_resource)[0]->GetUsage()))
+		src_state.stage_mask |= GetAttachmentStoreOpState(p_resource, vk_store_op).stage_mask;
+	return src_state;
+}
 
 class VkCommand::Builder {
 private:
@@ -134,24 +154,26 @@ private:
 			p_dst_att_data->load_op = load_op;
 
 			for (const ResourceBase *p_resource : alias_resources) {
-				const auto &last_inputs = Schedule::GetLastInputs(p_resource);
-
 				SubpassDependency *p_subpass_dep;
-				if (auto [p_src_pass_data, p_src_att_data, src_subpass] = get_p_pass_att_data(p_resource, last_inputs);
+				if (auto [p_src_pass_data, p_src_att_data, src_subpass] =
+				        get_p_pass_att_data(p_resource, Schedule::GetLastInputs(p_resource));
 				    p_src_att_data && p_src_pass_data == p_dst_pass_data) {
 					// From the same RenderPass
 					p_subpass_dep = &p_dst_pass_data->subpass_deps[{src_subpass, dst_subpass}];
-				} else
+					AddBarrier(p_subpass_dep, GetLastInputValidateSrcState(p_resource), dst_state);
+				} else {
+					// Not the same RenderPass
 					p_subpass_dep = &p_dst_pass_data->subpass_deps[{VK_SUBPASS_EXTERNAL, dst_subpass}];
-
-				AddBarrier(p_subpass_dep, GetValidateSrcState(last_inputs), dst_state);
+					AddBarrier(p_subpass_dep, GetLastInputValidateSrcState(p_resource, VK_ATTACHMENT_STORE_OP_NONE),
+					           dst_state);
+				}
 			}
 		} else {
 			auto *p_barrier = get_p_barrier_data(pass_barrier);
 			// Might need explicit initial image layout transition
 			AddDstBarrier(p_barrier, dst_state);
 			for (const ResourceBase *p_resource : alias_resources)
-				AddSrcBarrier(p_barrier, GetValidateSrcState(Schedule::GetLastInputs(p_resource)));
+				AddSrcBarrier(p_barrier, GetLastInputValidateSrcState(p_resource, VK_ATTACHMENT_STORE_OP_NONE));
 		}
 	}
 
@@ -197,27 +219,29 @@ private:
 		    overloaded([](const AttachmentImage auto *p_att_image) { return p_att_image->GetLoadOp(); },
 		               [](auto &&) { return VK_ATTACHMENT_LOAD_OP_DONT_CARE; });
 		const auto get_ext_src = overloaded(
-		    [](const ExternalResource auto *p_ext_image) -> State {
-			    switch (p_ext_image->GetSyncType()) {
+		    [](const ExternalResource auto *p_ext_resource) -> State {
+			    switch (p_ext_resource->GetSyncType()) {
 			    case myvk_rg::ExternalSyncType::kLastFrame:
-				    return GetSrcState(Schedule::GetLastInputs(p_ext_image));
+				    return Schedule::IsExtReadOnly(p_ext_resource)
+				               ? State{.layout = Schedule::GetLastVkLayout(p_ext_resource)}
+				               : GetLastInputSrcState(p_ext_resource, VK_ATTACHMENT_STORE_OP_STORE);
 			    case myvk_rg::ExternalSyncType::kCustom:
-				    return {.stage_mask = p_ext_image->GetSrcPipelineStages(),
-				            .access_mask = p_ext_image->GetSrcAccessFlags(),
-				            .layout = p_ext_image->GetSrcLayout()};
+				    return {.stage_mask = p_ext_resource->GetSrcPipelineStages(),
+				            .access_mask = p_ext_resource->GetSrcAccessFlags(),
+				            .layout = p_ext_resource->GetSrcLayout()};
 			    }
 			    return {};
 		    },
 		    [](auto &&) -> State { return {}; });
 		const auto get_ext_dst = overloaded(
-		    [](const ExternalResource auto *p_ext_image) -> State {
-			    switch (p_ext_image->GetSyncType()) {
+		    [](const ExternalResource auto *p_ext_resource) -> State {
+			    switch (p_ext_resource->GetSyncType()) {
 			    case myvk_rg::ExternalSyncType::kLastFrame:
-				    return {.layout = UsageGetImageLayout(Schedule::GetLastInputs(p_ext_image)[0]->GetUsage())};
+				    return {.layout = Schedule::GetLastVkLayout(p_ext_resource)};
 			    case myvk_rg::ExternalSyncType::kCustom:
-				    return {.stage_mask = p_ext_image->GetDstPipelineStages(),
-				            .access_mask = p_ext_image->GetDstAccessFlags(),
-				            .layout = p_ext_image->GetDstLayout()};
+				    return {.stage_mask = p_ext_resource->GetDstPipelineStages(),
+				            .access_mask = p_ext_resource->GetDstAccessFlags(),
+				            .layout = p_ext_resource->GetDstLayout()};
 			    }
 			    return {};
 		    },
@@ -287,7 +311,7 @@ private:
 			// Deal-with UNDEFINED final_layout
 			for (auto &[p_image, att_data] : att_data_s)
 				if (att_data.final_layout == VK_IMAGE_LAYOUT_UNDEFINED)
-					att_data.final_layout = UsageGetImageLayout(Schedule::GetLastInputs(p_image)[0]->GetUsage());
+					att_data.final_layout = Schedule::GetLastVkLayout(p_image);
 		}
 	}
 
