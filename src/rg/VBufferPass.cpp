@@ -84,9 +84,9 @@ void VBufferPass::CmdExecute(const myvk::Ptr<myvk::CommandBuffer> &command_buffe
 	std::array<VkDeviceSize, 2> vertex_buffer_offsets = {};
 
 	command_buffer->CmdBindPipeline(m_pipeline);
-	command_buffer->CmdPushConstants(
-	    m_pipeline->GetPipelineLayoutPtr(), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-	    offsetof(PushConstant_Data, view_proj), sizeof(pc_data.view_proj), &pc_data.view_proj);
+	command_buffer->CmdPushConstants(m_pipeline->GetPipelineLayoutPtr(),
+	                                 VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0,
+	                                 sizeof(pc_data.view_proj), &pc_data.view_proj);
 	vkCmdBindVertexBuffers(command_buffer->GetHandle(), 0, 2, vertex_buffers.data(), vertex_buffer_offsets.data());
 	command_buffer->CmdBindIndexBuffer(GetInputBuffer({"vertex_indices"})->GetBufferView().buffer, 0,
 	                                   VK_INDEX_TYPE_UINT32);

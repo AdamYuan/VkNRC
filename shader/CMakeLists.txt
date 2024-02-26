@@ -2,7 +2,10 @@ cmake_minimum_required(VERSION 3.15)
 project(SE3306_Final)
 
 set(SHADER_HEADER
-        Config.glsl
+        Constant.glsl
+        RNG.glsl
+        Sample.glsl
+        LambertBRDF.glsl
 )
 
 set(SHADER_SRC
