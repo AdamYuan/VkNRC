@@ -16,7 +16,6 @@
 #include <variant>
 
 namespace myvk_rg {
-enum class BufferMapType : uint8_t { kNone, kRandom, kSeqWrite };
 enum class ExternalSyncType : uint8_t {
 	kCustom,   // Sync with the stages and accesses (and layouts) specified
 	kLastFrame // Sync with (Load) LastFrame's Resource (LastFrame can be in another RenderGraph)
@@ -259,27 +258,14 @@ public:
 };
 
 class ManagedBuffer final : public BufferBase, public ManagedResourceInfo<ManagedBuffer, VkDeviceSize> {
-private:
-	BufferMapType m_map_type{BufferMapType::kNone};
-
 public:
 	inline constexpr ResourceState GetState() const { return ResourceState::kManaged; }
 	inline constexpr ResourceClass GetClass() const { return ResourceClass::kManagedBuffer; }
 
-	inline BufferMapType GetMapType() const { return m_map_type; }
-	inline void SetMapType(BufferMapType map_type) {
-		if (m_map_type != map_type) {
-			m_map_type = map_type;
-			EmitEvent(Event::kBufferMapTypeChanged);
-		}
-	}
 	inline explicit ManagedBuffer(Parent parent) : BufferBase(parent, ResourceState::kManaged) {}
 	~ManagedBuffer() override = default;
 
 	const BufferView &GetBufferView() const;
-
-	void *GetMappedData() const;
-	template <typename T = void> inline T *GetMappedData() const { return reinterpret_cast<T *>(GetMappedData()); }
 };
 
 class SubImageSize {
@@ -408,8 +394,6 @@ public:
 	inline constexpr ResourceClass GetClass() const { return ResourceClass::kCombinedBuffer; }
 
 	const BufferView &GetBufferView() const;
-	void *GetMappedData() const;
-	template <typename T = void> inline T *GetMappedData() const { return reinterpret_cast<T *>(GetMappedData()); }
 
 	inline CombinedBuffer(Parent parent, std::vector<OutputBufferAlias> &&buffers)
 	    : BufferBase(parent, ResourceState::kCombined), m_buffers(std::move(buffers)) {}

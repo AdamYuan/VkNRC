@@ -157,11 +157,6 @@ void Metadata::combine_buffer(const Metadata::Args &args, const InternalBuffer a
 		    },
 		    // Managed Buffer
 		    [&](const ManagedBuffer *p_managed_buffer) -> VkDeviceSize {
-			    // Maintain MapType
-			    myvk_rg::BufferMapType &map_type = alloc.map_type;
-			    if (map_type != myvk_rg::BufferMapType::kNone && map_type != p_managed_buffer->GetMapType())
-				    Throw(error::ImageNotMerge{.key = p_managed_buffer->GetGlobalKey()});
-			    map_type = p_managed_buffer->GetMapType();
 			    return get_size(args, p_managed_buffer->GetSize());
 		    })(p_view_buffer);
 	};

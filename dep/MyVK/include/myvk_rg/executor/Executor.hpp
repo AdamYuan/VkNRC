@@ -29,8 +29,6 @@ public:
 	static const myvk::Ptr<myvk::ImageView> &GetVkImageView(const interface::CombinedImage *p_combined_image);
 	static const myvk_rg::interface::BufferView &GetBufferView(const interface::ManagedBuffer *p_managed_buffer);
 	static const myvk_rg::interface::BufferView &GetBufferView(const interface::CombinedBuffer *p_combined_buffer);
-	static void *GetMappedData(const interface::ManagedBuffer *p_managed_buffer);
-	static void *GetMappedData(const interface::CombinedBuffer *p_combined_buffer);
 	static uint32_t GetSubpass(const interface::PassBase *p_pass);
 	const myvk::Ptr<myvk::RenderPass> &GetVkRenderPass(const interface::PassBase *p_pass) const;
 	static const myvk::Ptr<myvk::DescriptorSetLayout> &GetVkDescriptorSetLayout(const interface::PassBase *p_pass);

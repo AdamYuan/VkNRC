@@ -12,8 +12,6 @@ const myvk::Ptr<myvk::ImageView> &ManagedImage::GetVkImageView() const {
 }
 
 const BufferView &ManagedBuffer::GetBufferView() const { return executor::Executor::GetBufferView(this); }
-void *ManagedBuffer::GetMappedData() const { return executor::Executor::GetMappedData(this); }
 const BufferView &CombinedBuffer::GetBufferView() const { return executor::Executor::GetBufferView(this); }
-void *CombinedBuffer::GetMappedData() const { return executor::Executor::GetMappedData(this); }
 
 } // namespace myvk_rg::interface
