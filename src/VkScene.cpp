@@ -119,8 +119,17 @@ std::vector<VkScene::Material> VkScene::make_materials(const Scene &scene) {
 	std::vector<Material> materials;
 	materials.reserve(scene.GetMaterials().size());
 	for (const auto &material : scene.GetMaterials())
-		materials.push_back({.albedo = material.albedo, .albedo_texture_id = -1u});
-	load_textures<TexLoad{&Scene::Material::albedo_texture, &Material::albedo_texture_id}>(
+		materials.push_back({
+		    .diffuse = material.diffuse,
+		    .diffuse_texture_id = -1u,
+		    .specular = material.specular,
+		    .specular_texture_id = -1u,
+		    .metallic = material.metallic,
+		    .roughness = material.roughness,
+		    .ior = material.ior,
+		});
+	load_textures<TexLoad{&Scene::Material::diffuse_texture, &Material::diffuse_texture_id},
+	              TexLoad{&Scene::Material::specular_texture, &Material::specular_texture_id}>(
 	    scene, [&](uint32_t material_id) -> Material & { return materials[material_id]; });
 	return materials;
 }

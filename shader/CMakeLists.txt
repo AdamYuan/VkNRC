@@ -6,6 +6,7 @@ set(SHADER_HEADER
         RNG.glsl
         Sample.glsl
         LambertBRDF.glsl
+        CookTorranceBRDF.glsl
 )
 
 set(SHADER_SRC

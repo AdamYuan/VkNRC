@@ -2,7 +2,7 @@
 #extension GL_EXT_ray_tracing : enable
 #extension GL_EXT_ray_query : enable
 
-#include "LambertBRDF.glsl"
+#include "CookTorranceBRDF.glsl"
 
 layout(constant_id = 0) const uint kTextureNum = 1024;
 
@@ -15,8 +15,11 @@ struct Vertex {
 	float x, y, z;
 };
 struct Material {
-	vec3 albedo;
-	uint albedo_texture_id;
+	vec3 diffuse;
+	uint diffuse_texture_id;
+	vec3 specular;
+	uint specular_texture_id;
+	float metallic, roughness, ior;
 };
 struct Ray {
 	vec3 o, d;
@@ -57,15 +60,6 @@ vec2 GetTexcoord(in const uint primitive_id, in const uint vert_id) {
 	return uTexcoords[uTexcoordIndices[primitive_id * 3 + vert_id]];
 }
 Material GetMaterial(in const uint primitive_id) { return uMaterials[uMaterialIDs[primitive_id]]; }
-
-// Steps the RNG and returns a floating-point value between 0 and 1 inclusive.
-float RNGNext(inout uint rng_state) {
-	// Condensed version of pcg_output_rxs_m_xs_32_32, with simple conversion to floating-point [0,1].
-	rng_state = rng_state * 747796405 + 1;
-	uint word = ((rng_state >> ((rng_state >> 28) + 4)) ^ rng_state) * 277803737;
-	word = (word >> 22) ^ word;
-	return float(word) / 4294967295.0f;
-}
 
 Hit GetVBufferHit(in const uint primitive_id, in const uint instance_id, in const Ray ray) {
 	vec2 texcoord_0 = GetTexcoord(primitive_id, 0);
@@ -117,22 +111,41 @@ Hit GetRayQueryHit(in const rayQueryEXT ray_query, in const Ray ray) {
 	return hit;
 }
 
-vec3 GetHitAlbedo(in const Hit hit) {
-	return hit.material.albedo_texture_id == -1 ? hit.material.albedo
-	                                            : texture(uTextures[hit.material.albedo_texture_id], hit.texcoord).rgb;
+vec3 GetHitDiffuse(in const Hit hit) {
+	return hit.material.diffuse_texture_id == -1
+	           ? hit.material.diffuse
+	           : texture(uTextures[hit.material.diffuse_texture_id], hit.texcoord).rgb;
+}
+vec3 GetHitSpecular(in const Hit hit) {
+	return hit.material.specular_texture_id == -1
+	           ? hit.material.specular
+	           : texture(uTextures[hit.material.specular_texture_id], hit.texcoord).rgb;
+}
+
+float Luminance(in const vec3 c) { return 0.212671 * c.x + 0.715160 * c.y + 0.072169 * c.z; }
+CookTorranceBRDFArgs GetHitBRDFArgs(in const Hit hit) {
+	CookTorranceBRDFArgs args;
+	args.diffuse = GetHitDiffuse(hit);
+	args.specular = GetHitSpecular(hit);
+	float diffuse_lumi = Luminance(args.diffuse);
+	float specular_lumi = Luminance(args.specular);
+	args.metallic = specular_lumi / (diffuse_lumi + specular_lumi);
+	args.roughness = max(hit.material.roughness, 0.001);
+	args.ior = max(hit.material.ior, 1.5);
+	return args;
 }
 
 const vec3 kConstLight = vec3(10, 10, 10);
 
-void PathTraceBRDFStep(in const Hit hit, inout Ray io_ray, inout vec3 io_accumulate) {
-	vec3 albedo = GetHitAlbedo(hit);
-	LambertBRDFArgs brdf_args = LambertBRDFArgs(albedo);
-
-	float sample_pdf;
-	vec3 sample_dir = LambertSample(brdf_args, -io_ray.d, hit.normal, sample_pdf);
-	vec3 brdf = LambertBRDF(brdf_args, sample_dir, -io_ray.d, hit.normal); // sample_dir is incidence dir
-	io_accumulate *= brdf * abs(dot(hit.normal, sample_dir)) / sample_pdf;
-	io_ray = Ray(hit.position, sample_dir);
+bool PathTraceBRDFStep(in const Hit hit, inout Ray io_ray, inout vec3 io_accumulate) {
+	CookTorranceBRDFArgs brdf_args = GetHitBRDFArgs(hit);
+	vec4 sample_dir_pdf = CookTorranceSample(brdf_args, -io_ray.d, hit.normal);
+	vec3 brdf = CookTorranceBRDF(brdf_args, sample_dir_pdf.xyz, -io_ray.d, hit.normal); // sample_dir is incidence dir
+	if (sample_dir_pdf.w == 0)
+		return false;
+	io_accumulate *= brdf * abs(dot(hit.normal, sample_dir_pdf.xyz)) / sample_dir_pdf.w;
+	io_ray = Ray(hit.position, sample_dir_pdf.xyz);
+	return true;
 }
 
 #define T_MIN 1e-6
@@ -150,7 +163,8 @@ vec3 PathTrace(Hit hit, Ray ray) {
 
 		if (rayQueryGetIntersectionTypeEXT(ray_query, true) == gl_RayQueryCommittedIntersectionTriangleEXT) {
 			hit = GetRayQueryHit(ray_query, ray);
-			PathTraceBRDFStep(hit, ray, accumulate);
+			if (!PathTraceBRDFStep(hit, ray, accumulate))
+				break;
 		} else
 			return accumulate * kConstLight;
 	}
@@ -182,6 +196,8 @@ void main() {
 
 		color = PathTrace(hit, ray);
 	}
+
+	color = any(isnan(color)) ? vec3(0) : max(color, vec3(0));
 
 	if (uSampleCount != 0) {
 		color += imageLoad(uResult, coord).rgb * float(uSampleCount);

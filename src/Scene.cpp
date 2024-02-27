@@ -49,9 +49,15 @@ bool Scene::obj_load(const std::filesystem::path &filename, auto &&make_instance
 	m_materials.reserve(materials.size());
 	for (const auto &material : materials)
 		m_materials.push_back({
-		    .albedo = {material.diffuse[0], material.diffuse[1], material.diffuse[2]},
-		    .albedo_texture = material.diffuse_texname.empty() ? std::filesystem::path{}
-		                                                       : filename.parent_path() / material.diffuse_texname,
+		    .diffuse = {material.diffuse[0], material.diffuse[1], material.diffuse[2]},
+		    .diffuse_texture = material.diffuse_texname.empty() ? std::filesystem::path{}
+		                                                        : filename.parent_path() / material.diffuse_texname,
+		    .specular = {material.specular[0], material.specular[1], material.specular[2]},
+		    .specular_texture = material.specular_texname.empty() ? std::filesystem::path{}
+		                                                          : filename.parent_path() / material.specular_texname,
+		    .metallic = material.metallic,
+		    .roughness = material.roughness,
+		    .ior = material.ior,
 		});
 
 	for (const tinyobj::shape_t &shape : shapes)

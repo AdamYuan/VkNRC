@@ -20,8 +20,11 @@
 class VkScene final : public myvk::DeviceObjectBase {
 public:
 	struct Material {
-		glm::vec3 albedo;
-		uint32_t albedo_texture_id;
+		alignas(sizeof(glm::vec4)) glm::vec3 diffuse;
+		uint32_t diffuse_texture_id;
+		alignas(sizeof(glm::vec4)) glm::vec3 specular;
+		uint32_t specular_texture_id;
+		float metallic, roughness, ior;
 	};
 	struct Transform {
 		glm::mat3 rotate;
@@ -39,8 +42,6 @@ private:
 	myvk::Ptr<myvk::Buffer> m_material_buffer, m_material_id_buffer;
 	std::vector<myvk::Ptr<myvk::ImageView>> m_textures;
 	std::vector<Transform> m_transforms;
-
-	static_assert(sizeof(Material) == 4 * sizeof(float));
 
 	struct TexLoad {
 		std::filesystem::path Scene::Material::*p_path;

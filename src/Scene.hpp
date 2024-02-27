@@ -13,8 +13,11 @@
 class Scene {
 public:
 	struct Material {
-		glm::vec3 albedo;
-		std::filesystem::path albedo_texture;
+		glm::vec3 diffuse;
+		std::filesystem::path diffuse_texture;
+		glm::vec3 specular;
+		std::filesystem::path specular_texture;
+		float metallic, roughness, ior;
 	};
 	struct Instance {
 		uint32_t first_index, index_count;
