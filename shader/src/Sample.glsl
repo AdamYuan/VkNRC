@@ -4,12 +4,6 @@
 #include "Constant.glsl"
 #include "RNG.glsl"
 
-float SchlickWeight(in const float u) {
-	float m = clamp(1.0 - u, 0.0, 1.0);
-	float m2 = m * m;
-	return m2 * m2 * m;
-}
-
 vec3 AlignDir(in const vec3 n, in const vec3 d) {
 	vec3 u = normalize(cross(abs(n.x) > .01 ? vec3(0, 1, 0) : vec3(1, 0, 0), n));
 	vec3 v = cross(n, u);

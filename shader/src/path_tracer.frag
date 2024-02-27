@@ -122,14 +122,10 @@ vec3 GetHitSpecular(in const Hit hit) {
 	           : texture(uTextures[hit.material.specular_texture_id], hit.texcoord).rgb;
 }
 
-float Luminance(in const vec3 c) { return 0.212671 * c.x + 0.715160 * c.y + 0.072169 * c.z; }
 CookTorranceBRDFArgs GetHitBRDFArgs(in const Hit hit) {
 	CookTorranceBRDFArgs args;
 	args.diffuse = GetHitDiffuse(hit);
 	args.specular = GetHitSpecular(hit);
-	float diffuse_lumi = Luminance(args.diffuse);
-	float specular_lumi = Luminance(args.specular);
-	args.metallic = specular_lumi / (diffuse_lumi + specular_lumi);
 	args.roughness = max(hit.material.roughness, 0.001);
 	args.ior = max(hit.material.ior, 1.5);
 	return args;
@@ -137,13 +133,17 @@ CookTorranceBRDFArgs GetHitBRDFArgs(in const Hit hit) {
 
 const vec3 kConstLight = vec3(10, 10, 10);
 
+bool IsValidRGB(in const vec3 rgb) { return !any(isnan(rgb)) && !any(isinf(rgb)) && !any(lessThan(rgb, vec3(0))); }
+
 bool PathTraceBRDFStep(in const Hit hit, inout Ray io_ray, inout vec3 io_accumulate) {
 	CookTorranceBRDFArgs brdf_args = GetHitBRDFArgs(hit);
 	vec4 sample_dir_pdf = CookTorranceSample(brdf_args, -io_ray.d, hit.normal);
-	vec3 brdf = CookTorranceBRDF(brdf_args, sample_dir_pdf.xyz, -io_ray.d, hit.normal); // sample_dir is incidence dir
 	if (sample_dir_pdf.w == 0)
 		return false;
+	vec3 brdf = CookTorranceBRDF(brdf_args, sample_dir_pdf.xyz, -io_ray.d, hit.normal); // sample_dir is incidence dir
 	io_accumulate *= brdf * abs(dot(hit.normal, sample_dir_pdf.xyz)) / sample_dir_pdf.w;
+	if (!IsValidRGB(io_accumulate))
+		return false;
 	io_ray = Ray(hit.position, sample_dir_pdf.xyz);
 	return true;
 }
@@ -151,9 +151,10 @@ bool PathTraceBRDFStep(in const Hit hit, inout Ray io_ray, inout vec3 io_accumul
 #define T_MIN 1e-6
 #define T_MAX 4.0
 vec3 PathTrace(Hit hit, Ray ray) {
-	vec3 accumulate = vec3(1);
+	vec3 accumulate = vec3(1), irradiance = vec3(0);
 
-	PathTraceBRDFStep(hit, ray, accumulate);
+	if (!PathTraceBRDFStep(hit, ray, accumulate))
+		return irradiance;
 
 	for (uint bounce = 0; bounce < 4; ++bounce) {
 		rayQueryEXT ray_query;
@@ -165,10 +166,12 @@ vec3 PathTrace(Hit hit, Ray ray) {
 			hit = GetRayQueryHit(ray_query, ray);
 			if (!PathTraceBRDFStep(hit, ray, accumulate))
 				break;
-		} else
-			return accumulate * kConstLight;
+		} else {
+			irradiance += accumulate * kConstLight;
+			break;
+		}
 	}
-	return vec3(0);
+	return irradiance;
 }
 
 vec3 ToneMapFilmic_Hejl2015(in const vec3 hdr, in const float white_pt) {
@@ -197,8 +200,7 @@ void main() {
 		color = PathTrace(hit, ray);
 	}
 
-	color = any(isnan(color)) ? vec3(0) : max(color, vec3(0));
-
+	color = IsValidRGB(color) ? color : vec3(0);
 	if (uSampleCount != 0) {
 		color += imageLoad(uResult, coord).rgb * float(uSampleCount);
 		color /= float(uSampleCount + 1);
