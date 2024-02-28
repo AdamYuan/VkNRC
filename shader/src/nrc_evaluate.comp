@@ -1,0 +1,14 @@
+#version 460
+#extension GL_KHR_cooperative_matrix : enable
+layout(local_size_x = 128, local_size_y = 1, local_size_z = 1) in;
+
+#include "NRCRecord.glsl"
+
+layout(std430, binding = 0) readonly buffer uuEvalRecords { PackedNRCEvalRecord uEvalRecords[]; };
+layout(std430, binding = 1) readonly buffer uuWeights { uvec4 uWeights[]; };
+
+shared uvec4 s_neurons[64 * 128 / 8]; // 64 * 128 float16_t
+
+void main() {
+	uvec4 weights[16 * 64 / 8]; // 16 * 64 float16_t
+}

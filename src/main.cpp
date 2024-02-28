@@ -31,8 +31,12 @@ int main(int argc, char **argv) {
 	auto features = physical_device->GetDefaultFeatures();
 	features.vk12.bufferDeviceAddress = VK_TRUE;
 	features.vk12.hostQueryReset = VK_TRUE;
+	VkPhysicalDeviceCooperativeMatrixFeaturesKHR cooperative_matrix_features = {
+	    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_COOPERATIVE_MATRIX_FEATURES_KHR, .cooperativeMatrix = VK_TRUE};
 	VkPhysicalDeviceRayQueryFeaturesKHR ray_query_features = {
-	    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR, .rayQuery = true};
+	    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR,
+	    .pNext = &cooperative_matrix_features,
+	    .rayQuery = VK_TRUE};
 	VkPhysicalDeviceAccelerationStructureFeaturesKHR accel_features = {
 	    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR,
 	    .pNext = &ray_query_features,
@@ -43,7 +47,8 @@ int main(int argc, char **argv) {
 	    myvk::GenericPresentQueueSelector{&generic_queue, myvk::Surface::Create(instance, window), &present_queue},
 	    features,
 	    {VK_KHR_SWAPCHAIN_EXTENSION_NAME, VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME,
-	     VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME, VK_KHR_RAY_QUERY_EXTENSION_NAME});
+	     VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME, VK_KHR_RAY_QUERY_EXTENSION_NAME,
+	     VK_KHR_COOPERATIVE_MATRIX_EXTENSION_NAME});
 	myvk::ImGuiInit(window, myvk::CommandPool::Create(generic_queue));
 
 	auto camera = myvk::MakePtr<Camera>();

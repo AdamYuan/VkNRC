@@ -9,6 +9,10 @@
 #include <algorithm>
 #include <myvk/CommandBuffer.hpp>
 
+void VkNRCState::create_weight_buffer() {
+
+}
+
 void VkNRCState::create_result_image() {
 	auto image = myvk::Image::CreateTexture2D(GetDevicePtr(), m_extent, 1, VK_FORMAT_R32G32B32A32_SFLOAT,
 	                                          VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_STORAGE_BIT);

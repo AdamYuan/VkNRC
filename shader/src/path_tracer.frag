@@ -3,6 +3,7 @@
 #extension GL_EXT_ray_query : enable
 
 #include "CookTorranceBRDF.glsl"
+#include "NRCRecord.glsl"
 
 layout(constant_id = 0) const uint kTextureNum = 1024;
 
@@ -187,12 +188,14 @@ void main() {
 
 	ivec2 coord = ivec2(gl_FragCoord.xy);
 
+	vec2 sph;
 	vec3 color;
 	if (primitive_id == -1u)
 		color = kConstLight;
 	else {
 		Ray ray = Ray(uOrigin, normalize(vDir));
 		Hit hit = GetVBufferHit(primitive_id, instance_id, ray);
+		sph = NRCSphEncode(hit.normal);
 		// Seed on 256 x 256 Tile
 		uint seed = (((coord.y & 0xFF) << 8) | (coord.x & 0xFF)) + uSampleCount * ((1 << 16u) + 1);
 		RNGSetState(seed);
@@ -209,4 +212,5 @@ void main() {
 
 	color = pow(ToneMapFilmic_Hejl2015(color, 3.2), vec3(1 / 2.2));
 	oColor = vec4(color, 1.0);
+	oColor = vec4(sph, 0, 1);
 }

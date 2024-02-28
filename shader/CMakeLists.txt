@@ -7,6 +7,7 @@ set(SHADER_HEADER
         Sample.glsl
         LambertBRDF.glsl
         CookTorranceBRDF.glsl
+        NRCRecord.glsl
 )
 
 set(SHADER_SRC
@@ -14,6 +15,7 @@ set(SHADER_SRC
         vbuffer.vert
         path_tracer.frag
         path_tracer.vert
+        nrc_evaluate.comp
 )
 
 set(SHADER_SOURCE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/src)

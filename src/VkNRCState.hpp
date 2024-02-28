@@ -14,12 +14,15 @@
 
 class VkNRCState final : public myvk::DeviceObjectBase {
 private:
+	inline static constexpr uint32_t kNNHiddenLayers = 5, kNNWidth = 64;
 	myvk::Ptr<myvk::Queue> m_queue_ptr;
+	myvk::Ptr<myvk::Buffer> m_weights;
 	myvk::Ptr<myvk::ImageView> m_result_view;
 	VkExtent2D m_extent{};
 	uint32_t m_samples{};
 
 	void create_result_image();
+	void create_weight_buffer();
 
 public:
 	inline VkNRCState(const myvk::Ptr<myvk::Queue> &queue_ptr, VkExtent2D extent) : m_queue_ptr(queue_ptr) {
