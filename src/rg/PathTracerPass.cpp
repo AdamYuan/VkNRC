@@ -14,8 +14,8 @@ struct PushConstant_Data {
 	alignas(sizeof(glm::vec4)) glm::vec3 look;
 	alignas(sizeof(glm::vec4)) glm::vec3 side;
 	alignas(sizeof(glm::vec4)) glm::vec3 up;
+	uint32_t seed;
 	alignas(sizeof(VkExtent2D)) VkExtent2D extent;
-	uint32_t samples;
 };
 } // namespace path_tracer_pass
 using path_tracer_pass::PushConstant_Data;
@@ -51,8 +51,6 @@ PathTracerPass::PathTracerPass(myvk_rg::Parent parent, const PathTracerPass::Arg
 	    myvk::Sampler::Create(GetRenderGraphPtr()->GetDevicePtr(), VK_FILTER_NEAREST,
 	                          VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_SAMPLER_MIPMAP_MODE_NEAREST, 0.0f));
 	// NRC
-	AddDescriptorInput<myvk_rg::Usage::kStorageImageRW, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>({10}, {"accumulate"},
-	                                                                                            args.accumulate_image);
 	AddDescriptorInput<myvk_rg::Usage::kStorageImageW, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>(
 	    {11}, {"color"}, CreateResource<myvk_rg::ManagedImage>({"color"}, VK_FORMAT_R32G32B32A32_SFLOAT)->Alias());
 	AddDescriptorInput<myvk_rg::Usage::kStorageBufferRW, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>({12}, {"eval_count"},
@@ -86,8 +84,8 @@ void PathTracerPass::CmdExecute(const myvk::Ptr<myvk::CommandBuffer> &command_bu
 		           .look = look_side_up.look,
 		           .side = look_side_up.side,
 		           .up = look_side_up.up,
-		           .extent = extent,
-		           .samples = m_nrc_state_ptr->GetSampleCount()};
+		           .seed = m_nrc_state_ptr->GetSeed(),
+		           .extent = extent};
 	}
 	command_buffer->CmdBindPipeline(m_pipeline);
 	command_buffer->CmdBindDescriptorSets({GetVkDescriptorSet()}, m_pipeline);

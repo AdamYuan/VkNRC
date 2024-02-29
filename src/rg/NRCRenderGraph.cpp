@@ -5,6 +5,7 @@
 #include "NRCRenderGraph.hpp"
 
 #include "PathTracerPass.hpp"
+#include "ScreenPass.hpp"
 #include "VBufferPass.hpp"
 
 #include <myvk_rg/pass/ImGuiPass.hpp>
@@ -33,7 +34,6 @@ NRCRenderGraph::NRCRenderGraph(const myvk::Ptr<myvk::FrameManager> &frame_manage
 	                                               .scene_ptr = m_scene_ptr,
 	                                               .scene_resources = scene_resources,
 	                                               .nrc_state_ptr = m_nrc_state_ptr,
-	                                               .accumulate_image = nrc_resources.accumulate,
 	                                               .eval_count = nrc_resources.eval_record_count,
 	                                               .eval_records = nrc_resources.eval_records,
 	                                               .batch_train_counts = nrc_resources.train_batch_record_counts,
@@ -43,10 +43,12 @@ NRCRenderGraph::NRCRenderGraph(const myvk::Ptr<myvk::FrameManager> &frame_manage
 	auto swapchain_image = CreateResource<myvk_rg::SwapchainImage>({"swapchain_image"}, frame_manager);
 	swapchain_image->SetLoadOp(VK_ATTACHMENT_LOAD_OP_DONT_CARE);
 
-	auto blit_pass = CreatePass<myvk_rg::ImageBlitPass>({"blit_pass"}, path_tracer_pass->GetAccumulateOutput(),
-	                                                    swapchain_image->Alias(), VK_FILTER_NEAREST);
-
-	auto imgui_pass = CreatePass<myvk_rg::ImGuiPass>({"imgui_pass"}, blit_pass->GetDstOutput());
+	auto screen_pass =
+	    CreatePass<ScreenPass>({"screen_pass"}, ScreenPass::Args{.nrc_state_ptr = m_nrc_state_ptr,
+	                                                             .accumulate_image = nrc_resources.accumulate,
+	                                                             .color_image = path_tracer_pass->GetColorOutput(),
+	                                                             .screen_image = swapchain_image->Alias()});
+	auto imgui_pass = CreatePass<myvk_rg::ImGuiPass>({"imgui_pass"}, screen_pass->GetScreenOutput());
 	AddResult({"present"}, imgui_pass->GetImageOutput());
 }
 

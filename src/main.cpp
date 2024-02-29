@@ -59,9 +59,7 @@ int main(int argc, char **argv) {
 	auto vk_scene_tlas = myvk::MakePtr<VkSceneTLAS>(vk_scene_blas);
 	auto vk_nrc_state = myvk::MakePtr<VkNRCState>(generic_queue, VkExtent2D{kWidth, kHeight});
 
-	auto frame_manager =
-	    myvk::FrameManager::Create(generic_queue, present_queue, false, kFrameCount,
-	                               VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT);
+	auto frame_manager = myvk::FrameManager::Create(generic_queue, present_queue, false, kFrameCount);
 	std::array<myvk::Ptr<rg::NRCRenderGraph>, kFrameCount> render_graphs;
 	for (auto &rg : render_graphs)
 		rg = myvk::MakePtr<rg::NRCRenderGraph>(frame_manager, vk_scene_tlas, vk_nrc_state, camera);

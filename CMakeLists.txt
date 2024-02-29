@@ -41,6 +41,7 @@ add_executable(VkNRC
         src/rg/NRCRenderGraph.cpp
         src/rg/PathTracerPass.cpp
         src/rg/VBufferPass.cpp
+        src/rg/ScreenPass.cpp
 )
 target_link_libraries(VkNRC PRIVATE dep shader)
 set_target_properties(VkNRC PROPERTIES

@@ -14,14 +14,13 @@ layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
 
 layout(push_constant) uniform uuPushConstant {
 	vec3 uOrigin, uLook, uSide, uUp;
+	uint uSeed;
 	uvec2 uExtent;
-	uint uSampleCount;
 };
 
 // V-Buffer
 layout(binding = 9) uniform usampler2D uPrimitiveID_InstanceID;
 // NRC
-layout(binding = 10, rgba32f) uniform image2D uAccumulate;
 layout(binding = 11, rgba32f) writeonly uniform image2D uColor;
 layout(binding = 12) buffer uuEvalCount { uint uEvalCount; };
 layout(binding = 13) writeonly buffer uuEvalRecords { NRCEvalRecord uEvalRecords[]; };
@@ -143,13 +142,6 @@ vec3 PathTrace(Hit hit, Ray ray) {
 	return irradiance;
 }
 
-vec3 ToneMapFilmic_Hejl2015(in const vec3 hdr, in const float white_pt) {
-	vec4 vh = vec4(hdr, white_pt);
-	vec4 va = (1.425 * vh) + 0.05;
-	vec4 vf = (vh * va + 0.004) / ((vh * (va + 0.55) + 0.0491)) - 0.0821;
-	return vf.rgb / vf.w;
-}
-
 void main() {
 	uvec2 coord = gl_GlobalInvocationID.xy;
 	if (any(greaterThanEqual(coord, uExtent)))
@@ -167,21 +159,12 @@ void main() {
 		Ray ray = Ray(uOrigin, normalize(uLook + clip.x * uSide + clip.y * uUp));
 		Hit hit = GetVBufferHit(primitive_id, instance_id, ray);
 		// Seed on 256 x 256 Tile
-		uint seed = (((coord.y & 0xFF) << 8) | (coord.x & 0xFF)) + uSampleCount * ((1 << 16u) + 1);
+		uint seed = (((coord.y & 0xFF) << 8) | (coord.x & 0xFF)) + uSeed;
 		RNGSetState(seed);
 
 		color = PathTrace(hit, ray);
 	}
 
 	color = IsValidRGB(color) ? color : vec3(0);
-
 	imageStore(uColor, ivec2(coord), vec4(color, 0));
-
-	if (uSampleCount != 0) {
-		color += imageLoad(uAccumulate, ivec2(coord)).rgb * float(uSampleCount);
-		color /= float(uSampleCount + 1);
-	}
-	imageStore(uAccumulate, ivec2(coord), vec4(color, 0));
-	// color = pow(ToneMapFilmic_Hejl2015(color, 3.2), vec3(1 / 2.2));
-	// oColor = vec4(color, 1.0);
 }

@@ -6,11 +6,10 @@
 #ifndef VKNRC_VKNRCSTATE_HPP
 #define VKNRC_VKNRCSTATE_HPP
 
-#include "Sobol.hpp"
-
 #include <myvk/Buffer.hpp>
 #include <myvk/Image.hpp>
 #include <myvk/ImageView.hpp>
+#include <random>
 
 class VkNRCState final : public myvk::DeviceObjectBase {
 private:
@@ -18,7 +17,8 @@ private:
 	myvk::Ptr<myvk::Buffer> m_weights;
 	myvk::Ptr<myvk::ImageView> m_result_view;
 	VkExtent2D m_extent{};
-	uint32_t m_samples{};
+	uint32_t m_samples{}, m_seed{};
+	std::mt19937 m_rng{std::random_device{}()};
 
 	void create_result_image();
 	void create_weight_buffer();
@@ -33,8 +33,12 @@ public:
 	inline const auto &GetResultImageView() const { return m_result_view; }
 
 	inline uint32_t GetSampleCount() const { return m_samples; }
+	inline uint32_t GetSeed() const { return m_seed; }
 
-	inline void Next() { ++m_samples; }
+	inline void Next() {
+		++m_samples;
+		m_seed = std::uniform_int_distribution<uint32_t>{0, 0xFFFFFFFFu}(m_rng);
+	}
 	inline void Reset() { m_samples = 0; }
 
 	inline void SetExtent(VkExtent2D extent) {

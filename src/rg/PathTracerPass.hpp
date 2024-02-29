@@ -9,7 +9,6 @@
 #include "../Camera.hpp"
 #include "../VkNRCState.hpp"
 #include "../VkScene.hpp"
-#include "NRCResources.hpp"
 #include "SceneResources.hpp"
 #include <myvk_rg/RenderGraph.hpp>
 
@@ -22,7 +21,6 @@ public:
 		const myvk::Ptr<VkScene> &scene_ptr;
 		const SceneResources &scene_resources;
 		const myvk::Ptr<VkNRCState> &nrc_state_ptr;
-		const myvk_rg::Image &accumulate_image;
 		const myvk_rg::Buffer &eval_count, &eval_records, &batch_train_counts, &batch_train_records;
 		const myvk::Ptr<Camera> &camera_ptr;
 	};
@@ -39,7 +37,6 @@ public:
 	void CreatePipeline() final;
 	void CmdExecute(const myvk::Ptr<myvk::CommandBuffer> &command_buffer) const final;
 	inline auto GetColorOutput() { return MakeImageOutput({"color"}); }
-	inline auto GetAccumulateOutput() { return MakeImageOutput({"accumulate"}); }
 	inline auto GetEvalCountOutput() { return MakeBufferOutput({"eval_count"}); }
 	inline auto GetEvalRecordsOutput() { return MakeBufferOutput({"eval_records"}); }
 	inline auto GetBatchTrainCountsOutput() { return MakeBufferOutput({"batch_train_counts"}); }
