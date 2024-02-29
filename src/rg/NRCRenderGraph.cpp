@@ -28,26 +28,42 @@ NRCRenderGraph::NRCRenderGraph(const myvk::Ptr<myvk::FrameManager> &frame_manage
 	    {"vbuffer_pass"},
 	    VBufferPass::Args{.scene_ptr = m_scene_ptr, .scene_resources = scene_resources, .camera_ptr = camera_ptr});
 
-	auto swapchain_image = CreateResource<myvk_rg::SwapchainImage>({"swapchain_image"}, frame_manager);
-	swapchain_image->SetLoadOp(VK_ATTACHMENT_LOAD_OP_DONT_CARE);
-
 	auto path_tracer_pass = CreatePass<PathTracerPass>(
 	    {"path_tracer_pass"}, PathTracerPass::Args{.vbuffer_image = vbuffer_pass->GetVBufferOutput(),
-	                                               .out_image = swapchain_image->Alias(),
 	                                               .scene_ptr = m_scene_ptr,
 	                                               .scene_resources = scene_resources,
 	                                               .nrc_state_ptr = m_nrc_state_ptr,
-	                                               .nrc_resources = nrc_resources,
+	                                               .accumulate_image = nrc_resources.accumulate,
+	                                               .eval_count = nrc_resources.eval_record_count,
+	                                               .eval_records = nrc_resources.eval_records,
+	                                               .batch_train_counts = nrc_resources.train_batch_record_counts,
+	                                               .batch_train_records = nrc_resources.train_batch_records,
 	                                               .camera_ptr = camera_ptr});
 
-	auto imgui_pass = CreatePass<myvk_rg::ImGuiPass>({"imgui_pass"}, path_tracer_pass->GetImageOutput());
+	auto swapchain_image = CreateResource<myvk_rg::SwapchainImage>({"swapchain_image"}, frame_manager);
+	swapchain_image->SetLoadOp(VK_ATTACHMENT_LOAD_OP_DONT_CARE);
+
+	auto blit_pass = CreatePass<myvk_rg::ImageBlitPass>({"blit_pass"}, path_tracer_pass->GetAccumulateOutput(),
+	                                                    swapchain_image->Alias(), VK_FILTER_NEAREST);
+
+	auto imgui_pass = CreatePass<myvk_rg::ImGuiPass>({"imgui_pass"}, blit_pass->GetDstOutput());
 	AddResult({"present"}, imgui_pass->GetImageOutput());
 }
 
 void NRCRenderGraph::PreExecute() const {
-	m_scene_ptr->UpdateTransformBuffer(GetResource<myvk_rg::ManagedBuffer>({"transforms"})->GetMappedData());
+	// Update Externals
 	GetResource<myvk_rg::AccelerationStructure>({"tlas"})->SetAS(m_scene_tlas_ptr->GetTLAS());
-	GetResource<myvk_rg::InputImage>({"result"})->SetVkImageView(m_nrc_state_ptr->GetResultImageView());
+	GetResource<myvk_rg::InputImage>({"accumulate"})->SetVkImageView(m_nrc_state_ptr->GetResultImageView());
+	// Update Mapped Internals
+	m_scene_ptr->UpdateTransformBuffer(GetResource<myvk_rg::ManagedBuffer>({"transforms"})->GetMappedData());
+	std::ranges::fill(
+	    std::span<uint32_t>{GetResource<myvk_rg::ManagedBuffer>({"eval_record_count"})->GetMappedData<uint32_t>(), 1},
+	    0);
+	std::ranges::fill(
+	    std::span<uint32_t>{
+	        GetResource<myvk_rg::ManagedBuffer>({"train_batch_record_counts"})->GetMappedData<uint32_t>(),
+	        VkNRCState::GetTrainBatchCount()},
+	    0);
 }
 
 SceneResources NRCRenderGraph::create_scene_resources() {
@@ -83,11 +99,12 @@ NRCResources NRCRenderGraph::create_nrc_resources() {
 	eval_record_count_buffer->SetMapped(true);
 
 	auto train_batch_record_count_buffer = CreateResource<myvk_rg::ManagedBuffer>(
-	    {"train_batch_record_counts"}, VkNRCState::GetTrainBatchRecordCountBufferSize());
+	    {"train_batch_record_counts"}, VkNRCState::GetTrainBatchCount() * sizeof(uint32_t));
 	train_batch_record_count_buffer->SetMapped(true);
 
 	NRCResources nr = {
-	    .result = CreateResource<myvk_rg::InputImage>({"result"}, m_nrc_state_ptr->GetResultImageView())->Alias(),
+	    .accumulate =
+	        CreateResource<myvk_rg::InputImage>({"accumulate"}, m_nrc_state_ptr->GetResultImageView())->Alias(),
 	    .eval_records = eval_record_buffer->Alias(),
 	    .eval_record_count = eval_record_count_buffer->Alias(),
 	    .train_batch_records =

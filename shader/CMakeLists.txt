@@ -14,8 +14,7 @@ set(SHADER_HEADER
 set(SHADER_SRC
         vbuffer.frag
         vbuffer.vert
-        path_tracer.frag
-        path_tracer.vert
+        path_tracer.comp
         nrc_evaluate.comp
 )
 

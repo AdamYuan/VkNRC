@@ -47,7 +47,7 @@ public:
 	inline const myvk::Ptr<myvk::Device> &GetDevicePtr() const { return m_queue_ptr->GetDevicePtr(); }
 	static VkDeviceSize GetEvalRecordBufferSize(VkExtent2D extent);
 	static VkDeviceSize GetTrainBatchRecordBufferSize();
-	static VkDeviceSize GetTrainBatchRecordCountBufferSize();
+	static uint32_t GetTrainBatchCount();
 };
 
 #endif // VKNRC_VKNRCSTATE_HPP

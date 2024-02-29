@@ -29,7 +29,7 @@ VkDeviceSize VkNRCState::GetEvalRecordBufferSize(VkExtent2D extent) {
 VkDeviceSize VkNRCState::GetTrainBatchRecordBufferSize() {
 	return VkDeviceSize{nrc::kTrainBatchSize * nrc::kTrainBatchCount} * sizeof(nrc::NRCTrainRecord);
 }
-VkDeviceSize VkNRCState::GetTrainBatchRecordCountBufferSize() { return nrc::kTrainBatchCount * sizeof(uint32_t); }
+uint32_t VkNRCState::GetTrainBatchCount() { return nrc::kTrainBatchCount; }
 
 void VkNRCState::create_weight_buffer() {
 	constexpr uint32_t kWeightCount = nrc::kNNWidth * nrc::kNNWidth * nrc::kNNHiddenLayers + nrc::kNNWidth * 3;
@@ -39,7 +39,8 @@ void VkNRCState::create_weight_buffer() {
 
 void VkNRCState::create_result_image() {
 	auto image = myvk::Image::CreateTexture2D(GetDevicePtr(), m_extent, 1, VK_FORMAT_R32G32B32A32_SFLOAT,
-	                                          VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_STORAGE_BIT);
+	                                          VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+	                                              VK_IMAGE_USAGE_STORAGE_BIT);
 	m_result_view = myvk::ImageView::Create(image, VK_IMAGE_VIEW_TYPE_2D);
 
 	auto command_buffer = myvk::CommandBuffer::Create(myvk::CommandPool::Create(m_queue_ptr));

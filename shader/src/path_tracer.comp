@@ -1,6 +1,7 @@
 #version 460
 #extension GL_EXT_ray_tracing : enable
 #extension GL_EXT_ray_query : enable
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
 
 #include "CookTorranceBRDF.glsl"
 #include "NRCRecord.glsl"
@@ -13,16 +14,19 @@
 
 layout(push_constant) uniform uuPushConstant {
 	vec3 uOrigin, uLook, uSide, uUp;
+	uvec2 uExtent;
 	uint uSampleCount;
 };
 
-layout(location = 0) in vec3 vDir;
-layout(location = 0) out vec4 oColor;
-
 // V-Buffer
-layout(input_attachment_index = 0, binding = 9) uniform usubpassInput uPrimitiveID_InstanceID;
+layout(binding = 9) uniform usampler2D uPrimitiveID_InstanceID;
 // NRC
-layout(binding = 10, rgba32f) uniform image2D uResult;
+layout(binding = 10, rgba32f) uniform image2D uAccumulate;
+layout(binding = 11, rgba32f) writeonly uniform image2D uColor;
+layout(binding = 12) buffer uuEvalCount { uint uEvalCount; };
+layout(binding = 13) writeonly buffer uuEvalRecords { NRCEvalRecord uEvalRecords[]; };
+layout(binding = 14) buffer uuBatchTrainCounts { uint uBatchTrainCounts[]; };
+layout(binding = 15) writeonly buffer uuBatchTrainRecords { NRCTrainRecord uBatchTrainRecords[]; };
 
 struct Ray {
 	vec3 o, d;
@@ -147,16 +151,20 @@ vec3 ToneMapFilmic_Hejl2015(in const vec3 hdr, in const float white_pt) {
 }
 
 void main() {
-	uvec2 primitive_id_instance_id = subpassLoad(uPrimitiveID_InstanceID).rg;
-	uint primitive_id = primitive_id_instance_id.x, instance_id = primitive_id_instance_id.y;
+	uvec2 coord = gl_GlobalInvocationID.xy;
+	if (any(greaterThanEqual(coord, uExtent)))
+		return;
 
-	ivec2 coord = ivec2(gl_FragCoord.xy);
+	uvec2 primitive_id_instance_id = texelFetch(uPrimitiveID_InstanceID, ivec2(coord), 0).rg;
+	uint primitive_id = primitive_id_instance_id.x, instance_id = primitive_id_instance_id.y;
 
 	vec3 color;
 	if (primitive_id == -1u)
 		color = kConstLight;
 	else {
-		Ray ray = Ray(uOrigin, normalize(vDir));
+		vec2 clip = (vec2(coord) + 0.5) / vec2(uExtent);
+		clip = clip * 2.0 - 1.0;
+		Ray ray = Ray(uOrigin, normalize(uLook + clip.x * uSide + clip.y * uUp));
 		Hit hit = GetVBufferHit(primitive_id, instance_id, ray);
 		// Seed on 256 x 256 Tile
 		uint seed = (((coord.y & 0xFF) << 8) | (coord.x & 0xFF)) + uSampleCount * ((1 << 16u) + 1);
@@ -166,12 +174,14 @@ void main() {
 	}
 
 	color = IsValidRGB(color) ? color : vec3(0);
+
+	imageStore(uColor, ivec2(coord), vec4(color, 0));
+
 	if (uSampleCount != 0) {
-		color += imageLoad(uResult, coord).rgb * float(uSampleCount);
+		color += imageLoad(uAccumulate, ivec2(coord)).rgb * float(uSampleCount);
 		color /= float(uSampleCount + 1);
 	}
-	imageStore(uResult, coord, vec4(color, 0));
-
-	color = pow(ToneMapFilmic_Hejl2015(color, 3.2), vec3(1 / 2.2));
-	oColor = vec4(color, 1.0);
+	imageStore(uAccumulate, ivec2(coord), vec4(color, 0));
+	// color = pow(ToneMapFilmic_Hejl2015(color, 3.2), vec3(1 / 2.2));
+	// oColor = vec4(color, 1.0);
 }
