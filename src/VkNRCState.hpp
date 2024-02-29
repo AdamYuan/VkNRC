@@ -14,7 +14,6 @@
 
 class VkNRCState final : public myvk::DeviceObjectBase {
 private:
-	inline static constexpr uint32_t kNNHiddenLayers = 5, kNNWidth = 64;
 	myvk::Ptr<myvk::Queue> m_queue_ptr;
 	myvk::Ptr<myvk::Buffer> m_weights;
 	myvk::Ptr<myvk::ImageView> m_result_view;
@@ -27,6 +26,7 @@ private:
 public:
 	inline VkNRCState(const myvk::Ptr<myvk::Queue> &queue_ptr, VkExtent2D extent) : m_queue_ptr(queue_ptr) {
 		SetExtent(extent);
+		create_weight_buffer();
 	}
 	inline ~VkNRCState() final = default;
 
@@ -45,6 +45,9 @@ public:
 		create_result_image();
 	}
 	inline const myvk::Ptr<myvk::Device> &GetDevicePtr() const { return m_queue_ptr->GetDevicePtr(); }
+	static VkDeviceSize GetEvalRecordBufferSize(VkExtent2D extent);
+	static VkDeviceSize GetTrainBatchRecordBufferSize();
+	static VkDeviceSize GetTrainBatchRecordCountBufferSize();
 };
 
 #endif // VKNRC_VKNRCSTATE_HPP

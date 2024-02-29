@@ -78,8 +78,8 @@ public:
 	inline const auto &GetMaterialBuffer() const { return m_material_buffer; }
 	inline const auto &GetMaterialIDBuffer() const { return m_material_id_buffer; }
 
-	myvk::Ptr<myvk::Buffer> MakeTransformBuffer(VkBufferUsageFlags usages) const;
-	void UpdateTransformBuffer(const myvk::Ptr<myvk::Buffer> &transform_buffer) const;
+	VkDeviceSize GetTransformBufferSize() const;
+	void UpdateTransformBuffer(void *p_mapped) const;
 };
 
 #endif // VKNRC_VKSCENE_HPP

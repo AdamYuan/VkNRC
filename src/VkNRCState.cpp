@@ -4,13 +4,37 @@
 
 #include "VkNRCState.hpp"
 
-#include "BlueNoise.hpp"
-
-#include <algorithm>
 #include <myvk/CommandBuffer.hpp>
 
-void VkNRCState::create_weight_buffer() {
+namespace nrc {
+inline static constexpr uint32_t kNNHiddenLayers = 5, kNNWidth = 64, kTrainBatchSize = 16384, kTrainBatchCount = 4;
+struct PackedNRCInput {
+	uint32_t primitive_id, flip_bit_instance_id;
+	uint32_t barycentric_2x16U;
+	uint32_t scattered_dir_2x16U;
+};
+struct NRCEvalRecord {
+	uint32_t pixel_x_y;
+	PackedNRCInput packed_input;
+};
+struct NRCTrainRecord {
+	uint32_t radiance_RG, radiance_B;
+	PackedNRCInput packed_input;
+};
+} // namespace nrc
 
+VkDeviceSize VkNRCState::GetEvalRecordBufferSize(VkExtent2D extent) {
+	return VkDeviceSize{extent.width} * VkDeviceSize{extent.height} * sizeof(nrc::NRCEvalRecord);
+}
+VkDeviceSize VkNRCState::GetTrainBatchRecordBufferSize() {
+	return VkDeviceSize{nrc::kTrainBatchSize * nrc::kTrainBatchCount} * sizeof(nrc::NRCTrainRecord);
+}
+VkDeviceSize VkNRCState::GetTrainBatchRecordCountBufferSize() { return nrc::kTrainBatchCount * sizeof(uint32_t); }
+
+void VkNRCState::create_weight_buffer() {
+	constexpr uint32_t kWeightCount = nrc::kNNWidth * nrc::kNNWidth * nrc::kNNHiddenLayers + nrc::kNNWidth * 3;
+	m_weights =
+	    myvk::Buffer::Create(GetDevicePtr(), kWeightCount * sizeof(uint16_t), 0, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 }
 
 void VkNRCState::create_result_image() {

@@ -5,16 +5,16 @@
 
 struct PackedNRCInput {
 	uint primitive_id, flip_bit_instance_id;
-	uint barycentric_16Ux2;
-	uint scattered_dir_16Ux2;
+	uint barycentric_2x16U;
+	uint scattered_dir_2x16U;
 };
 
-struct PackedNRCEvalRecord {
+struct NRCEvalRecord {
 	uint pixel_x_y;
 	PackedNRCInput packed_input;
 };
 
-struct PackedNRCTrainRecord {
+struct NRCTrainRecord {
 	uint radiance_RG, radiance_B;
 	PackedNRCInput packed_input;
 };

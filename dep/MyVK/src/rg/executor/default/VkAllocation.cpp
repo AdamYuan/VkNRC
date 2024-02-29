@@ -176,6 +176,28 @@ std::tuple<VkDeviceSize, uint32_t> VkAllocation::fetch_memory_requirements(std::
 	}
 	return {alignment, memory_type_bits};
 }
+
+void VkAllocation::alloc_naive(std::ranges::input_range auto &&resources, const VmaAllocationCreateInfo &create_info) {
+	auto [alignment, memory_type_bits] = fetch_memory_requirements(resources);
+	VkDeviceSize mem_total = 0;
+	for (const ResourceBase *p_resource : resources) {
+		auto &vk_alloc = get_vk_alloc(p_resource);
+		vk_alloc.mem_offset = mem_total * alignment;
+		mem_total += DivCeil(vk_alloc.vk_mem_reqs.size, alignment);
+	}
+	if (mem_total == 0)
+		return;
+
+	VkMemoryRequirements mem_reqs = {
+	    .size = mem_total * alignment,
+	    .alignment = alignment,
+	    .memoryTypeBits = memory_type_bits,
+	};
+	auto mem_alloc = myvk::MakePtr<RGMemoryAllocation>(m_device_ptr, mem_reqs, create_info);
+	for (const ResourceBase *p_resource : resources)
+		get_vk_alloc(p_resource).myvk_mem_alloc = mem_alloc;
+}
+
 namespace alloc_optimal {
 // An AABB indicates a placed resource
 struct MemBlock {
@@ -272,12 +294,25 @@ void VkAllocation::alloc_optimal(const Args &args, std::ranges::input_range auto
 }
 
 void VkAllocation::create_vk_allocations(const Args &args) {
-	std::vector<const ResourceBase *> resources = args.metadata.GetIntRootResources();
-	alloc_optimal(args, resources,
+	std::vector<const ResourceBase *> optimal_resources, mapped_resources;
+	for (const ResourceBase *p_resource : args.metadata.GetIntRootResources())
+		p_resource->Visit(overloaded(
+		    [&](const InternalImage auto *p_image) { optimal_resources.push_back(p_image); },
+		    [&](const InternalBuffer auto *p_buffer) {
+			    (Meta::GetAllocInfo(p_buffer).mapped ? mapped_resources : optimal_resources).push_back(p_buffer);
+		    },
+		    [](auto &&) {}));
+	alloc_optimal(args, optimal_resources,
 	              VmaAllocationCreateInfo{
 	                  .flags = /* VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT | */ VMA_ALLOCATION_CREATE_CAN_ALIAS_BIT,
 	                  .requiredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 	              });
+	alloc_naive(mapped_resources,
+	            VmaAllocationCreateInfo{
+	                .flags = /* VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT | */ VMA_ALLOCATION_CREATE_MAPPED_BIT |
+	                         VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT,
+	                .requiredFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+	            });
 }
 
 void VkAllocation::bind_vk_resources(const Args &args) {
@@ -294,13 +329,14 @@ void VkAllocation::bind_vk_resources(const Args &args) {
 			    static_cast<RGImage *>(myvk_image.get())->SetAllocPtr(vk_alloc.myvk_mem_alloc);
 		    },
 		    [&](const InternalBuffer auto *p_buffer) {
-			    auto *p_mapped = (uint8_t *)vk_alloc.myvk_mem_alloc->GetInfo().pMappedData;
 			    auto &myvk_buffer = vk_alloc.buffer.myvk_buffer;
+			    auto *mapped_data = (uint8_t *)vk_alloc.myvk_mem_alloc->GetInfo().pMappedData;
 
 			    auto vma_allocation = vk_alloc.myvk_mem_alloc->GetHandle();
 			    vmaBindBufferMemory2(m_device_ptr->GetAllocatorHandle(), vma_allocation, vk_alloc.mem_offset,
 			                         myvk_buffer->GetHandle(), nullptr);
 			    static_cast<RGBuffer *>(myvk_buffer.get())->SetAllocPtr(vk_alloc.myvk_mem_alloc);
+			    vk_alloc.buffer.p_mapped = mapped_data ? mapped_data + vk_alloc.mem_offset : nullptr;
 		    },
 		    [](auto &&) {}));
 	}
@@ -334,6 +370,8 @@ void VkAllocation::create_resource_views(const Args &args) {
 		    .offset = view.offset,
 		    .size = view.size,
 		};
+		vk_buffer_alloc.p_mapped =
+		    root_vk_alloc.p_mapped ? static_cast<char *>(root_vk_alloc.p_mapped) + view.offset : nullptr;
 	};
 	for (const ResourceBase *p_resource : args.metadata.GetIntResources())
 		p_resource->Visit(overloaded(create_image_view, create_buffer_view, [](auto &&) {}));

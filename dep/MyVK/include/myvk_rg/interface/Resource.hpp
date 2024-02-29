@@ -258,14 +258,30 @@ public:
 };
 
 class ManagedBuffer final : public BufferBase, public ManagedResourceInfo<ManagedBuffer, VkDeviceSize> {
+private:
+	bool m_mapped{false};
+
 public:
 	inline constexpr ResourceState GetState() const { return ResourceState::kManaged; }
 	inline constexpr ResourceClass GetClass() const { return ResourceClass::kManagedBuffer; }
 
 	inline explicit ManagedBuffer(Parent parent) : BufferBase(parent, ResourceState::kManaged) {}
+	inline ManagedBuffer(Parent parent, VkDeviceSize size) : BufferBase(parent, ResourceState::kManaged) {
+		SetSize(size);
+	}
 	~ManagedBuffer() override = default;
 
+	void SetMapped(bool mapped) {
+		if (m_mapped != mapped) {
+			m_mapped = mapped;
+			EmitEvent(Event::kBufferMappedChanged);
+		}
+	}
+	inline bool IsMapped() const { return m_mapped; }
+
 	const BufferView &GetBufferView() const;
+	template <typename T> inline T *GetMappedData() { return static_cast<T *>(GetMappedData()); }
+	void *GetMappedData() const;
 };
 
 class SubImageSize {
@@ -394,6 +410,9 @@ public:
 	inline constexpr ResourceClass GetClass() const { return ResourceClass::kCombinedBuffer; }
 
 	const BufferView &GetBufferView() const;
+
+	template <typename T> inline T *GetMappedData() { return static_cast<T *>(GetMappedData()); }
+	void *GetMappedData() const;
 
 	inline CombinedBuffer(Parent parent, std::vector<OutputBufferAlias> &&buffers)
 	    : BufferBase(parent, ResourceState::kCombined), m_buffers(std::move(buffers)) {}

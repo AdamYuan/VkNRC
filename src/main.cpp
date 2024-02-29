@@ -88,7 +88,6 @@ int main(int argc, char **argv) {
 			auto &render_graph = render_graphs[frame_manager->GetCurrentFrame()];
 
 			vk_nrc_state->SetExtent(frame_manager->GetExtent());
-			render_graph->Update();
 
 			command_buffer->Begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 			render_graph->SetCanvasSize(frame_manager->GetExtent());

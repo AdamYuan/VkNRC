@@ -30,6 +30,7 @@ private:
 	void init_alias_relation(const Args &args);
 	void create_vk_resources(const Args &args);
 	static std::tuple<VkDeviceSize, uint32_t> fetch_memory_requirements(std::ranges::input_range auto &&resources);
+	void alloc_naive(std::ranges::input_range auto &&resources, const VmaAllocationCreateInfo &create_info);
 	void alloc_optimal(const Args &args, std::ranges::input_range auto &&resources,
 	                   const VmaAllocationCreateInfo &create_info);
 	void create_vk_allocations(const Args &args);
@@ -50,6 +51,7 @@ public:
 	static const BufferView &GetBufferView(const InternalBuffer auto *p_buffer) {
 		return get_vk_alloc(p_buffer).buffer.buffer_view;
 	}
+	static void *GetMappedData(const InternalBuffer auto *p_buffer) { return get_vk_alloc(p_buffer).buffer.p_mapped; }
 };
 
 } // namespace myvk_rg_executor

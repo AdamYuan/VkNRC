@@ -57,6 +57,7 @@ void Executor::OnEvent(interface::ObjectBase *p_object, interface::Event event) 
 		break;
 	case Event::kCanvasResized:
 	case Event::kBufferResized:
+	case Event::kBufferMappedChanged:
 	case Event::kImageResized:
 	case Event::kRenderAreaChanged:
 		m_compile_flags |= kMetadata;
@@ -156,6 +157,7 @@ void Executor::CmdExecute(const interface::RenderGraphBase *p_render_graph,
                           const myvk::Ptr<myvk::CommandBuffer> &command_buffer) {
 	const auto &queue = command_buffer->GetCommandPoolPtr()->GetQueuePtr();
 	compile(p_render_graph, queue);
+	p_render_graph->PreExecute();
 	VkRunner::Run(command_buffer, {.render_graph = *p_render_graph,
 	                               .collection = m_p_compile_info->collection,
 	                               .dependency = m_p_compile_info->dependency,
@@ -197,6 +199,13 @@ const interface::ImageBase *Executor::GetInputImage(const interface::InputBase *
 const interface::BufferBase *Executor::GetInputBuffer(const interface::InputBase *p_input) {
 	assert(Dependency::GetInputResource(p_input)->GetType() == interface::ResourceType::kBuffer);
 	return static_cast<const interface::BufferBase *>(Dependency::GetInputResource(p_input));
+}
+
+void *Executor::GetMappedData(const interface::ManagedBuffer *p_managed_buffer) {
+	return VkAllocation::GetMappedData(p_managed_buffer);
+}
+void *Executor::GetMappedData(const interface::CombinedBuffer *p_combined_buffer) {
+	return VkAllocation::GetMappedData(p_combined_buffer);
 }
 
 } // namespace myvk_rg::executor

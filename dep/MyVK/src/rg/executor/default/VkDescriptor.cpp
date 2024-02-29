@@ -169,8 +169,7 @@ void VkDescriptor::create_vk_sets(const VkDescriptor::Args &args) {
 		pool_sizes.reserve(vk_desc_type_counts.size());
 		for (auto [type, count] : vk_desc_type_counts)
 			pool_sizes.push_back({.type = type, .descriptorCount = count});
-		myvk_descriptor_pool =
-		    myvk::DescriptorPool::Create(m_device_ptr, args.dependency.GetPassCount() * 2, pool_sizes);
+		myvk_descriptor_pool = myvk::DescriptorPool::Create(m_device_ptr, args.dependency.GetPassCount(), pool_sizes);
 	}
 
 	// Create Descriptor Sets
@@ -192,8 +191,8 @@ void VkDescriptor::vk_update_internal(std::span<const PassBase *const> passes) {
 				    writer.PushImageWrite(desc_info.myvk_set, index, VkAllocation::GetVkImageView(p_int_image),
 				                          p_input);
 			    },
-			    [&](const ExternalImageBase *p_ext_image) {
-				    writer.PushImageWrite(desc_info.myvk_set, index, p_ext_image->GetVkImageView(), p_input);
+			    [&](const InternalBuffer auto *p_int_buffer) {
+				    writer.PushBufferWrite(desc_info.myvk_set, index, p_int_buffer->GetBufferView(), p_input);
 			    },
 			    [](auto &&) {}));
 		}

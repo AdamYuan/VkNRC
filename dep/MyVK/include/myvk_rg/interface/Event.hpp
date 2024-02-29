@@ -25,6 +25,7 @@ enum class Event {
 	kImageLoadOpChanged,
 
 	kBufferResized,
+	kBufferMappedChanged,
 
 	kExternalStageChanged,
 	kExternalAccessChanged,

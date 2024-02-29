@@ -8,6 +8,7 @@ set(SHADER_HEADER
         LambertBRDF.glsl
         CookTorranceBRDF.glsl
         NRCRecord.glsl
+        Scene.glsl
 )
 
 set(SHADER_SRC

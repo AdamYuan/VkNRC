@@ -41,20 +41,19 @@ NRCRenderGraph::NRCRenderGraph(const myvk::Ptr<myvk::FrameManager> &frame_manage
 	                                               .camera_ptr = camera_ptr});
 
 	auto imgui_pass = CreatePass<myvk_rg::ImGuiPass>({"imgui_pass"}, path_tracer_pass->GetImageOutput());
-	AddResult({"result"}, imgui_pass->GetImageOutput());
+	AddResult({"present"}, imgui_pass->GetImageOutput());
 }
 
-void NRCRenderGraph::Update() const {
+void NRCRenderGraph::PreExecute() const {
+	m_scene_ptr->UpdateTransformBuffer(GetResource<myvk_rg::ManagedBuffer>({"transforms"})->GetMappedData());
 	GetResource<myvk_rg::AccelerationStructure>({"tlas"})->SetAS(m_scene_tlas_ptr->GetTLAS());
-	m_scene_ptr->UpdateTransformBuffer(std::static_pointer_cast<myvk::Buffer>(
-	    GetResource<myvk_rg::InputBuffer>({"transforms"})->GetBufferView().buffer));
-
 	GetResource<myvk_rg::InputImage>({"result"})->SetVkImageView(m_nrc_state_ptr->GetResultImageView());
 }
 
 SceneResources NRCRenderGraph::create_scene_resources() {
 	auto transform_buffer =
-	    m_scene_ptr->MakeTransformBuffer(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+	    CreateResource<myvk_rg::ManagedBuffer>({"transforms"}, m_scene_ptr->GetTransformBufferSize());
+	transform_buffer->SetMapped(true);
 
 	SceneResources sr = {
 	    .tlas = CreateResource<myvk_rg::AccelerationStructure>({"tlas"}, m_scene_tlas_ptr->GetTLAS())->Alias(),
@@ -67,7 +66,7 @@ SceneResources NRCRenderGraph::create_scene_resources() {
 	    .materials = CreateResource<myvk_rg::InputBuffer>({"materials"}, m_scene_ptr->GetMaterialBuffer())->Alias(),
 	    .material_ids =
 	        CreateResource<myvk_rg::InputBuffer>({"material_ids"}, m_scene_ptr->GetMaterialIDBuffer())->Alias(),
-	    .transforms = CreateResource<myvk_rg::InputBuffer>({"transforms"}, transform_buffer)->Alias(),
+	    .transforms = transform_buffer->Alias(),
 	    .texture_sampler = myvk::Sampler::Create(GetDevicePtr(), VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_REPEAT),
 	};
 	for (uint32_t tex_id = 0; const auto &texture : m_scene_ptr->GetTextures())
@@ -76,8 +75,25 @@ SceneResources NRCRenderGraph::create_scene_resources() {
 }
 
 NRCResources NRCRenderGraph::create_nrc_resources() {
+	auto eval_record_buffer = CreateResource<myvk_rg::ManagedBuffer>({"eval_records"});
+	eval_record_buffer->SetSizeFunc(
+	    [](VkExtent2D extent) -> VkDeviceSize { return VkNRCState::GetEvalRecordBufferSize(extent); });
+
+	auto eval_record_count_buffer = CreateResource<myvk_rg::ManagedBuffer>({"eval_record_count"}, sizeof(uint32_t));
+	eval_record_count_buffer->SetMapped(true);
+
+	auto train_batch_record_count_buffer = CreateResource<myvk_rg::ManagedBuffer>(
+	    {"train_batch_record_counts"}, VkNRCState::GetTrainBatchRecordCountBufferSize());
+	train_batch_record_count_buffer->SetMapped(true);
+
 	NRCResources nr = {
 	    .result = CreateResource<myvk_rg::InputImage>({"result"}, m_nrc_state_ptr->GetResultImageView())->Alias(),
+	    .eval_records = eval_record_buffer->Alias(),
+	    .eval_record_count = eval_record_count_buffer->Alias(),
+	    .train_batch_records =
+	        CreateResource<myvk_rg::ManagedBuffer>({"train_batch_records"}, VkNRCState::GetTrainBatchRecordBufferSize())
+	            ->Alias(),
+	    .train_batch_record_counts = train_batch_record_count_buffer->Alias(),
 	};
 	return nr;
 }

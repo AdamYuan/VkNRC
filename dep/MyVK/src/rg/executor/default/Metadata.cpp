@@ -157,6 +157,7 @@ void Metadata::combine_buffer(const Metadata::Args &args, const InternalBuffer a
 		    },
 		    // Managed Buffer
 		    [&](const ManagedBuffer *p_managed_buffer) -> VkDeviceSize {
+			    alloc.mapped |= p_managed_buffer->IsMapped();
 			    return get_size(args, p_managed_buffer->GetSize());
 		    })(p_view_buffer);
 	};

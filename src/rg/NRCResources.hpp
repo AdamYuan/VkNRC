@@ -12,6 +12,8 @@ namespace rg {
 
 struct NRCResources {
 	myvk_rg::Image result;
+	myvk_rg::Buffer eval_records, eval_record_count;
+	myvk_rg::Buffer train_batch_records, train_batch_record_counts;
 };
 
 } // namespace rg

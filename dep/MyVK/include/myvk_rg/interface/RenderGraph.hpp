@@ -49,6 +49,7 @@ public:
 	}
 	inline const executor::Executor *GetExecutor() const { return m_executor.get(); }
 
+	virtual void PreExecute() const {}
 	void CmdExecute(const myvk::Ptr<myvk::CommandBuffer> &command_buffer) {
 		m_executor->CmdExecute(this, command_buffer);
 	}

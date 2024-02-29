@@ -9,8 +9,8 @@
 #include "../Camera.hpp"
 #include "../VkNRCState.hpp"
 #include "../VkSceneTLAS.hpp"
-#include "SceneResources.hpp"
 #include "NRCResources.hpp"
+#include "SceneResources.hpp"
 
 #include <myvk_rg/RenderGraph.hpp>
 
@@ -30,7 +30,7 @@ public:
 	                        const myvk::Ptr<VkSceneTLAS> &scene_tlas_ptr, const myvk::Ptr<VkNRCState> &nrc_state_ptr,
 	                        const myvk::Ptr<Camera> &camera_ptr);
 	~NRCRenderGraph() final = default;
-	void Update() const;
+	void PreExecute() const final;
 };
 
 } // namespace rg

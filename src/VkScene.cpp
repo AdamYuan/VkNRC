@@ -60,18 +60,13 @@ VkAccelerationStructureBuildRangeInfoKHR VkScene::GetInstanceBLASBuildRange(uint
 	return build_range;
 }
 
-myvk::Ptr<myvk::Buffer> VkScene::MakeTransformBuffer(VkBufferUsageFlags usages) const {
-	return myvk::Buffer::Create(
-	    GetDevicePtr(), GetInstanceCount() * sizeof(Transform),
-	    VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT, usages);
-}
-
-void VkScene::UpdateTransformBuffer(const myvk::Ptr<myvk::Buffer> &transform_buffer) const {
-	auto *ts = static_cast<glm::mat3x4 *>(transform_buffer->GetMappedData());
+VkDeviceSize VkScene::GetTransformBufferSize() const { return GetInstanceCount() * sizeof(Transform); }
+void VkScene::UpdateTransformBuffer(void *p_mapped) const {
+	auto *ts = static_cast<glm::mat3x4 *>(p_mapped);
 	for (uint32_t i = 0; i < GetInstanceCount(); ++i) {
 		auto &t = GetTransform(i);
-		ts[i] = glm::transpose(glm::mat4x3{t.rotate[0], t.rotate[1], t.rotate[2], t.translate});
 		// Transpose it to avoid alignment issue
+		ts[i] = glm::transpose(glm::mat4x3{t.rotate[0], t.rotate[1], t.rotate[2], t.translate});
 	}
 }
 
