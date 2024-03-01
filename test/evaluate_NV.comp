@@ -1,0 +1,163 @@
+// Tester
+#version 460
+#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require
+#extension GL_EXT_control_flow_attributes : require
+#extension GL_NV_cooperative_matrix : require
+#extension GL_KHR_shader_subgroup_basic : require
+#extension GL_KHR_shader_subgroup_shuffle : require
+#extension GL_KHR_memory_scope_semantics : require
+#define WORKGROUP_SIZE 128
+#define SUBGROUP_COUNT (WORKGROUP_SIZE / SUBGROUP_SIZE)
+#if SUBGROUP_COUNT > 4
+#error gl_SubgroupSize less than 32
+#endif
+
+layout(local_size_x_id = 0, local_size_y = 1, local_size_z = 1) in;
+
+layout(std430, binding = 0) readonly buffer uuWeights { uvec4 uWeights[]; };
+layout(std430, binding = 1) readonly buffer uuInputs { uvec4 uInputs[]; };
+layout(std430, binding = 2) writeonly buffer uuOutputs { uvec2 uOutputs[]; };
+
+#define FP16_PER_UV4 8
+
+// Counts
+#define FP_X 64
+#define ACT_Y WORKGROUP_SIZE
+#define ACT_COUNT (FP_X * ACT_Y)
+#define WEIGHT_64_COUNT (FP_X * 64)
+#define WEIGHT_16_COUNT (FP_X * 16)
+// UVec4 Counts
+#define UV4_X (FP_X / FP16_PER_UV4)                          // 8
+#define ACT_UV4_COUNT (ACT_COUNT / FP16_PER_UV4)             // 1024
+#define WEIGHT_64_UV4_COUNT (WEIGHT_64_COUNT / FP16_PER_UV4) // 512
+#define WEIGHT_16_UV4_COUNT (WEIGHT_16_COUNT / FP16_PER_UV4) // 24
+// Cooperative Matrix Counts
+#define COOPMAT_X (FP_X / 16)                                 // 4
+#define ACT_COOPMAT_COUNT (ACT_COUNT / (16 * 16))             // 32
+#define ACT_COOPMAT_Y (ACT_Y / 16)                            // 8
+#define WEIGHT_64_COOPMAT_COUNT (WEIGHT_64_COUNT / (16 * 16)) // 16
+// Subgroup
+#define SUBGROUP_COOPMAT_ROW (COOPMAT_X / SUBGROUP_COUNT)
+// Thread Weight Counts
+#define THREAD_WEIGHT_64_COUNT (WEIGHT_64_COUNT / WORKGROUP_SIZE)
+#define THREAD_WEIGHT_64_UV4_COUNT (WEIGHT_64_UV4_COUNT / WORKGROUP_SIZE)
+#define THREAD_WEIGHT_64_COOPMAT_COUNT (WEIGHT_64_COOPMAT_COUNT / WORKGROUP_SIZE)
+// Subgroup Activates Counts
+#define SUBGROUP_ACT_COOPMAT_Y (ACT_COOPMAT_Y / SUBGROUP_COUNT)
+// Matrix Strides & Major
+#define MAT64_COOPMAT_STRIDE (64 / FP16_PER_UV4)
+#define MAT64_COOPMAT_ELEMENT(X, Y) ((X) * (16 / FP16_PER_UV4) + (Y)*16 * MAT64_COOPMAT_STRIDE)
+#define WEIGHT_COOPMAT_MAJOR false // gl_CooperativeMatrixLayoutRowMajor
+#define ACT_COOPMAT_MAJOR true     // gl_CooperativeMatrixLayoutColumnMajor
+
+shared uvec4 sSharedBuffer[WEIGHT_64_UV4_COUNT > ACT_UV4_COUNT ? WEIGHT_64_UV4_COUNT : ACT_UV4_COUNT];
+fcoopmatNV<16, gl_ScopeSubgroup, 16, 16> subgroup_act_coopmats[2][SUBGROUP_ACT_COOPMAT_Y][COOPMAT_X];
+fcoopmatNV<16, gl_ScopeSubgroup, 16, 16> weight_coopmats[COOPMAT_X][COOPMAT_X];
+
+void LoadFirstActs(in const uint cur_act) {
+	uint global_id = gl_GlobalInvocationID.x, local_id = gl_LocalInvocationID.x;
+	uint global_base = global_id * UV4_X;
+	uint local_base = local_id * UV4_X;
+	[[unroll]] for (uint x = 0; x < UV4_X; ++x)
+		sSharedBuffer[local_base | x] = uInputs[global_base | x];
+	barrier();
+	[[unroll]] for (uint y = 0; y < SUBGROUP_ACT_COOPMAT_Y; ++y) {
+		uint g_y = gl_SubgroupID * SUBGROUP_ACT_COOPMAT_Y + y;
+		[[unroll]] for (uint x = 0; x < COOPMAT_X; ++x)
+			coopMatLoadNV(subgroup_act_coopmats[cur_act][y][x], sSharedBuffer, MAT64_COOPMAT_ELEMENT(x, g_y),
+			              MAT64_COOPMAT_STRIDE, ACT_COOPMAT_MAJOR);
+	}
+}
+void LoadW64Weights(in const uint layer) {
+	const uint kLayerUV4Base = layer * WEIGHT_64_UV4_COUNT;
+	const uint kLocalThreadUV4Base = gl_LocalInvocationID.x * THREAD_WEIGHT_64_UV4_COUNT;
+	const uint kThreadUV4Base = kLayerUV4Base + kLocalThreadUV4Base;
+	[[unroll]] for (uint i = 0; i < THREAD_WEIGHT_64_UV4_COUNT; ++i)
+		sSharedBuffer[kLocalThreadUV4Base + i] = uWeights[kThreadUV4Base + i];
+	barrier();
+	[[unroll]] for (uint y = 0; y < COOPMAT_X; ++y) {
+		[[unroll]] for (uint x = 0; x < COOPMAT_X; ++x)
+			coopMatLoadNV(weight_coopmats[y][x], sSharedBuffer, MAT64_COOPMAT_ELEMENT(x, y), MAT64_COOPMAT_STRIDE,
+			              WEIGHT_COOPMAT_MAJOR);
+	}
+}
+void LoadW16Weights(in const uint layer) {
+#if WEIGHT_16_UV4_COUNT != WORKGROUP_SIZE
+#error
+#endif
+	const uint kLayerUV4Base = layer * WEIGHT_64_UV4_COUNT;
+	sSharedBuffer[gl_LocalInvocationID.x] = uWeights[kLayerUV4Base + gl_LocalInvocationID.x];
+	barrier();
+	[[unroll]] for (uint x = 0; x < COOPMAT_X; ++x)
+		coopMatLoadNV(weight_coopmats[0][x], sSharedBuffer, MAT64_COOPMAT_ELEMENT(x, 0), MAT64_COOPMAT_STRIDE,
+		              WEIGHT_COOPMAT_MAJOR);
+}
+
+void Forward64_2(in const uint cur_act) {
+	uint prev_act = cur_act == 0 ? 1 : 0;
+	// Zero Initialize
+	[[unroll]] for (uint y = 0; y < SUBGROUP_ACT_COOPMAT_Y; ++y) {
+		[[unroll]] for (uint x = 0; x < COOPMAT_X; ++x)
+			subgroup_act_coopmats[cur_act][y][x] = fcoopmatNV<16, gl_ScopeSubgroup, 16, 16>(0);
+	}
+	// MMA
+	[[unroll]] for (uint a_y = 0; a_y < SUBGROUP_ACT_COOPMAT_Y; ++a_y) {
+		[[unroll]] for (uint w_y = 0; w_y < COOPMAT_X; ++w_y) {
+			[[unroll]] for (uint x = 0; x < COOPMAT_X; ++x) {
+				subgroup_act_coopmats[cur_act][a_y][w_y] =
+				    coopMatMulAddNV(weight_coopmats[w_y][x], subgroup_act_coopmats[prev_act][a_y][x],
+				                    subgroup_act_coopmats[cur_act][a_y][w_y]);
+			}
+		}
+	}
+	// ReLU and Store
+	[[unroll]] for (uint y = 0; y < SUBGROUP_ACT_COOPMAT_Y; ++y) {
+		[[unroll]] for (uint x = 0; x < COOPMAT_X; ++x) {
+			[[unroll]] for (uint k = 0; k < subgroup_act_coopmats[cur_act][y][x].length(); ++k)
+				subgroup_act_coopmats[cur_act][y][x][k] = max(subgroup_act_coopmats[cur_act][y][x][k], float16_t(0));
+		}
+	}
+}
+
+void Forward16Store(in const uint cur_act) {
+	uint prev_act = cur_act == 0 ? 1 : 0;
+	// Zero Initialize
+	[[unroll]] for (uint y = 0; y < SUBGROUP_ACT_COOPMAT_Y; ++y)
+		subgroup_act_coopmats[cur_act][y][0] = fcoopmatNV<16, gl_ScopeSubgroup, 16, 16>(0);
+	// MMA
+	[[unroll]] for (uint y = 0; y < SUBGROUP_ACT_COOPMAT_Y; ++y) {
+		[[unroll]] for (uint x = 0; x < COOPMAT_X; ++x) {
+			subgroup_act_coopmats[cur_act][y][0] = coopMatMulAddNV(
+			    weight_coopmats[0][x], subgroup_act_coopmats[prev_act][y][x], subgroup_act_coopmats[cur_act][y][0]);
+		}
+	}
+	// Store
+	[[unroll]] for (uint y = 0; y < SUBGROUP_ACT_COOPMAT_Y; ++y) {
+		uint w_y = gl_SubgroupID * SUBGROUP_ACT_COOPMAT_Y + y;
+		coopMatStoreNV(subgroup_act_coopmats[cur_act][y][0], sSharedBuffer, MAT64_COOPMAT_ELEMENT(0, w_y),
+		               MAT64_COOPMAT_STRIDE, ACT_COOPMAT_MAJOR);
+	}
+	barrier();
+}
+
+void Output() {
+	uint global_id = gl_GlobalInvocationID.x, local_id = gl_LocalInvocationID.x;
+	uOutputs[global_id] = sSharedBuffer[local_id * UV4_X].rg;
+}
+
+void main() {
+	LoadFirstActs(0);
+	LoadW64Weights(0);
+	Forward64_2(1);
+	LoadW64Weights(1);
+	Forward64_2(0);
+	LoadW64Weights(2);
+	Forward64_2(1);
+	LoadW64Weights(3);
+	Forward64_2(0);
+	LoadW64Weights(4);
+	Forward64_2(1);
+	LoadW16Weights(5);
+	Forward16Store(0);
+	Output();
+}
