@@ -25,8 +25,15 @@ std::vector<half> Evaluate(std::span<half> weights, std::span<half> inputs) {
 	return output;
 }
 
+template <typename Func> inline double ms(Func &&func) {
+	auto begin = std::chrono::high_resolution_clock::now();
+	func();
+	auto end = std::chrono::high_resolution_clock::now();
+	return (double)std::chrono::duration_cast<std::chrono::nanoseconds>(end - begin).count() / 1000000.0;
+}
+
 int main() {
-	constexpr std::size_t kBlocks = 5;
+	constexpr std::size_t kBlocks = 10000;
 
 	std::mt19937 random{std::random_device{}()};
 	std::vector<half> weights(64 * 64 * 5 + 64 * 16), inputs(128 * kBlocks * 64);
@@ -47,7 +54,16 @@ int main() {
 		cudaMemcpy(gpu_weights, weights.data(), weights.size() * sizeof(half), cudaMemcpyHostToDevice);
 		cudaMemcpy(gpu_inputs, inputs.data(), inputs.size() * sizeof(half), cudaMemcpyHostToDevice);
 		// SubgroupSize = 32 for NVIDIA
+		cudaEvent_t start, stop;
+		cudaEventCreate(&start);
+		cudaEventCreate(&stop);
+		cudaEventRecord(start, 0);
 		vuda::launchKernel("evaluate_32.spv", "main", 0, kBlocks, 128, gpu_weights, gpu_inputs, gpu_outputs);
+		cudaEventRecord(stop, 0);
+		cudaEventSynchronize(stop);
+		float time;
+		cudaEventElapsedTime(&time, start, stop);
+		std::cout << "GLSL: " << time << " ms" << std::endl;
 		// copy result to host
 		cudaMemcpy(comp_outputs.data(), gpu_outputs, comp_outputs.size() * sizeof(half), cudaMemcpyDeviceToHost);
 	}
