@@ -110,8 +110,6 @@ void Forward64() {
 				    coopMatMulAdd(subgroup_weight_coopmats[r][x], act_coopmat, subgroup_dst_act_coopmats[y][r]);
 		}
 	}
-	// Ensure sActs and sWeights accesses are done
-	barrier();
 	// ReLU
 	[[unroll]] for (uint y = 0; y < ACT_COOPMAT_Y; ++y) {
 		[[unroll]] for (uint r = 0; r < SUBGROUP_COOPMAT_ROW; ++r) {
@@ -119,6 +117,8 @@ void Forward64() {
 				subgroup_dst_act_coopmats[y][r][k] = max(subgroup_dst_act_coopmats[y][r][k], float16_t(0));
 		}
 	}
+	// Ensure sActs and sWeights accesses are done
+	barrier();
 	// Store Activates
 	[[unroll]] for (uint y = 0; y < ACT_COOPMAT_Y; ++y) {
 		[[unroll]] for (uint r = 0; r < SUBGROUP_COOPMAT_ROW; ++r)
@@ -150,13 +150,13 @@ void Forward16() {
 			    coopMatMulAdd(subgroup_weight_coopmats[x], act_coopmat, subgroup_dst_act_coopmats[y]);
 		}
 	}
-	// Ensure sActs and sWeights accesses are done
-	barrier();
 	// ReLU
 	[[unroll]] for (uint y = 0; y < SUBGROUP_ACT_COOPMAT_Y; ++y) {
 		[[unroll]] for (uint k = 0; k < subgroup_dst_act_coopmats[y].length(); ++k)
 			subgroup_dst_act_coopmats[y][k] = max(subgroup_dst_act_coopmats[y][k], float16_t(0));
 	}
+	// Ensure sActs and sWeights accesses are done
+	barrier();
 	// Store Activates
 	[[unroll]] for (uint y = 0; y < SUBGROUP_ACT_COOPMAT_Y; ++y) {
 		uint g_y = gl_SubgroupID * SUBGROUP_ACT_COOPMAT_Y + y;

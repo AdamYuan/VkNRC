@@ -162,8 +162,6 @@ void Forward64() {
 				    coopMatMulAdd(subgroup_weight_coopmats[r][x], act_coopmat, subgroup_dst_act_coopmats[y][r]);
 		}
 	}
-	// Ensure sActs and sWeights accesses are done
-	barrier();
 	// ReLU
 	[[unroll]] for (uint y = 0; y < ACT_COOPMAT_Y; ++y) {
 		[[unroll]] for (uint r = 0; r < SUBGROUP_COOPMAT_ROW; ++r) {
@@ -171,7 +169,9 @@ void Forward64() {
 				subgroup_dst_act_coopmats[y][r][k] = max(subgroup_dst_act_coopmats[y][r][k], float16_t(0));
 		}
 	}
-	// Store Activates
+	// Ensure sActs and sWeights accesses are done
+	barrier();
+	// Then store Activates
 	[[unroll]] for (uint y = 0; y < ACT_COOPMAT_Y; ++y) {
 		[[unroll]] for (uint r = 0; r < SUBGROUP_COOPMAT_ROW; ++r)
 			coopMatStore(subgroup_dst_act_coopmats[y][r], sActs,
@@ -202,19 +202,30 @@ void Forward16() {
 			    coopMatMulAdd(subgroup_weight_coopmats[x], act_coopmat, subgroup_dst_act_coopmats[y]);
 		}
 	}
-	// Ensure sActs and sWeights accesses are done
-	barrier();
 	// ReLU
 	[[unroll]] for (uint y = 0; y < SUBGROUP_ACT_COOPMAT_Y; ++y) {
 		[[unroll]] for (uint k = 0; k < subgroup_dst_act_coopmats[y].length(); ++k)
 			subgroup_dst_act_coopmats[y][k] = max(subgroup_dst_act_coopmats[y][k], float16_t(0));
 	}
-	// Store Activates
+	// Ensure sActs and sWeights accesses are done
+	barrier();
+	// Then store Activates
 	[[unroll]] for (uint y = 0; y < SUBGROUP_ACT_COOPMAT_Y; ++y) {
 		uint g_y = gl_SubgroupID * SUBGROUP_ACT_COOPMAT_Y + y;
 		coopMatStore(subgroup_dst_act_coopmats[y], sActs, MAT64_COOPMAT_ELEMENT(g_y, 0), MAT64_COOPMAT_STRIDE,
 		             ACT_COOPMAT_MAJOR);
 	}
+}
+
+void OutputPixel(in const uint pixel_x_y) {
+	if (pixel_x_y == -1u)
+		return;
+	ivec2 coord = ivec2(pixel_x_y & 0xFFFF, pixel_x_y >> 16);
+	uvec2 rgba_fp16 = sActs[gl_LocalInvocationID.x * UV4_X].rg;
+	vec3 radiance = vec3(unpackUnorm2x16(rgba_fp16.x), unpackUnorm2x16(rgba_fp16.y).x);
+	vec3 color = imageLoad(uColor, coord).rgb;
+	color *= radiance;
+	imageStore(uColor, coord, vec4(color, 0));
 }
 
 void main() {
@@ -238,4 +249,5 @@ void main() {
 	barrier();
 	Forward16();
 	barrier();
+	OutputPixel();
 }

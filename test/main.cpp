@@ -46,6 +46,7 @@ int main() {
 
 		cudaMemcpy(gpu_weights, weights.data(), weights.size() * sizeof(half), cudaMemcpyHostToDevice);
 		cudaMemcpy(gpu_inputs, inputs.data(), inputs.size() * sizeof(half), cudaMemcpyHostToDevice);
+		// SubgroupSize = 32 for NVIDIA
 		vuda::launchKernel("evaluate_32.spv", "main", 0, kBlocks, 128, gpu_weights, gpu_inputs, gpu_outputs);
 		// copy result to host
 		cudaMemcpy(comp_outputs.data(), gpu_outputs, comp_outputs.size() * sizeof(half), cudaMemcpyDeviceToHost);
