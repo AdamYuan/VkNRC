@@ -31,8 +31,13 @@ int main(int argc, char **argv) {
 	auto features = physical_device->GetDefaultFeatures();
 	features.vk12.bufferDeviceAddress = VK_TRUE;
 	features.vk12.hostQueryReset = VK_TRUE;
+	features.vk12.shaderFloat16 = VK_TRUE;
+	features.vk12.vulkanMemoryModel = VK_TRUE;
+	features.vk13.computeFullSubgroups = VK_TRUE;
 	VkPhysicalDeviceCooperativeMatrixFeaturesKHR cooperative_matrix_features = {
-	    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_COOPERATIVE_MATRIX_FEATURES_KHR, .cooperativeMatrix = VK_TRUE};
+	    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_COOPERATIVE_MATRIX_FEATURES_KHR,
+	    .cooperativeMatrix = VK_TRUE,
+	    .cooperativeMatrixRobustBufferAccess = VK_FALSE};
 	VkPhysicalDeviceRayQueryFeaturesKHR ray_query_features = {
 	    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR,
 	    .pNext = &cooperative_matrix_features,

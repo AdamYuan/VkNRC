@@ -15,10 +15,10 @@ set(SHADER_SRC
         vbuffer.frag
         vbuffer.vert
         path_tracer.comp
-        nrc_evaluate.comp
         screen.frag
         screen.vert
         nrc_indirect.comp
+        nrc_inference.comp
 )
 
 set(SHADER_SOURCE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/src)

@@ -4,6 +4,7 @@
 
 #include "NRCRenderGraph.hpp"
 
+#include "NNInference.hpp"
 #include "PathTracerPass.hpp"
 #include "ScreenPass.hpp"
 #include "VBufferPass.hpp"
@@ -40,13 +41,21 @@ NRCRenderGraph::NRCRenderGraph(const myvk::Ptr<myvk::FrameManager> &frame_manage
 	                                               .batch_train_records = nrc_resources.train_batch_records,
 	                                               .camera_ptr = camera_ptr});
 
+	auto nn_inference_pass = CreatePass<NNInference>(
+	    {"nn_inference_pass"}, NNInference::Args{.scene_ptr = m_scene_ptr,
+	                                             .scene_resources = scene_resources,
+	                                             .color = path_tracer_pass->GetColorOutput(),
+	                                             .weights = nrc_resources.weights,
+	                                             .eval_count = path_tracer_pass->GetEvalCountOutput(),
+	                                             .eval_records = path_tracer_pass->GetEvalRecordsOutput()});
+
 	auto swapchain_image = CreateResource<myvk_rg::SwapchainImage>({"swapchain_image"}, frame_manager);
 	swapchain_image->SetLoadOp(VK_ATTACHMENT_LOAD_OP_DONT_CARE);
 
 	auto screen_pass =
 	    CreatePass<ScreenPass>({"screen_pass"}, ScreenPass::Args{.nrc_state_ptr = m_nrc_state_ptr,
 	                                                             .accumulate_image = nrc_resources.accumulate,
-	                                                             .color_image = path_tracer_pass->GetColorOutput(),
+	                                                             .color_image = nn_inference_pass->GetColorOutput(),
 	                                                             .screen_image = swapchain_image->Alias()});
 	auto imgui_pass = CreatePass<myvk_rg::ImGuiPass>({"imgui_pass"}, screen_pass->GetScreenOutput());
 	AddResult({"present"}, imgui_pass->GetImageOutput());
@@ -107,6 +116,7 @@ NRCResources NRCRenderGraph::create_nrc_resources() {
 	NRCResources nr = {
 	    .accumulate =
 	        CreateResource<myvk_rg::InputImage>({"accumulate"}, m_nrc_state_ptr->GetResultImageView())->Alias(),
+	    .weights = CreateResource<myvk_rg::InputBuffer>({"weights"}, m_nrc_state_ptr->GetWeightBuffer())->Alias(),
 	    .eval_records = eval_record_buffer->Alias(),
 	    .eval_record_count = eval_record_count_buffer->Alias(),
 	    .train_batch_records =

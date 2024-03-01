@@ -31,6 +31,7 @@ public:
 	inline ~VkNRCState() final = default;
 
 	inline const auto &GetResultImageView() const { return m_result_view; }
+	inline const auto &GetWeightBuffer() const { return m_weights; }
 
 	inline uint32_t GetSampleCount() const { return m_samples; }
 	inline uint32_t GetSeed() const { return m_seed; }

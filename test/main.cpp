@@ -32,18 +32,24 @@ template <typename Func> inline double ms(Func &&func) {
 	return (double)std::chrono::duration_cast<std::chrono::nanoseconds>(end - begin).count() / 1000000.0;
 }
 
-int main() {
-	constexpr std::size_t kBlocks = 10000;
+int main(int argc, char **argv) {
+	--argc, ++argv;
+	if (argc == 0)
+		return EXIT_FAILURE;
+	std::size_t blocks = 1;
+	for (int i = 0; i < argc; ++i)
+		blocks *= std::stoull(argv[i]);
+	blocks /= 128;
 
 	std::mt19937 random{std::random_device{}()};
-	std::vector<half> weights(64 * 64 * 5 + 64 * 16), inputs(128 * kBlocks * 64);
+	std::vector<half> weights(64 * 64 * 5 + 64 * 16), inputs(128 * blocks * 64);
 
 	for (auto &w : weights)
 		w = std::uniform_real_distribution<float>{0, 0.1}(random);
 	for (auto &i : inputs)
 		i = std::uniform_real_distribution<float>{0, 0.1}(random);
 
-	std::vector<half> comp_outputs(128 * kBlocks * 4);
+	std::vector<half> comp_outputs(128 * blocks * 4);
 	{
 		cudaSetDevice(0);
 		int *gpu_weights, *gpu_inputs, *gpu_outputs;
@@ -53,16 +59,12 @@ int main() {
 
 		cudaMemcpy(gpu_weights, weights.data(), weights.size() * sizeof(half), cudaMemcpyHostToDevice);
 		cudaMemcpy(gpu_inputs, inputs.data(), inputs.size() * sizeof(half), cudaMemcpyHostToDevice);
+		cudaStreamSynchronize(0);
 		// SubgroupSize = 32 for NVIDIA
-		cudaEvent_t start, stop;
-		cudaEventCreate(&start);
-		cudaEventCreate(&stop);
-		cudaEventRecord(start, 0);
-		vuda::launchKernel("evaluate_32.spv", "main", 0, kBlocks, 128, gpu_weights, gpu_inputs, gpu_outputs);
-		cudaEventRecord(stop, 0);
-		cudaEventSynchronize(stop);
-		float time;
-		cudaEventElapsedTime(&time, start, stop);
+		double time = ms([&]() {
+			vuda::launchKernel("evaluate_32.spv", "main", 0, (int)blocks, 128, gpu_weights, gpu_inputs, gpu_outputs);
+			cudaStreamSynchronize(0);
+		});
 		std::cout << "GLSL: " << time << " ms" << std::endl;
 		// copy result to host
 		cudaMemcpy(comp_outputs.data(), gpu_outputs, comp_outputs.size() * sizeof(half), cudaMemcpyDeviceToHost);
@@ -70,11 +72,11 @@ int main() {
 
 	auto real_outputs = Evaluate(weights, inputs);
 	std::cout << real_outputs.size() << std::endl;
-	for (std::size_t i = 0; i < 128 * kBlocks; ++i) {
-		std::cout << "REAL: " << real_outputs[i * 4 + 0] << "," << real_outputs[i * 4 + 1] << ","
-		          << real_outputs[i * 4 + 2] << "," << real_outputs[i * 4 + 3] << std::endl;
-		std::cout << "COMP: " << comp_outputs[i * 4 + 0] << "," << comp_outputs[i * 4 + 1] << ","
-		          << comp_outputs[i * 4 + 2] << "," << comp_outputs[i * 4 + 3] << std::endl
+	for (std::size_t i = 0; i < 128 * blocks; ++i) {
+		std::cout << "REAL: " << real_outputs[i * 4 + 0] << ",\t" << real_outputs[i * 4 + 1] << ",\t"
+		          << real_outputs[i * 4 + 2] << std::endl;
+		std::cout << "COMP: " << comp_outputs[i * 4 + 0] << ",\t" << comp_outputs[i * 4 + 1] << ",\t"
+		          << comp_outputs[i * 4 + 2] << std::endl
 		          << std::endl;
 	}
 
