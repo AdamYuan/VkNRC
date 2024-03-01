@@ -7,7 +7,8 @@
 #include <myvk/CommandBuffer.hpp>
 
 namespace nrc {
-inline static constexpr uint32_t kNNHiddenLayers = 5, kNNWidth = 64, kTrainBatchSize = 16384, kTrainBatchCount = 4;
+inline static constexpr uint32_t kNNHiddenLayers = 5, kNNWidth = 64, kPaddedNNOutWidth = 16, kTrainBatchSize = 16384,
+                                 kTrainBatchCount = 4;
 struct PackedNRCInput {
 	uint32_t primitive_id, flip_bit_instance_id;
 	uint32_t barycentric_2x16U;
@@ -32,7 +33,8 @@ VkDeviceSize VkNRCState::GetTrainBatchRecordBufferSize() {
 uint32_t VkNRCState::GetTrainBatchCount() { return nrc::kTrainBatchCount; }
 
 void VkNRCState::create_weight_buffer() {
-	constexpr uint32_t kWeightCount = nrc::kNNWidth * nrc::kNNWidth * nrc::kNNHiddenLayers + nrc::kNNWidth * 3;
+	constexpr uint32_t kWeightCount =
+	    nrc::kNNWidth * nrc::kNNWidth * nrc::kNNHiddenLayers + nrc::kNNWidth * nrc::kPaddedNNOutWidth;
 	m_weights =
 	    myvk::Buffer::Create(GetDevicePtr(), kWeightCount * sizeof(uint16_t), 0, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 }

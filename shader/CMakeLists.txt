@@ -18,6 +18,7 @@ set(SHADER_SRC
         nrc_evaluate.comp
         screen.frag
         screen.vert
+        nrc_indirect.comp
 )
 
 set(SHADER_SOURCE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/src)
