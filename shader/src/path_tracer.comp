@@ -147,7 +147,10 @@ void main() {
 	if (any(greaterThanEqual(coord, uExtent)))
 		return;
 
-	atomicAdd(uEvalCount, 1u);
+	if (gl_GlobalInvocationID.xy == uvec2(0)) {
+		ivec2 xy = imageSize(uColor);
+		uEvalCount = xy.x * xy.y;
+	}
 
 	uvec2 primitive_id_instance_id = texelFetch(uPrimitiveID_InstanceID, ivec2(coord), 0).rg;
 	uint primitive_id = primitive_id_instance_id.x, instance_id = primitive_id_instance_id.y;
