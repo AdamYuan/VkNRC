@@ -44,6 +44,7 @@ add_executable(VkNRC
         src/rg/VBufferPass.cpp
         src/rg/ScreenPass.cpp
         src/rg/NNInference.cpp
+        src/rg/NNInferenceShader.cpp
 )
 target_link_libraries(VkNRC PRIVATE dep shader)
 set_target_properties(VkNRC PROPERTIES

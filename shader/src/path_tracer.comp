@@ -1,6 +1,8 @@
 #version 460
 #extension GL_EXT_ray_tracing : require
 #extension GL_EXT_ray_query : require
+#extension GL_KHR_shader_subgroup_basic : require
+#extension GL_KHR_shader_subgroup_ballot : require
 layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
 
 #include "CookTorranceBRDF.glsl"
@@ -147,11 +149,6 @@ void main() {
 	if (any(greaterThanEqual(coord, uExtent)))
 		return;
 
-	if (gl_GlobalInvocationID.xy == uvec2(0)) {
-		ivec2 xy = imageSize(uColor);
-		uEvalCount = xy.x * xy.y;
-	}
-
 	uvec2 primitive_id_instance_id = texelFetch(uPrimitiveID_InstanceID, ivec2(coord), 0).rg;
 	uint primitive_id = primitive_id_instance_id.x, instance_id = primitive_id_instance_id.y;
 
@@ -166,8 +163,11 @@ void main() {
 		// Seed on 256 x 256 Tile
 		uint seed = (((coord.y & 0xFF) << 8) | (coord.x & 0xFF)) + uSeed;
 		RNGSetState(seed);
-
 		color = PathTrace(hit, ray);
+
+		uvec4 ballot = subgroupBallot(true);
+		if (subgroupElect())
+			atomicAdd(uEvalCount, subgroupBallotBitCount(ballot));
 	}
 
 	color = IsValidRGB(color) ? color : vec3(0);

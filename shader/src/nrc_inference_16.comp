@@ -1,0 +1,3 @@
+#version 460
+#define SUBGROUP_SIZE 16
+#include "NNInference.glsl"

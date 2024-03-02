@@ -4,6 +4,8 @@
 
 #include "NNInference.hpp"
 
+#include "NNInferenceShader.hpp"
+
 namespace rg {
 
 NNInference::NNInference(myvk_rg::Parent parent, const myvk_rg::Buffer &cmd, const NNInference::Args &args)
@@ -43,10 +45,7 @@ NNInference::NNInference(myvk_rg::Parent parent, const myvk_rg::Buffer &cmd, con
 void NNInference::CreatePipeline() {
 	auto &device = GetRenderGraphPtr()->GetDevicePtr();
 	auto pipeline_layout = myvk::PipelineLayout::Create(device, {GetVkDescriptorSetLayout()}, {});
-	constexpr uint32_t kCompSpv[] = {
-#include <shader/nrc_inference.comp.u32>
-	};
-	auto shader_module = myvk::ShaderModule::Create(device, kCompSpv, sizeof(kCompSpv));
+	auto shader_module = NNInferenceShader::Create(device);
 	shader_module->AddSpecialization(0, (uint32_t)m_scene_ptr->GetTextures().size());
 	VkPipelineShaderStageCreateInfo shader_stage =
 	    shader_module->GetPipelineShaderStageCreateInfo(VK_SHADER_STAGE_COMPUTE_BIT);

@@ -1,16 +1,10 @@
-#version 460
 #extension GL_EXT_shader_explicit_arithmetic_types_float16 : require
 #extension GL_EXT_control_flow_attributes : require
 #extension GL_KHR_cooperative_matrix : require
 #extension GL_KHR_shader_subgroup_basic : require
-#extension GL_KHR_shader_subgroup_shuffle : require
 #extension GL_KHR_memory_scope_semantics : require
 #define WORKGROUP_SIZE 128
-#define SUBGROUP_SIZE 32
 #define SUBGROUP_COUNT (WORKGROUP_SIZE / SUBGROUP_SIZE)
-#if SUBGROUP_COUNT > 4
-#error gl_SubgroupSize less than 32
-#endif
 
 layout(local_size_x = WORKGROUP_SIZE, local_size_y = 1, local_size_z = 1) in;
 
@@ -68,18 +62,15 @@ UnpackedNRCInput UnpackNRCInput(in const PackedNRCInput packed_input) {
 #define UV4_X (FP_X / FP16_PER_UV4)                          // 8
 #define ACT_UV4_COUNT (ACT_COUNT / FP16_PER_UV4)             // 1024
 #define WEIGHT_64_UV4_COUNT (WEIGHT_64_COUNT / FP16_PER_UV4) // 512
-#define WEIGHT_16_UV4_COUNT (WEIGHT_16_COUNT / FP16_PER_UV4) // 24
+#define WEIGHT_16_UV4_COUNT (WEIGHT_16_COUNT / FP16_PER_UV4) // 128
 // Cooperative Matrix Counts
 #define COOPMAT_X (FP_X / 16)                                 // 4
 #define ACT_COOPMAT_COUNT (ACT_COUNT / (16 * 16))             // 32
 #define ACT_COOPMAT_Y (ACT_Y / 16)                            // 8
 #define WEIGHT_64_COOPMAT_COUNT (WEIGHT_64_COUNT / (16 * 16)) // 16
-// Subgroup
-#define SUBGROUP_COOPMAT_ROW (COOPMAT_X / SUBGROUP_COUNT)
 // Thread Weight Counts
 #define THREAD_WEIGHT_64_COUNT (WEIGHT_64_COUNT / WORKGROUP_SIZE)
 #define THREAD_WEIGHT_64_UV4_COUNT (WEIGHT_64_UV4_COUNT / WORKGROUP_SIZE)
-#define THREAD_WEIGHT_64_COOPMAT_COUNT (WEIGHT_64_COOPMAT_COUNT / WORKGROUP_SIZE)
 // Subgroup Activates Counts
 #define SUBGROUP_ACT_COOPMAT_Y (ACT_COOPMAT_Y / SUBGROUP_COUNT)
 // Matrix Strides & Major
