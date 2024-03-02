@@ -44,10 +44,10 @@ int main(int argc, char **argv) {
 	std::mt19937 random{std::random_device{}()};
 	std::vector<half> weights(64 * 64 * 5 + 64 * 16), inputs(128 * blocks * 64);
 
-	for (auto &w : weights)
-		w = std::uniform_real_distribution<float>{0, 0.1}(random);
-	for (auto &i : inputs)
-		i = std::uniform_real_distribution<float>{0, 0.1}(random);
+	for (int x = 0; auto &w : weights)
+		w = 0.00001 * (x++); // std::uniform_real_distribution<float>{0, 0.25}(random);
+	for (int x = 0; auto &i : inputs)
+		i = std::uniform_real_distribution<float>{0, 0.0625}(random);
 
 	std::vector<half> comp_outputs(128 * blocks * 4);
 	{
@@ -61,6 +61,12 @@ int main(int argc, char **argv) {
 		cudaMemcpy(gpu_inputs, inputs.data(), inputs.size() * sizeof(half), cudaMemcpyHostToDevice);
 		cudaStreamSynchronize(0);
 		// SubgroupSize = 32 for NVIDIA
+		double time_0 = ms([&]() {
+			// vuda::launchKernel("empty.spv", "main", 0, 1, 1);
+			vuda::launchKernel("evaluate_32.spv", "main", 0, (int)blocks, 128, gpu_weights, gpu_inputs, gpu_outputs);
+			cudaStreamSynchronize(0);
+		});
+		cudaStreamSynchronize(0);
 		double time = ms([&]() {
 			vuda::launchKernel("evaluate_32.spv", "main", 0, (int)blocks, 128, gpu_weights, gpu_inputs, gpu_outputs);
 			cudaStreamSynchronize(0);

@@ -6,8 +6,9 @@
 
 namespace rg {
 
-NNInference::NNInference(myvk_rg::Parent parent, const NNInference::Args &args)
+NNInference::NNInference(myvk_rg::Parent parent, const myvk_rg::Buffer &cmd, const NNInference::Args &args)
     : myvk_rg::ComputePassBase(parent), m_scene_ptr(args.scene_ptr) {
+	AddInput<myvk_rg::Usage::kDrawIndirectBuffer>({"cmd"}, cmd);
 	// Scene
 	AddDescriptorInput<myvk_rg::Usage::kStorageBufferR, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>(
 	    {0}, {"vertices"}, args.scene_resources.vertices);
@@ -60,10 +61,7 @@ void NNInference::CreatePipeline() {
 void NNInference::CmdExecute(const myvk::Ptr<myvk::CommandBuffer> &command_buffer) const {
 	command_buffer->CmdBindPipeline(m_pipeline);
 	command_buffer->CmdBindDescriptorSets({GetVkDescriptorSet()}, m_pipeline);
-	auto extent = GetRenderGraphPtr()->GetCanvasSize();
-	uint32_t group_count_x = extent.width * extent.height;
-	group_count_x = (group_count_x + 127) / 128;
-	command_buffer->CmdDispatch(group_count_x, 1, 1);
+	command_buffer->CmdDispatchIndirect(GetInputBuffer({"cmd"})->GetBufferView().buffer);
 }
 
 } // namespace rg

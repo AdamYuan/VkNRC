@@ -113,7 +113,7 @@ void Forward64_2() {
 	// ReLU and Store
 	[[unroll]] for (uint y = 0; y < SUBGROUP_ACT_COOPMAT_Y; ++y) {
 		[[unroll]] for (uint x = 0; x < COOPMAT_X; ++x) {
-			[[unroll]] for (uint k = 0; k < subgroup_dst_act_coopmats[y][x].length(); ++k)
+			[[unroll, dependency_length(256)]] for (uint k = 0; k < 256; ++k)
 				subgroup_act_coopmats[y][x][k] = max(subgroup_dst_act_coopmats[y][x][k], float16_t(0));
 		}
 	}
@@ -135,7 +135,7 @@ void Forward16Store() {
 	// Store
 	[[unroll]] for (uint y = 0; y < SUBGROUP_ACT_COOPMAT_Y; ++y) {
 		uint w_y = gl_SubgroupID * SUBGROUP_ACT_COOPMAT_Y + y;
-		coopMatStore(subgroup_dst_act_coopmats[y], sSharedBuffer, MAT64_COOPMAT_ELEMENT(0, w_y), MAT64_COOPMAT_STRIDE,
+		coopMatStore(subgroup_dst_act_coopmats[y], sSharedBuffer, w_y * (16 * 16) / FP16_PER_UV4, 16 / FP16_PER_UV4,
 		             ACT_COOPMAT_MAJOR);
 	}
 	barrier();
@@ -143,7 +143,7 @@ void Forward16Store() {
 
 void Output() {
 	uint global_id = gl_GlobalInvocationID.x, local_id = gl_LocalInvocationID.x;
-	uOutputs[global_id] = sSharedBuffer[local_id * UV4_X].rg;
+	uOutputs[global_id] = sSharedBuffer[local_id * 2].rg;
 }
 
 void main() {

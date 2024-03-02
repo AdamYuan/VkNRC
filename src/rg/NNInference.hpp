@@ -26,7 +26,7 @@ private:
 	myvk::Ptr<VkScene> m_scene_ptr;
 
 public:
-	NNInference(myvk_rg::Parent parent, const Args &args);
+	NNInference(myvk_rg::Parent parent, const myvk_rg::Buffer &cmd, const Args &args);
 	inline ~NNInference() final = default;
 	void CreatePipeline() final;
 	void CmdExecute(const myvk::Ptr<myvk::CommandBuffer> &command_buffer) const final;

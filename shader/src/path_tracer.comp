@@ -147,6 +147,8 @@ void main() {
 	if (any(greaterThanEqual(coord, uExtent)))
 		return;
 
+	atomicAdd(uEvalCount, 1u);
+
 	uvec2 primitive_id_instance_id = texelFetch(uPrimitiveID_InstanceID, ivec2(coord), 0).rg;
 	uint primitive_id = primitive_id_instance_id.x, instance_id = primitive_id_instance_id.y;
 
