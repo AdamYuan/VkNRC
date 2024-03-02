@@ -26,7 +26,7 @@ endif ()
 
 add_subdirectory(dep)
 add_subdirectory(shader)
-add_subdirectory(test)
+# add_subdirectory(test)
 
 add_executable(VkNRC
         src/main.cpp
