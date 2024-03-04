@@ -4,6 +4,8 @@
 #include <random>
 #include <vuda_runtime.hpp>
 
+constexpr uint32_t kWorkgroupSize = 128;
+
 using half_float::half;
 static_assert(sizeof(half) == sizeof(uint16_t));
 
@@ -32,6 +34,14 @@ template <typename Func> inline double ms(Func &&func) {
 	return (double)std::chrono::duration_cast<std::chrono::nanoseconds>(end - begin).count() / 1000000.0;
 }
 
+double error_3(const half *p_l, const half *p_r) {
+	double e0 = p_l[0] - p_r[0];
+	double e1 = p_l[1] - p_r[1];
+	double e2 = p_l[2] - p_r[2];
+	e0 *= e0, e1 *= e1, e2 *= e2;
+	return std::sqrt(e0 + e1 + e2);
+}
+
 int main(int argc, char **argv) {
 	--argc, ++argv;
 	if (argc == 0)
@@ -39,17 +49,18 @@ int main(int argc, char **argv) {
 	std::size_t blocks = 1;
 	for (int i = 0; i < argc; ++i)
 		blocks *= std::stoull(argv[i]);
-	blocks /= 128;
+	blocks /= kWorkgroupSize;
 
 	std::mt19937 random{std::random_device{}()};
-	std::vector<half> weights(64 * 64 * 5 + 64 * 16), inputs(128 * blocks * 64);
+	std::vector<half> weights(64 * 64 * 5 + 64 * 64), inputs(kWorkgroupSize * blocks * 64);
 
 	for (int x = 0; auto &w : weights)
 		w = 0.00001 * (x++); // std::uniform_real_distribution<float>{0, 0.25}(random);
+		                     // w = std::uniform_real_distribution<float>{0, 0.1}(random);
 	for (int x = 0; auto &i : inputs)
 		i = std::uniform_real_distribution<float>{0, 0.0625}(random);
 
-	std::vector<half> comp_outputs(128 * blocks * 4);
+	std::vector<half> comp_outputs(kWorkgroupSize * blocks * 4);
 	{
 		cudaSetDevice(0);
 		int *gpu_weights, *gpu_inputs, *gpu_outputs;
@@ -63,12 +74,14 @@ int main(int argc, char **argv) {
 		// SubgroupSize = 32 for NVIDIA
 		double time_0 = ms([&]() {
 			// vuda::launchKernel("empty.spv", "main", 0, 1, 1);
-			vuda::launchKernel("evaluate_32.spv", "main", 0, (int)blocks, 128, gpu_weights, gpu_inputs, gpu_outputs);
+			vuda::launchKernel("evaluate_32.spv", "main", 0, (int)blocks, kWorkgroupSize, gpu_weights, gpu_inputs,
+			                   gpu_outputs);
 			cudaStreamSynchronize(0);
 		});
 		cudaStreamSynchronize(0);
 		double time = ms([&]() {
-			vuda::launchKernel("evaluate_32.spv", "main", 0, (int)blocks, 128, gpu_weights, gpu_inputs, gpu_outputs);
+			vuda::launchKernel("evaluate_32.spv", "main", 0, (int)blocks, kWorkgroupSize, gpu_weights, gpu_inputs,
+			                   gpu_outputs);
 			cudaStreamSynchronize(0);
 		});
 		std::cout << "GLSL: " << time << " ms" << std::endl;
@@ -76,15 +89,21 @@ int main(int argc, char **argv) {
 		cudaMemcpy(comp_outputs.data(), gpu_outputs, comp_outputs.size() * sizeof(half), cudaMemcpyDeviceToHost);
 	}
 
+	double total_error = 0.0;
 	auto real_outputs = Evaluate(weights, inputs);
 	std::cout << real_outputs.size() << std::endl;
-	for (std::size_t i = 0; i < 128 * blocks; ++i) {
+	for (std::size_t i = 0; i < kWorkgroupSize * blocks; ++i) {
+		std::cout << "# " << i << std::endl;
 		std::cout << "REAL: " << real_outputs[i * 4 + 0] << ",\t" << real_outputs[i * 4 + 1] << ",\t"
 		          << real_outputs[i * 4 + 2] << std::endl;
 		std::cout << "COMP: " << comp_outputs[i * 4 + 0] << ",\t" << comp_outputs[i * 4 + 1] << ",\t"
 		          << comp_outputs[i * 4 + 2] << std::endl
 		          << std::endl;
+
+		total_error += error_3(real_outputs.data() + i * 4, comp_outputs.data() + i * 4);
 	}
+	total_error /= double(kWorkgroupSize * blocks);
+	printf("Avg MSE: %f\n", total_error);
 
 	return 0;
 }

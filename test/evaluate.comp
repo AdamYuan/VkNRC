@@ -1,4 +1,3 @@
-// Tester
 #version 460
 #extension GL_EXT_shader_explicit_arithmetic_types_float16 : require
 #extension GL_EXT_control_flow_attributes : require
@@ -80,13 +79,13 @@ void LoadW16Weights(in const uint layer) {
 	barrier();
 }
 
-void Forward64_2() {
-	coopmat<float16_t, gl_ScopeSubgroup, 16, 16, gl_MatrixUseAccumulator>
-	    subgroup_dst_act_coopmats[SUBGROUP_ACT_COOPMAT_Y][COOPMAT_X];
+void Forward64() {
+	coopmat<float16_t, gl_ScopeSubgroup, 16, 16, gl_MatrixUseAccumulator> subgroup_dst_coopmats[SUBGROUP_ACT_COOPMAT_Y]
+	                                                                                           [COOPMAT_X];
 	// Zero Initialize
 	[[unroll]] for (uint y = 0; y < SUBGROUP_ACT_COOPMAT_Y; ++y) {
 		[[unroll]] for (uint x = 0; x < COOPMAT_X; ++x)
-			subgroup_dst_act_coopmats[y][x] = coopmat<float16_t, gl_ScopeSubgroup, 16, 16, gl_MatrixUseAccumulator>(0);
+			subgroup_dst_coopmats[y][x] = coopmat<float16_t, gl_ScopeSubgroup, 16, 16, gl_MatrixUseAccumulator>(0);
 	}
 	// MMA
 	[[unroll]] for (uint w_y = 0; w_y < COOPMAT_X; ++w_y) {
@@ -96,8 +95,8 @@ void Forward64_2() {
 			            WEIGHT_COOPMAT_MAJOR);
 
 			[[unroll]] for (uint a_y = 0; a_y < SUBGROUP_ACT_COOPMAT_Y; ++a_y) {
-				subgroup_dst_act_coopmats[a_y][w_y] =
-				    coopMatMulAdd(weight_coopmat, subgroup_act_coopmats[a_y][x], subgroup_dst_act_coopmats[a_y][w_y]);
+				subgroup_dst_coopmats[a_y][w_y] =
+				    coopMatMulAdd(weight_coopmat, subgroup_act_coopmats[a_y][x], subgroup_dst_coopmats[a_y][w_y]);
 			}
 		}
 	}
@@ -105,18 +104,18 @@ void Forward64_2() {
 	// ReLU & Store
 	[[unroll]] for (uint y = 0; y < SUBGROUP_ACT_COOPMAT_Y; ++y) {
 		[[unroll]] for (uint x = 0; x < COOPMAT_X; ++x) {
-			for (uint k = 0; k < subgroup_dst_act_coopmats[y][x].length(); ++k)
-				subgroup_act_coopmats[y][x][k] = max(subgroup_dst_act_coopmats[y][x][k], float16_t(0));
+			// assert(subgroup_dst_coopmats[y][x].length() == 16 * 16 / SUBGROUP_SIZE)
+			[[unroll]] for (uint k = 0; k < (256 / SUBGROUP_SIZE); ++k)
+				subgroup_act_coopmats[y][x][k] = max(subgroup_dst_coopmats[y][x][k], float16_t(0));
 		}
 	}
 }
 
 void Forward16Store() {
-	coopmat<float16_t, gl_ScopeSubgroup, 16, 16, gl_MatrixUseAccumulator>
-	    subgroup_dst_act_coopmats[SUBGROUP_ACT_COOPMAT_Y];
+	coopmat<float16_t, gl_ScopeSubgroup, 16, 16, gl_MatrixUseAccumulator> subgroup_dst_coopmats[SUBGROUP_ACT_COOPMAT_Y];
 	// Zero Initialize
 	[[unroll]] for (uint y = 0; y < SUBGROUP_ACT_COOPMAT_Y; ++y)
-		subgroup_dst_act_coopmats[y] = coopmat<float16_t, gl_ScopeSubgroup, 16, 16, gl_MatrixUseAccumulator>(0);
+		subgroup_dst_coopmats[y] = coopmat<float16_t, gl_ScopeSubgroup, 16, 16, gl_MatrixUseAccumulator>(0);
 	// MMA
 	[[unroll]] for (uint x = 0; x < COOPMAT_X; ++x) {
 		coopmat<float16_t, gl_ScopeSubgroup, 16, 16, gl_MatrixUseA> weight_coopmat;
@@ -124,17 +123,17 @@ void Forward16Store() {
 		            WEIGHT_COOPMAT_MAJOR);
 
 		[[unroll]] for (uint y = 0; y < SUBGROUP_ACT_COOPMAT_Y; ++y) {
-			subgroup_dst_act_coopmats[y] =
-			    coopMatMulAdd(weight_coopmat, subgroup_act_coopmats[y][x], subgroup_dst_act_coopmats[y]);
+			subgroup_dst_coopmats[y] =
+			    coopMatMulAdd(weight_coopmat, subgroup_act_coopmats[y][x], subgroup_dst_coopmats[y]);
 		}
 	}
 	barrier();
 	// Store
 	[[unroll]] for (uint y = 0; y < SUBGROUP_ACT_COOPMAT_Y; ++y) {
 		uint w_y = gl_SubgroupID * SUBGROUP_ACT_COOPMAT_Y + y;
-		// coopMatStore(subgroup_dst_act_coopmats[y], sSharedBuffer, w_y * (16 * 16) / FP16_PER_UV4, 16 / FP16_PER_UV4,
+		// coopMatStore(subgroup_dst_coopmats[y], sSharedBuffer, w_y * (16 * 16) / FP16_PER_UV4, 16 / FP16_PER_UV4,
 		//              ACT_COOPMAT_MAJOR);
-		coopMatStore(subgroup_dst_act_coopmats[y], sSharedBuffer, MAT64_COOPMAT_ELEMENT(0, w_y), MAT64_COOPMAT_STRIDE,
+		coopMatStore(subgroup_dst_coopmats[y], sSharedBuffer, MAT64_COOPMAT_ELEMENT(0, w_y), MAT64_COOPMAT_STRIDE,
 		             ACT_COOPMAT_MAJOR);
 	}
 	barrier();
@@ -148,15 +147,15 @@ void Output() {
 void main() {
 	LoadFirstActs();
 	LoadW64Weights(0);
-	Forward64_2();
+	Forward64();
 	LoadW64Weights(1);
-	Forward64_2();
+	Forward64();
 	LoadW64Weights(2);
-	Forward64_2();
+	Forward64();
 	LoadW64Weights(3);
-	Forward64_2();
+	Forward64();
 	LoadW64Weights(4);
-	Forward64_2();
+	Forward64();
 	LoadW16Weights(5);
 	Forward16Store();
 	Output();

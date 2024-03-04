@@ -126,7 +126,7 @@ vec3 PathTrace(Hit hit, Ray ray) {
 	if (!PathTraceBRDFStep(hit, ray, accumulate))
 		return irradiance;
 
-	for (uint bounce = 0; bounce < 4; ++bounce) {
+	for (uint bounce = 0; bounce < 2; ++bounce) {
 		rayQueryEXT ray_query;
 		rayQueryInitializeEXT(ray_query, uTLAS, gl_RayFlagsOpaqueEXT, 0xFF, ray.o, T_MIN, ray.d, T_MAX);
 		while (rayQueryProceedEXT(ray_query))
@@ -165,9 +165,8 @@ void main() {
 		RNGSetState(seed);
 		color = PathTrace(hit, ray);
 
-		uvec4 ballot = subgroupBallot(true);
-		if (subgroupElect())
-			atomicAdd(uEvalCount, subgroupBallotBitCount(ballot));
+		uint eval_id = atomicAdd(uEvalCount, 1u);
+		uEvalRecords[eval_id].pixel_x_y = coord.x | (coord.y << 16u);
 	}
 
 	color = IsValidRGB(color) ? color : vec3(0);
