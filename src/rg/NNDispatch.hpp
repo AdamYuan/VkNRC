@@ -18,7 +18,7 @@ private:
 		myvk::Ptr<myvk::ComputePipeline> m_pipeline;
 		uint32_t m_index;
 		struct VkDispatchIndirectCommand {
-			uint x, y, z;
+			uint32_t x, y, z;
 		};
 
 	public:

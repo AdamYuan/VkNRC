@@ -31,4 +31,5 @@ void main() {
 	NNForward16(act_coopmats[4], out_coopmats);
 	uvec2 predict = NNOutputUV2(out_coopmats);
 
+	NNLoadDL2Loss16(predict, uTargets[gl_GlobalInvocationID.x], out_coopmats);
 }

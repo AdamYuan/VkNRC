@@ -43,7 +43,7 @@ layout(std430, set = WEIGHTS_SET, binding = WEIGHTS_BINDING) readonly buffer uuW
 // Subgroup Activates Counts
 #define SUBGROUP_ACT_COOPMAT_Y (ACT_COOPMAT_Y / SUBGROUP_COUNT)
 // Matrix Strides & Major
-#define MAT64_COOPMAT_STRIDE (64 / FP16_PER_UV4)
+#define MAT64_COOPMAT_STRIDE UV4_X
 #define MAT64_COOPMAT_ELEMENT(X, Y) ((X) * (16 / FP16_PER_UV4) + (Y)*16 * MAT64_COOPMAT_STRIDE)
 #define WEIGHT_COOPMAT_MAJOR false // gl_CooperativeMatrixLayoutRowMajor
 #define ACT_COOPMAT_MAJOR true     // gl_CooperativeMatrixLayoutColumnMajor
@@ -57,9 +57,9 @@ void NNLoadInput(in const uvec4 inputs[UV4_X],
 	[[unroll]] for (uint x = 0; x < UV4_X; ++x)
 		SHARED_BUFFER[(gl_LocalInvocationID.x * UV4_X) | x] = inputs[x];
 	barrier();
-	[[unroll]] for (uint x = 0; x < COOPMAT_X; ++x) {
-		[[unroll]] for (uint y = 0; y < SUBGROUP_ACT_COOPMAT_Y; ++y) {
-			uint w_y = gl_SubgroupID * SUBGROUP_ACT_COOPMAT_Y + y;
+	[[unroll]] for (uint y = 0; y < SUBGROUP_ACT_COOPMAT_Y; ++y) {
+		uint w_y = gl_SubgroupID * SUBGROUP_ACT_COOPMAT_Y + y;
+		[[unroll]] for (uint x = 0; x < COOPMAT_X; ++x) {
 			coopMatLoadNV(act_coopmats[x][y], SHARED_BUFFER, MAT64_COOPMAT_ELEMENT(x, w_y), MAT64_COOPMAT_STRIDE,
 			              ACT_COOPMAT_MAJOR);
 		}
@@ -139,10 +139,10 @@ uvec2 NNOutputUV2(in const fcoopmatNV<16, gl_ScopeSubgroup, 16, 16> act_coopmats
 	return SHARED_BUFFER[gl_LocalInvocationID.x * UV4_X].rg;
 }
 
-void NNLoadDL2Loss16(in const uvec2 nn_out,
+void NNLoadDL2Loss16(in const uvec2 predict,
                      in const uvec2 target,
                      inout fcoopmatNV<16, gl_ScopeSubgroup, 16, 16> loss_coopmats[SUBGROUP_ACT_COOPMAT_Y]) {
-	vec4 output_v4 = vec4(unpackHalf2x16(nn_out.x).xy, unpackHalf2x16(nn_out.y).x, 0);
+	vec4 output_v4 = vec4(unpackHalf2x16(predict.x).xy, unpackHalf2x16(predict.y).x, 0);
 	vec4 target_v4 = vec4(unpackHalf2x16(target.x).xy, unpackHalf2x16(target.y).x, 0);
 	vec4 d_l2_v4 = output_v4 - target_v4;
 	uvec2 d_l2 = uvec2(packHalf2x16(d_l2_v4.xy), packHalf2x16(d_l2_v4.zw));
@@ -150,6 +150,8 @@ void NNLoadDL2Loss16(in const uvec2 nn_out,
 	barrier();
 	[[unroll]] for (uint y = 0; y < SUBGROUP_ACT_COOPMAT_Y; ++y) {
 		uint w_y = gl_SubgroupID * SUBGROUP_ACT_COOPMAT_Y + y;
+		coopMatLoadNV(loss_coopmats[y], SHARED_BUFFER, MAT64_COOPMAT_ELEMENT(0, w_y), MAT64_COOPMAT_STRIDE,
+		              ACT_COOPMAT_MAJOR);
 	}
 	barrier();
 }
