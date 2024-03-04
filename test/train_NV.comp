@@ -7,26 +7,27 @@
 layout(local_size_x_id = 0, local_size_y = 1, local_size_z = 1) in;
 
 layout(std430, binding = 1) readonly buffer uuInputs { uvec4 uInputs[]; };
-layout(std430, binding = 2) writeonly buffer uuOutputs { uvec2 uOutputs[]; };
+layout(std430, binding = 2) readonly buffer uuTargets { uvec2 uTargets[]; };
 
 void main() {
-	fcoopmatNV<16, gl_ScopeSubgroup, 16, 16> act_coopmats[2][SUBGROUP_ACT_COOPMAT_Y][COOPMAT_X];
+	fcoopmatNV<16, gl_ScopeSubgroup, 16, 16> act_coopmats[5][SUBGROUP_ACT_COOPMAT_Y][COOPMAT_X],
+	    out_coopmats[COOPMAT_X];
 	NNLoadInput(uvec4[8](uInputs[(gl_GlobalInvocationID.x << 3) | 0], uInputs[(gl_GlobalInvocationID.x << 3) | 1],
 	                     uInputs[(gl_GlobalInvocationID.x << 3) | 2], uInputs[(gl_GlobalInvocationID.x << 3) | 3],
 	                     uInputs[(gl_GlobalInvocationID.x << 3) | 4], uInputs[(gl_GlobalInvocationID.x << 3) | 5],
 	                     uInputs[(gl_GlobalInvocationID.x << 3) | 6], uInputs[(gl_GlobalInvocationID.x << 3) | 7]),
-	            act_coopmats[0]);
+	            act_coopmats[1]);
 	NNLoadWeight64(0);
-	NNForward64ReLU(act_coopmats[0], act_coopmats[1]);
+	NNForward64ReLU(act_coopmats[1], act_coopmats[0]);
 	NNLoadWeight64(1);
-	NNForward64ReLU(act_coopmats[1], act_coopmats[0]);
+	NNForward64ReLU(act_coopmats[1], act_coopmats[1]);
 	NNLoadWeight64(2);
-	NNForward64ReLU(act_coopmats[0], act_coopmats[1]);
+	NNForward64ReLU(act_coopmats[0], act_coopmats[2]);
 	NNLoadWeight64(3);
-	NNForward64ReLU(act_coopmats[1], act_coopmats[0]);
+	NNForward64ReLU(act_coopmats[2], act_coopmats[3]);
 	NNLoadWeight64(4);
-	NNForward64ReLU(act_coopmats[0], act_coopmats[1]);
+	NNForward64ReLU(act_coopmats[3], act_coopmats[4]);
 	NNLoadWeight16(5);
-	NNForward16(act_coopmats[1], act_coopmats[0][0]);
-	uOutputs[gl_GlobalInvocationID.x] = NNOutputUV2(act_coopmats[0][0]);
+	NNForward16(act_coopmats[4], out_coopmats);
+	uvec2 predict = NNOutputUV2(out_coopmats);
 }
