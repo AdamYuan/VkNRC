@@ -157,11 +157,13 @@ void test_train(std::size_t blocks) {
 
 	std::vector<float> comp_dw(5 * 64 * 64 + 4 * 64);
 	{
-		int *gpu_weights, *gpu_dw, *gpu_inputs, *gpu_targets;
+		int *gpu_weights, *gpu_dw, *gpu_inputs, *gpu_targets, *gpu_targets_1, *gpu_targets_2;
 		cudaMalloc((void **)&gpu_weights, weights.size() * sizeof(half));
 		cudaMalloc((void **)&gpu_dw, comp_dw.size() * sizeof(float));
 		cudaMalloc((void **)&gpu_inputs, inputs.size() * sizeof(half));
 		cudaMalloc((void **)&gpu_targets, targets.size() * sizeof(half));
+		cudaMalloc((void **)&gpu_targets_1, targets.size() * sizeof(half));
+		cudaMalloc((void **)&gpu_targets_2, targets.size() * sizeof(half));
 
 		cudaMemcpy(gpu_weights, weights.data(), weights.size() * sizeof(half), cudaMemcpyHostToDevice);
 		cudaMemcpy(gpu_dw, comp_dw.data(), comp_dw.size() * sizeof(float), cudaMemcpyHostToDevice);
@@ -171,9 +173,7 @@ void test_train(std::size_t blocks) {
 		// SubgroupSize = 32 for NVIDIA
 		double time_0 = ms([&]() {
 			vuda::launchKernel("train_32.spv", "main", 0, (int)blocks, kWorkgroupSize, gpu_weights, gpu_dw, gpu_inputs,
-			                   gpu_targets);
-			cudaStreamSynchronize(0);
-			cudaMemcpy(gpu_dw, comp_dw.data(), comp_dw.size() * sizeof(float), cudaMemcpyHostToDevice);
+			                   gpu_targets_1);
 			cudaStreamSynchronize(0);
 		});
 		cudaStreamSynchronize(0);
@@ -182,7 +182,13 @@ void test_train(std::size_t blocks) {
 			                   gpu_targets);
 			cudaStreamSynchronize(0);
 		});
-		std::cout << "GLSL: " << time << " ms" << std::endl;
+		cudaStreamSynchronize(0);
+		double time_2 = ms([&]() {
+			vuda::launchKernel("train_32.spv", "main", 0, (int)blocks, kWorkgroupSize, gpu_weights, gpu_dw, gpu_inputs,
+			                   gpu_targets_2);
+			cudaStreamSynchronize(0);
+		});
+		std::cout << "GLSL: " << time << "," << time_2 << " ms" << std::endl;
 		// copy result to host
 		cudaMemcpy(comp_dw.data(), gpu_dw, comp_dw.size() * sizeof(float), cudaMemcpyDeviceToHost);
 	}
@@ -221,7 +227,7 @@ int main(int argc, char **argv) {
 
 	cudaSetDevice(0);
 
-	test_inference(blocks);
+	// test_inference(blocks);
 	test_train(blocks);
 
 	return 0;
