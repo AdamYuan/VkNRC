@@ -28,14 +28,14 @@ void main() {
 	uvec2 predict = NNOutputUV2(out_coopmats);
 	NNLoadDA16_L2Loss(predict, uTargets[gl_GlobalInvocationID.x], out_coopmats);
 	NNUpdateDW16(5, out_coopmats, act_coopmats[5]);
-	NNBackwardDA16(5, out_coopmats, act_coopmats[5]);
+	NNBackwardDA16_ReLU(5, out_coopmats, act_coopmats[5]);
 	NNUpdateDW64(4, act_coopmats[5], act_coopmats[4]);
-	NNBackwardDA64(4, act_coopmats[5], act_coopmats[4]);
+	NNBackwardDA64_ReLU(4, act_coopmats[5], act_coopmats[4]);
 	NNUpdateDW64(3, act_coopmats[4], act_coopmats[3]);
-	NNBackwardDA64(3, act_coopmats[4], act_coopmats[3]);
+	NNBackwardDA64_ReLU(3, act_coopmats[4], act_coopmats[3]);
 	NNUpdateDW64(2, act_coopmats[3], act_coopmats[2]);
-	NNBackwardDA64(2, act_coopmats[3], act_coopmats[2]);
+	NNBackwardDA64_ReLU(2, act_coopmats[3], act_coopmats[2]);
 	NNUpdateDW64(1, act_coopmats[2], act_coopmats[1]);
-	NNBackwardDA64(1, act_coopmats[2], act_coopmats[1]);
+	NNBackwardDA64_ReLU(1, act_coopmats[2], act_coopmats[1]);
 	NNUpdateDW64(0, act_coopmats[1], act_coopmats[0]);
 }
