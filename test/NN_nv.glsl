@@ -74,6 +74,8 @@ void _nn_load_weight_16(in const uint layer) {
 	// assert(WEIGHT_16_UV4_COUNT == 128 == WORKGROUP_SIZE);
 	const uint kLayerUV4Base = layer * WEIGHT_64_UV4_COUNT;
 	SHARED_BUFFER[gl_LocalInvocationID.x] = uWeights[kLayerUV4Base + gl_LocalInvocationID.x];
+	// SHARED_BUFFER[gl_LocalInvocationID.x] =
+	//     gl_LocalInvocationID.x < 3 * 64 ? uWeights[kLayerUV4Base + gl_LocalInvocationID.x] : uvec4(0);
 	barrier();
 }
 
@@ -161,7 +163,9 @@ void NNLoadDA16_L2Loss(in const uvec2 predict,
 	vec4 target_v4 = vec4(unpackHalf2x16(target.x).xy, unpackHalf2x16(target.y).x, 0);
 	vec4 d_l2_v4 = output_v4 - target_v4;
 	uvec2 d_l2 = uvec2(packHalf2x16(d_l2_v4.xy), packHalf2x16(d_l2_v4.zw));
-	SHARED_BUFFER[gl_LocalInvocationID.x * UV4_X].rg = d_l2;
+	SHARED_BUFFER[gl_LocalInvocationID.x * UV4_X] = uvec4(d_l2, 0u, 0u);
+	[[unroll]] for (uint i = 1; i < UV4_X; ++i)
+		SHARED_BUFFER[gl_LocalInvocationID.x * UV4_X + i] = uvec4(0u);
 	barrier();
 	[[unroll]] for (uint y = 0; y < SUBGROUP_ACT_COOPMAT_Y; ++y) {
 		uint workgroup_y = gl_SubgroupID * SUBGROUP_ACT_COOPMAT_Y + y;
@@ -304,7 +308,6 @@ void NNUpdateDW64(in const uint layer,
 	barrier();
 	const uint kWeightUV4Base = layer * WEIGHT_64_UV4_COUNT + kSharedUV4Base;
 	[[unroll]] for (uint u = 0; u < THREAD_WEIGHT_64_UV4_COUNT; ++u) {
-		uvec4 d_w_uv4 = SHARED_BUFFER[kSharedUV4Base + u];
 		const uint kWeightFP16Base = (kWeightUV4Base + u) * FP16_PER_UV4;
 		[[unroll]] for (uint i = 0; i < (FP16_PER_UV4 / 2); ++i) {
 			atomicAdd(uDWeights[kWeightFP16Base + (i << 1u)], d_w[u][i].x);
