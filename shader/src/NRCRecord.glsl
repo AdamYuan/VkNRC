@@ -51,15 +51,7 @@ uvec4 NRCPackHalf8x16(in const vec4 a, in const vec4 b) {
 	return uvec4(packHalf2x16(a.xy), packHalf2x16(a.zw), packHalf2x16(b.xy), packHalf2x16(b.zw));
 }
 
-void NRCInputEncode(in const UnpackedNRCInput unpacked_input,
-                    out uvec4 o_0,
-                    out uvec4 o_8,
-                    out uvec4 o_16,
-                    out uvec4 o_24,
-                    out uvec4 o_32,
-                    out uvec4 o_40,
-                    out uvec4 o_48,
-                    out uvec4 o_56) {
+void NRCInputEncode(in const UnpackedNRCInput unpacked_input, inout uvec4 o[8]) {
 	mat3x4 pos_freq_0 = NRCFrequencyEncode(unpacked_input.position.x);
 	mat3x4 pos_freq_1 = NRCFrequencyEncode(unpacked_input.position.y);
 	mat3x4 pos_freq_2 = NRCFrequencyEncode(unpacked_input.position.z);
@@ -67,15 +59,15 @@ void NRCInputEncode(in const UnpackedNRCInput unpacked_input,
 	     scat_ob_1 = NRCOneBlob4Encode(unpacked_input.scattered_dir.y);
 	vec4 norm_ob_0 = NRCOneBlob4Encode(unpacked_input.normal.x), norm_ob_1 = NRCOneBlob4Encode(unpacked_input.normal.y);
 	vec4 r_ob = NRCOneBlob4Encode(1 - exp(-unpacked_input.roughness));
-	o_0 = NRCPackHalf8x16(pos_freq_0[0], pos_freq_0[1]);
-	o_8 = NRCPackHalf8x16(pos_freq_0[2], pos_freq_1[0]);
-	o_16 = NRCPackHalf8x16(pos_freq_1[1], pos_freq_1[2]);
-	o_24 = NRCPackHalf8x16(pos_freq_2[0], pos_freq_2[1]);
-	o_32 = NRCPackHalf8x16(pos_freq_2[2], scat_ob_0);
-	o_40 = NRCPackHalf8x16(scat_ob_1, norm_ob_0);
-	o_48 = NRCPackHalf8x16(norm_ob_1, r_ob);
-	o_56 = NRCPackHalf8x16(vec4(unpacked_input.diffuse, unpacked_input.specular.r),
-	                       vec4(unpacked_input.specular.gb, 0, 0));
+	o[0] = NRCPackHalf8x16(pos_freq_0[0], pos_freq_0[1]);
+	o[1] = NRCPackHalf8x16(pos_freq_0[2], pos_freq_1[0]);
+	o[2] = NRCPackHalf8x16(pos_freq_1[1], pos_freq_1[2]);
+	o[3] = NRCPackHalf8x16(pos_freq_2[0], pos_freq_2[1]);
+	o[4] = NRCPackHalf8x16(pos_freq_2[2], scat_ob_0);
+	o[5] = NRCPackHalf8x16(scat_ob_1, norm_ob_0);
+	o[6] = NRCPackHalf8x16(norm_ob_1, r_ob);
+	o[7] = NRCPackHalf8x16(vec4(unpacked_input.diffuse, unpacked_input.specular.r),
+	                       vec4(unpacked_input.specular.gb, 1, 1));
 }
 
 #endif

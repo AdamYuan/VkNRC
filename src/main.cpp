@@ -54,7 +54,7 @@ int main(int argc, char **argv) {
 	    features,
 	    {VK_KHR_SWAPCHAIN_EXTENSION_NAME, VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME,
 	     VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME, VK_KHR_RAY_QUERY_EXTENSION_NAME,
-	     VK_KHR_COOPERATIVE_MATRIX_EXTENSION_NAME});
+	     VK_NV_COOPERATIVE_MATRIX_EXTENSION_NAME});
 	myvk::ImGuiInit(window, myvk::CommandPool::Create(generic_queue));
 
 	auto camera = myvk::MakePtr<Camera>();

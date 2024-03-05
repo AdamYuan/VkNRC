@@ -221,7 +221,7 @@ int main(int argc, char **argv) {
 
 	cudaSetDevice(0);
 
-	// test_inference(blocks);
+	test_inference(blocks);
 	test_train(blocks);
 
 	return 0;

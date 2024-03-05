@@ -10,6 +10,7 @@ set(SHADER_HEADER
         NRCRecord.glsl
         Scene.glsl
         NNInference.glsl
+        NN_nv.glsl
 )
 
 set(SHADER_SRC
