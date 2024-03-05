@@ -61,7 +61,7 @@ std::vector<float> Train(std::span<half> weights, std::span<half> inputs, std::s
 	DATMatrix dat_matrix = (act_matrices[6] - target_matrix).transpose(); // L2 Loss
 	// std::cout << dat_matrix << std::endl;
 	for (int i = 5; i >= 0; --i) {
-		DWMatrix dw_matrix = (act_matrices[i] * dat_matrix).cast<float>().transpose();
+		DWMatrix dw_matrix = (act_matrices[i] * dat_matrix).transpose().cast<float>();
 		std::copy(dw_matrix.data(), dw_matrix.data() + dw_matrix.size(), dw.data() + i * 64 * 64);
 		dat_matrix = (dat_matrix * weight_matrices[i]).unaryExpr([](const half &x) -> half {
 			return x >= 0 ? half(1) : half(0);

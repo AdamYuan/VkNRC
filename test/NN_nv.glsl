@@ -236,15 +236,15 @@ void NNUpdateDW16(in const uint layer,
                   in const fcoopmatNV<16, gl_ScopeSubgroup, 16, 16> act_coopmats[COOPMAT_X][SUBGROUP_ACT_COOPMAT_Y]) {
 	// (act_coopmats (64, 128) x da_coopmats^T (128, 16))^T = dW (16, 64)
 	fcoopmatNV<16, gl_ScopeSubgroup, 16, 16> dw_coopmats[COOPMAT_X], act_coopmat_t;
-	[[unroll]] for (uint x = 0; x < COOPMAT_X; ++x) {
-		dw_coopmats[x] = fcoopmatNV<16, gl_ScopeSubgroup, 16, 16>(0);
-		[[unroll]] for (uint y = 0; y < SUBGROUP_ACT_COOPMAT_Y; ++y) {
-			dw_coopmats[x] = coopMatMulAddNV(act_coopmats[x][y], da_coopmats_t[y], dw_coopmats[x]);
+	[[unroll]] for (uint w_y = 0; w_y < COOPMAT_X; ++w_y) {
+		dw_coopmats[w_y] = fcoopmatNV<16, gl_ScopeSubgroup, 16, 16>(0);
+		[[unroll]] for (uint a_y = 0; a_y < SUBGROUP_ACT_COOPMAT_Y; ++a_y) {
+			dw_coopmats[w_y] = coopMatMulAddNV(act_coopmats[w_y][a_y], da_coopmats_t[a_y], dw_coopmats[w_y]);
 		}
 	}
 	barrier();
-	[[unroll]] for (uint x = 0; x < COOPMAT_X; ++x) {
-		coopMatStoreNV(dw_coopmats[x], SHARED_BUFFER, MAT64_COOPMAT_ELEMENT(x, gl_SubgroupID), MAT64_COOPMAT_STRIDE,
+	[[unroll]] for (uint y = 0; y < COOPMAT_X; ++y) {
+		coopMatStoreNV(dw_coopmats[y], SHARED_BUFFER, MAT64_COOPMAT_ELEMENT(y, gl_SubgroupID), MAT64_COOPMAT_STRIDE,
 		               COOPMAT_MAJOR_T(WEIGHT_COOPMAT_MAJOR));
 	}
 	barrier();
@@ -276,14 +276,14 @@ void NNUpdateDW64(in const uint layer,
 			dw_coopmats[w_y][x] = fcoopmatNV<16, gl_ScopeSubgroup, 16, 16>(0);
 			[[unroll]] for (uint a_y = 0; a_y < SUBGROUP_ACT_COOPMAT_Y; ++a_y) {
 				dw_coopmats[w_y][x] =
-				    coopMatMulAddNV(act_coopmats[x][a_y], da_coopmats_t[w_y][a_y], dw_coopmats[w_y][x]);
+				    coopMatMulAddNV(act_coopmats[w_y][a_y], da_coopmats_t[x][a_y], dw_coopmats[w_y][x]);
 			}
 		}
 	}
 	barrier();
 	[[unroll]] for (uint y = 0; y < COOPMAT_X; ++y) {
 		[[unroll]] for (uint x = 0; x < COOPMAT_X; ++x) {
-			coopMatStoreNV(dw_coopmats[y][x], SHARED_BUFFER, MAT64_COOPMAT_ELEMENT(x, y + COOPMAT_X * gl_SubgroupID),
+			coopMatStoreNV(dw_coopmats[y][x], SHARED_BUFFER, MAT64_COOPMAT_ELEMENT(y, x + COOPMAT_X * gl_SubgroupID),
 			               MAT64_COOPMAT_STRIDE, COOPMAT_MAJOR_T(WEIGHT_COOPMAT_MAJOR));
 		}
 	}
