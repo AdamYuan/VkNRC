@@ -189,7 +189,7 @@ void NNBackwardDA16_ReLU(
 			dst_da_coopmats_t[x][y] = coopMatMulAddNV(src_da_coopmats_t[y], weight_coopmat, dst_da_coopmats_t[x][y]);
 			// Inv ReLU
 			for (uint k = 0; k < dst_da_coopmats_t[x][y].length(); ++k)
-				dst_da_coopmats_t[x][y][k] = dst_da_coopmats_t[x][y][k] > 0.0 ? float16_t(1.0) : float16_t(0.0);
+				dst_da_coopmats_t[x][y][k] = dst_da_coopmats_t[x][y][k] >= 0.0 ? float16_t(1.0) : float16_t(0.0);
 		}
 	}
 	barrier();
@@ -224,7 +224,7 @@ void NNBackwardDA64_ReLU(
 	[[unroll]] for (uint x = 0; x < COOPMAT_X; ++x) {
 		[[unroll]] for (uint y = 0; y < SUBGROUP_ACT_COOPMAT_Y; ++y) {
 			for (uint k = 0; k < dst_da_coopmats_t[x][y].length(); ++k)
-				dst_da_coopmats_t[x][y][k] = dst_da_coopmats_t[x][y][k] > 0.0 ? float16_t(1.0) : float16_t(0.0);
+				dst_da_coopmats_t[x][y][k] = dst_da_coopmats_t[x][y][k] >= 0.0 ? float16_t(1.0) : float16_t(0.0);
 		}
 	}
 }
@@ -242,18 +242,26 @@ void NNUpdateDW16(in const uint layer,
 	}
 	barrier();
 	[[unroll]] for (uint x = 0; x < COOPMAT_X; ++x) {
-		coopMatStoreNV(dw_coopmats[x], SHARED_BUFFER, MAT64_COOPMAT_ELEMENT(x, 0), MAT64_COOPMAT_STRIDE,
+		coopMatStoreNV(dw_coopmats[x], SHARED_BUFFER, MAT64_COOPMAT_ELEMENT(x, gl_SubgroupID), MAT64_COOPMAT_STRIDE,
 		               COOPMAT_MAJOR_T(WEIGHT_COOPMAT_MAJOR));
 	}
 	barrier();
-	uvec4 d_w_uv4 = SHARED_BUFFER[gl_LocalInvocationID.x];
-	const uint kWeightFP16Base = layer * WEIGHT_64_COUNT + gl_LocalInvocationID.x * FP16_PER_UV4;
-	[[unroll]] for (uint i = 0; i < (FP16_PER_UV4 / 2); ++i) {
-		vec2 d_w_2 = unpackHalf2x16(d_w_uv4[i]);
-		atomicAdd(uDWeights[kWeightFP16Base + (i << 1u)], d_w_2.x);
-		atomicAdd(uDWeights[kWeightFP16Base + (i << 1u | 1u)], d_w_2.x);
+	// Reduce dW across subgroups
+	vec2 d_w[FP16_PER_UV4 / 2];
+	[[unroll]] for (uint i = 0; i < FP16_PER_UV4 / 2; ++i)
+		d_w[i] = vec2(0);
+	[[unroll]] for (uint s = 0; s < SUBGROUP_COUNT; ++s) {
+		uvec4 d_w_uv4 = SHARED_BUFFER[MAT64_COOPMAT_ELEMENT(0, s) + gl_LocalInvocationID.x];
+		[[unroll]] for (uint i = 0; i < FP16_PER_UV4 / 2; ++i)
+			d_w[i] += unpackHalf2x16(d_w_uv4[i]);
 	}
 	barrier();
+	// Store
+	const uint kWeightFP16Base = layer * WEIGHT_64_COUNT + gl_LocalInvocationID.x * FP16_PER_UV4;
+	[[unroll]] for (uint i = 0; i < FP16_PER_UV4 / 2; ++i) {
+		atomicAdd(uDWeights[kWeightFP16Base + (i << 1u)], d_w[i].x);
+		atomicAdd(uDWeights[kWeightFP16Base + (i << 1u | 1u)], d_w[i].y);
+	}
 }
 
 void NNUpdateDW64(in const uint layer,
@@ -273,23 +281,36 @@ void NNUpdateDW64(in const uint layer,
 	barrier();
 	[[unroll]] for (uint y = 0; y < COOPMAT_X; ++y) {
 		[[unroll]] for (uint x = 0; x < COOPMAT_X; ++x) {
-			coopMatStoreNV(dw_coopmats[y][x], SHARED_BUFFER, MAT64_COOPMAT_ELEMENT(x, y), MAT64_COOPMAT_STRIDE,
-			               COOPMAT_MAJOR_T(WEIGHT_COOPMAT_MAJOR));
+			coopMatStoreNV(dw_coopmats[y][x], SHARED_BUFFER, MAT64_COOPMAT_ELEMENT(x, y + COOPMAT_X * gl_SubgroupID),
+			               MAT64_COOPMAT_STRIDE, COOPMAT_MAJOR_T(WEIGHT_COOPMAT_MAJOR));
 		}
 	}
 	barrier();
+	// Reduce dW across subgroups
+	vec2 d_w[THREAD_WEIGHT_64_UV4_COUNT][FP16_PER_UV4 / 2];
+	[[unroll]] for (uint u = 0; u < THREAD_WEIGHT_64_UV4_COUNT; ++u) {
+		[[unroll]] for (uint i = 0; i < (FP16_PER_UV4 / 2); ++i)
+			d_w[u][i] = vec2(0);
+	}
 	const uint kSharedUV4Base = gl_LocalInvocationID.x * THREAD_WEIGHT_64_UV4_COUNT;
+	[[unroll]] for (uint s = 0; s < SUBGROUP_COUNT; ++s) {
+		const uint kSubgroupUV4Base = MAT64_COOPMAT_ELEMENT(0, COOPMAT_X * s) + kSharedUV4Base;
+		[[unroll]] for (uint u = 0; u < THREAD_WEIGHT_64_UV4_COUNT; ++u) {
+			uvec4 d_w_uv4 = SHARED_BUFFER[kSubgroupUV4Base + u];
+			[[unroll]] for (uint i = 0; i < (FP16_PER_UV4 / 2); ++i)
+				d_w[u][i] += unpackHalf2x16(d_w_uv4[i]);
+		}
+	}
+	barrier();
 	const uint kWeightUV4Base = layer * WEIGHT_64_UV4_COUNT + kSharedUV4Base;
 	[[unroll]] for (uint u = 0; u < THREAD_WEIGHT_64_UV4_COUNT; ++u) {
 		uvec4 d_w_uv4 = SHARED_BUFFER[kSharedUV4Base + u];
 		const uint kWeightFP16Base = (kWeightUV4Base + u) * FP16_PER_UV4;
 		[[unroll]] for (uint i = 0; i < (FP16_PER_UV4 / 2); ++i) {
-			vec2 d_w_2 = unpackHalf2x16(d_w_uv4[i]);
-			atomicAdd(uDWeights[kWeightFP16Base + (i << 1u)], d_w_2.x);
-			atomicAdd(uDWeights[kWeightFP16Base + (i << 1u | 1u)], d_w_2.x);
+			atomicAdd(uDWeights[kWeightFP16Base + (i << 1u)], d_w[u][i].x);
+			atomicAdd(uDWeights[kWeightFP16Base + (i << 1u | 1u)], d_w[u][i].y);
 		}
 	}
-	barrier();
 }
 #endif
 
