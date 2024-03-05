@@ -1,35 +1,41 @@
 #version 460
 
+#define NN_BACKPROPAGATION
 #define WEIGHTS_BINDING 0
+#define DWEIGHTS_BINDING 1
 #define WORKGROUP_SIZE 128
 #include "NN_nv.glsl"
 
 layout(local_size_x_id = 0, local_size_y = 1, local_size_z = 1) in;
 
-layout(std430, binding = 1) readonly buffer uuInputs { uvec4 uInputs[]; };
-layout(std430, binding = 2) readonly buffer uuTargets { uvec2 uTargets[]; };
+layout(std430, binding = 2) readonly buffer uuInputs { uvec4 uInputs[]; };
+layout(std430, binding = 3) readonly buffer uuTargets { uvec2 uTargets[]; };
 
 void main() {
-	fcoopmatNV<16, gl_ScopeSubgroup, 16, 16> act_coopmats[5][COOPMAT_X][SUBGROUP_ACT_COOPMAT_Y],
+	fcoopmatNV<16, gl_ScopeSubgroup, 16, 16> act_coopmats[6][COOPMAT_X][SUBGROUP_ACT_COOPMAT_Y],
 	    out_coopmats[SUBGROUP_ACT_COOPMAT_Y];
 	NNLoadInput(uvec4[8](uInputs[(gl_GlobalInvocationID.x << 3) | 0], uInputs[(gl_GlobalInvocationID.x << 3) | 1],
 	                     uInputs[(gl_GlobalInvocationID.x << 3) | 2], uInputs[(gl_GlobalInvocationID.x << 3) | 3],
 	                     uInputs[(gl_GlobalInvocationID.x << 3) | 4], uInputs[(gl_GlobalInvocationID.x << 3) | 5],
 	                     uInputs[(gl_GlobalInvocationID.x << 3) | 6], uInputs[(gl_GlobalInvocationID.x << 3) | 7]),
 	            act_coopmats[1]);
-	NNLoadWeight64(0);
-	NNForward64ReLU(act_coopmats[1], act_coopmats[0]);
-	NNLoadWeight64(1);
-	NNForward64ReLU(act_coopmats[0], act_coopmats[1]);
-	NNLoadWeight64(2);
-	NNForward64ReLU(act_coopmats[1], act_coopmats[2]);
-	NNLoadWeight64(3);
-	NNForward64ReLU(act_coopmats[2], act_coopmats[3]);
-	NNLoadWeight64(4);
-	NNForward64ReLU(act_coopmats[3], act_coopmats[4]);
-	NNLoadWeight16(5);
-	NNForward16(act_coopmats[4], out_coopmats);
+	NNForward64_ReLU(0, act_coopmats[0], act_coopmats[1]);
+	NNForward64_ReLU(1, act_coopmats[1], act_coopmats[2]);
+	NNForward64_ReLU(2, act_coopmats[2], act_coopmats[3]);
+	NNForward64_ReLU(3, act_coopmats[3], act_coopmats[4]);
+	NNForward64_ReLU(4, act_coopmats[4], act_coopmats[5]);
+	NNForward16(5, act_coopmats[5], out_coopmats);
 	uvec2 predict = NNOutputUV2(out_coopmats);
-
-	NNLoadDL2Loss16(predict, uTargets[gl_GlobalInvocationID.x], out_coopmats);
+	NNLoadDA16_L2Loss(predict, uTargets[gl_GlobalInvocationID.x], out_coopmats);
+	NNUpdateDW16(5, out_coopmats, act_coopmats[5]);
+	NNBackwardDA16(5, out_coopmats, act_coopmats[5]);
+	NNUpdateDW64(4, act_coopmats[5], act_coopmats[4]);
+	NNBackwardDA64(4, act_coopmats[5], act_coopmats[4]);
+	NNUpdateDW64(3, act_coopmats[4], act_coopmats[3]);
+	NNBackwardDA64(3, act_coopmats[4], act_coopmats[3]);
+	NNUpdateDW64(2, act_coopmats[3], act_coopmats[2]);
+	NNBackwardDA64(2, act_coopmats[3], act_coopmats[2]);
+	NNUpdateDW64(1, act_coopmats[2], act_coopmats[1]);
+	NNBackwardDA64(1, act_coopmats[2], act_coopmats[1]);
+	NNUpdateDW64(0, act_coopmats[1], act_coopmats[0]);
 }

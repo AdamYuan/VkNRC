@@ -16,17 +16,11 @@ void main() {
 	                     uInputs[(gl_GlobalInvocationID.x << 3) | 4], uInputs[(gl_GlobalInvocationID.x << 3) | 5],
 	                     uInputs[(gl_GlobalInvocationID.x << 3) | 6], uInputs[(gl_GlobalInvocationID.x << 3) | 7]),
 	            act_coopmats[0]);
-	NNLoadWeight64(0);
-	NNForward64ReLU(act_coopmats[0], act_coopmats[1]);
-	NNLoadWeight64(1);
-	NNForward64ReLU(act_coopmats[1], act_coopmats[0]);
-	NNLoadWeight64(2);
-	NNForward64ReLU(act_coopmats[0], act_coopmats[1]);
-	NNLoadWeight64(3);
-	NNForward64ReLU(act_coopmats[1], act_coopmats[0]);
-	NNLoadWeight64(4);
-	NNForward64ReLU(act_coopmats[0], act_coopmats[1]);
-	NNLoadWeight16(5);
-	NNForward16(act_coopmats[1], act_coopmats[0][0]);
+	NNForward64ReLU(0, act_coopmats[0], act_coopmats[1]);
+	NNForward64ReLU(1, act_coopmats[1], act_coopmats[0]);
+	NNForward64ReLU(2, act_coopmats[0], act_coopmats[1]);
+	NNForward64ReLU(3, act_coopmats[1], act_coopmats[0]);
+	NNForward64ReLU(4, act_coopmats[0], act_coopmats[1]);
+	NNForward16(5, act_coopmats[1], act_coopmats[0][0]);
 	uOutputs[gl_GlobalInvocationID.x] = NNOutputUV2(act_coopmats[0][0]);
 }
