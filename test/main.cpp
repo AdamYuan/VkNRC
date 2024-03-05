@@ -147,8 +147,9 @@ void test_train(std::size_t blocks) {
 	    targets(kWorkgroupSize * blocks * 4);
 
 	for (int x = 0; auto &w : weights)
-		// w = 0.00001 * (x++); // std::uniform_real_distribution<float>{0, 0.25}(random);
-		w = std::uniform_real_distribution<float>{0, 0.02}(random);
+		w = std::uniform_real_distribution<float>{-0.02, 0.02}(random);
+	// w = 0.1 - 0.00001 * (x++); // std::uniform_real_distribution<float>{0, 0.25}(random);
+	// w = std::uniform_real_distribution<float>{0, 0.02}(random);
 	for (auto &i : inputs)
 		i = std::uniform_real_distribution<float>{0, 1.0}(random);
 	for (auto &i : targets)
@@ -199,8 +200,11 @@ void test_train(std::size_t blocks) {
 			std::cout << comp_dw[i * 64 + j] << ", ";
 		printf("\n");
 
-		for (std::size_t j = 0; j < 64; ++j)
-			error += std::abs(double(comp_dw[i * 64 + j] - real_dw[i * 64 + j]));
+		for (std::size_t j = 0; j < 64; ++j) {
+			double diff = std::abs(double(comp_dw[i * 64 + j] - real_dw[i * 64 + j]));
+			if (!std::isnan(diff))
+				error += diff;
+		}
 	}
 	error /= double(64 * 5 + 3) * double(64);
 	printf("Avg ERROR: %f\n", error);

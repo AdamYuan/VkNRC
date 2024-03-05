@@ -74,8 +74,6 @@ void _nn_load_weight_16(in const uint layer) {
 	// assert(WEIGHT_16_UV4_COUNT == 128 == WORKGROUP_SIZE);
 	const uint kLayerUV4Base = layer * WEIGHT_64_UV4_COUNT;
 	SHARED_BUFFER[gl_LocalInvocationID.x] = uWeights[kLayerUV4Base + gl_LocalInvocationID.x];
-	// SHARED_BUFFER[gl_LocalInvocationID.x] =
-	//     gl_LocalInvocationID.x < 3 * 64 ? uWeights[kLayerUV4Base + gl_LocalInvocationID.x] : uvec4(0);
 	barrier();
 }
 
@@ -218,8 +216,8 @@ void NNBackwardDA64_ReLU(
 			coopMatLoadNV(weight_coopmat, SHARED_BUFFER, MAT64_COOPMAT_ELEMENT(x, w_y), MAT64_COOPMAT_STRIDE,
 			              WEIGHT_COOPMAT_MAJOR);
 			[[unroll]] for (uint a_y = 0; a_y < SUBGROUP_ACT_COOPMAT_Y; ++a_y) {
-				dst_da_coopmats_t[w_y][a_y] =
-				    coopMatMulAddNV(src_da_coopmats_t[x][a_y], weight_coopmat, dst_da_coopmats_t[w_y][a_y]);
+				dst_da_coopmats_t[x][a_y] =
+				    coopMatMulAddNV(src_da_coopmats_t[w_y][a_y], weight_coopmat, dst_da_coopmats_t[x][a_y]);
 			}
 		}
 	}
