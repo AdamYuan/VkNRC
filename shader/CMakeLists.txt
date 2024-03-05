@@ -23,7 +23,6 @@ set(SHADER_SRC
         nrc_inference_16.comp
         nrc_inference_32.comp
         nrc_inference_64.comp
-        nrc_inference_128.comp
 )
 
 set(SHADER_SOURCE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/src)
