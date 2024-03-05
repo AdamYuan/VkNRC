@@ -10,6 +10,7 @@ set(SHADER_HEADER
         NRCRecord.glsl
         Scene.glsl
         NNInference.glsl
+        NNGradient.glsl
         NN_nv.glsl
 )
 
@@ -23,6 +24,9 @@ set(SHADER_SRC
         nrc_inference_16.comp
         nrc_inference_32.comp
         nrc_inference_64.comp
+        nrc_gradient_16.comp
+        nrc_gradient_32.comp
+        nrc_gradient_64.comp
 )
 
 set(SHADER_SOURCE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/src)

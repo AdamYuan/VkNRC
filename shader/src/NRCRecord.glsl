@@ -70,4 +70,35 @@ void NRCInputEncode(in const UnpackedNRCInput unpacked_input, inout uvec4 o[8]) 
 	                       vec4(unpacked_input.specular.gb, 1, 1));
 }
 
+#ifdef NRC_SCENE_UNPACK
+UnpackedNRCInput UnpackNRCInput(in const PackedNRCInput packed_input) {
+	uint primitive_id = packed_input.primitive_id;
+	uint instance_id = packed_input.flip_bit_instance_id & 0x7FFFFFFFu;
+	bool flip = bool(packed_input.flip_bit_instance_id >> 31u);
+	vec2 texcoord_0 = GetSceneTexcoord(primitive_id, 0);
+	vec2 texcoord_1 = GetSceneTexcoord(primitive_id, 1);
+	vec2 texcoord_2 = GetSceneTexcoord(primitive_id, 2);
+	vec3 vertex_0 = GetSceneVertex(instance_id, primitive_id, 0);
+	vec3 vertex_1 = GetSceneVertex(instance_id, primitive_id, 1);
+	vec3 vertex_2 = GetSceneVertex(instance_id, primitive_id, 2);
+	vec3 normal = normalize(cross(vertex_1 - vertex_0, vertex_2 - vertex_0));
+	normal = flip ? -normal : normal;
+
+	vec3 barycentric = vec3(0, unpackUnorm2x16(packed_input.barycentric_2x16U));
+	barycentric.x = 1.0 - barycentric.y - barycentric.z;
+
+	Material mat = GetSceneMaterial(primitive_id);
+
+	UnpackedNRCInput unpacked_input;
+	unpacked_input.position = mat3(vertex_0, vertex_1, vertex_2) * barycentric;
+	unpacked_input.scattered_dir = unpackUnorm2x16(packed_input.scattered_dir_2x16U);
+	unpacked_input.normal = NRCSphEncode(normal);
+	unpacked_input.roughness = mat.roughness;
+	vec2 texcoord = mat3x2(texcoord_0, texcoord_1, texcoord_2) * barycentric;
+	unpacked_input.diffuse = GetSceneDiffuse(mat, texcoord);
+	unpacked_input.specular = GetSceneSpecular(mat, texcoord);
+	return unpacked_input;
+}
+#endif
+
 #endif

@@ -148,8 +148,9 @@ uvec2 NNOutputUV2(in const fcoopmatNV<16, gl_ScopeSubgroup, 16, 16> act_coopmats
 		coopMatStoreNV(act_coopmats[y], SHARED_BUFFER, MAT64_COOPMAT_ELEMENT(0, workgroup_y), MAT64_COOPMAT_STRIDE,
 		               ACT_COOPMAT_MAJOR);
 	}
+	uvec2 ret = SHARED_BUFFER[gl_LocalInvocationID.x * UV4_X].rg;
 	barrier();
-	return SHARED_BUFFER[gl_LocalInvocationID.x * UV4_X].rg;
+	return ret;
 }
 
 #ifdef NN_BACKPROPAGATION

@@ -7,8 +7,7 @@
 #include <myvk/CommandBuffer.hpp>
 
 namespace nrc {
-inline static constexpr uint32_t kNNHiddenLayers = 5, kNNWidth = 64, kPaddedNNOutWidth = 16, kTrainBatchSize = 16384,
-                                 kTrainBatchCount = 4;
+
 struct PackedNRCInput {
 	uint32_t primitive_id, flip_bit_instance_id;
 	uint32_t barycentric_2x16U;
@@ -28,20 +27,30 @@ VkDeviceSize VkNRCState::GetEvalRecordBufferSize(VkExtent2D extent) {
 	return VkDeviceSize{extent.width} * VkDeviceSize{extent.height} * sizeof(nrc::NRCEvalRecord);
 }
 VkDeviceSize VkNRCState::GetTrainBatchRecordBufferSize() {
-	return VkDeviceSize{nrc::kTrainBatchSize * nrc::kTrainBatchCount} * sizeof(nrc::NRCTrainRecord);
+	return VkDeviceSize{kTrainBatchSize * kTrainBatchCount} * sizeof(nrc::NRCTrainRecord);
 }
-uint32_t VkNRCState::GetTrainBatchCount() { return nrc::kTrainBatchCount; }
 
 void VkNRCState::create_weight_buffer() {
-	constexpr uint32_t kWeightCount =
-	    nrc::kNNWidth * nrc::kNNWidth * nrc::kNNHiddenLayers + nrc::kNNWidth * nrc::kPaddedNNOutWidth;
-	m_weights = myvk::Buffer::Create(GetDevicePtr(), kWeightCount * sizeof(uint16_t), 0,
+	m_weights = myvk::Buffer::Create(GetDevicePtr(), GetWeightCount() * sizeof(uint16_t), 0,
 	                                 VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 
 	// Zero Initialize
 	auto command_buffer = myvk::CommandBuffer::Create(myvk::CommandPool::Create(m_queue_ptr));
 	command_buffer->Begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 	vkCmdFillBuffer(command_buffer->GetHandle(), m_weights->GetHandle(), 0, m_weights->GetSize(), 0);
+	command_buffer->End();
+
+	auto fence = myvk::Fence::Create(GetDevicePtr());
+	command_buffer->Submit(fence);
+	fence->Wait();
+}
+void VkNRCState::create_adam_buffer() {
+	m_adam_mv = myvk::Buffer::Create(GetDevicePtr(), GetWeightCount() * sizeof(float) * 2, 0,
+	                                 VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+	// Zero Initialize
+	auto command_buffer = myvk::CommandBuffer::Create(myvk::CommandPool::Create(m_queue_ptr));
+	command_buffer->Begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+	vkCmdFillBuffer(command_buffer->GetHandle(), m_adam_mv->GetHandle(), 0, m_adam_mv->GetSize(), 0);
 	command_buffer->End();
 
 	auto fence = myvk::Fence::Create(GetDevicePtr());

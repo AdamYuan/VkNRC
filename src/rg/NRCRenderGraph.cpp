@@ -119,6 +119,7 @@ NRCResources NRCRenderGraph::create_nrc_resources() {
 	    .accumulate =
 	        CreateResource<myvk_rg::InputImage>({"accumulate"}, m_nrc_state_ptr->GetResultImageView())->Alias(),
 	    .weights = CreateResource<myvk_rg::InputBuffer>({"weights"}, m_nrc_state_ptr->GetWeightBuffer())->Alias(),
+	    .adam_mv = CreateResource<myvk_rg::InputBuffer>({"adam_mv"}, m_nrc_state_ptr->GetAdamMVBuffer())->Alias(),
 	    .eval_records = eval_record_buffer->Alias(),
 	    .eval_record_count = eval_record_count_buffer->Alias(),
 	    .train_batch_records =
