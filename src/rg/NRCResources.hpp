@@ -13,8 +13,8 @@ namespace rg {
 struct NRCResources {
 	myvk_rg::Image accumulate;
 	myvk_rg::Buffer weights, adam_mv;
-	myvk_rg::Buffer eval_records, eval_record_count;
-	myvk_rg::Buffer train_batch_records, train_batch_record_counts;
+	myvk_rg::Buffer eval_records, eval_count;
+	std::array<myvk_rg::Buffer, VkNRCState::GetTrainBatchCount()> batch_train_records, batch_train_counts;
 };
 
 } // namespace rg

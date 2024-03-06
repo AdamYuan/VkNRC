@@ -26,18 +26,30 @@ struct NRCTrainRecord {
 VkDeviceSize VkNRCState::GetEvalRecordBufferSize(VkExtent2D extent) {
 	return VkDeviceSize{extent.width} * VkDeviceSize{extent.height} * sizeof(nrc::NRCEvalRecord);
 }
-VkDeviceSize VkNRCState::GetTrainBatchRecordBufferSize() {
-	return VkDeviceSize{kTrainBatchSize * kTrainBatchCount} * sizeof(nrc::NRCTrainRecord);
+VkDeviceSize VkNRCState::GetBatchTrainRecordBufferSize() {
+	return VkDeviceSize{kTrainBatchSize} * sizeof(nrc::NRCTrainRecord);
+}
+
+void VkNRCState::initialize_weights(std::span<half_float::half, kNNWeighCount> weights) {
+	// (He) Kaiming Initialization
+	std::normal_distribution<float> norm{0, std::sqrt(2.0f / float(kNNWidth))};
+	for (auto &w : weights)
+		w = norm(m_rng);
 }
 
 void VkNRCState::create_weight_buffer() {
 	m_weights = myvk::Buffer::Create(GetDevicePtr(), GetWeightCount() * sizeof(uint16_t), 0,
 	                                 VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 
+	std::array<half_float::half, GetWeightCount()> initial_weights;
+	initialize_weights(initial_weights);
+
+	auto weights_staging = myvk::Buffer::CreateStaging(GetDevicePtr(), initial_weights.begin(), initial_weights.end());
+
 	// Zero Initialize
 	auto command_buffer = myvk::CommandBuffer::Create(myvk::CommandPool::Create(m_queue_ptr));
 	command_buffer->Begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
-	vkCmdFillBuffer(command_buffer->GetHandle(), m_weights->GetHandle(), 0, m_weights->GetSize(), 0);
+	command_buffer->CmdCopy(weights_staging, m_weights, {VkBufferCopy{.size = GetWeightCount() * sizeof(uint16_t)}});
 	command_buffer->End();
 
 	auto fence = myvk::Fence::Create(GetDevicePtr());

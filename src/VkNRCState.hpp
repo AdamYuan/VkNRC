@@ -7,15 +7,18 @@
 #define VKNRC_VKNRCSTATE_HPP
 
 #include <glm/glm.hpp>
+#include <half.hpp>
 #include <myvk/Buffer.hpp>
 #include <myvk/Image.hpp>
 #include <myvk/ImageView.hpp>
 #include <random>
+#include <span>
 
 class VkNRCState final : public myvk::DeviceObjectBase {
 private:
 	inline static constexpr uint32_t kNNHiddenLayers = 5, kNNWidth = 64, kNNOutWidth = 3, kTrainBatchSize = 16384,
 	                                 kTrainBatchCount = 4;
+	inline static constexpr uint32_t kNNWeighCount = kNNWidth * kNNWidth * kNNHiddenLayers + kNNWidth * kNNOutWidth;
 	inline static constexpr glm::vec2 kAdamBeta{0.9, 0.999};
 	inline static constexpr float kLearningRate{0.001};
 
@@ -27,6 +30,7 @@ private:
 	std::array<glm::vec2, kTrainBatchCount> m_batch_adam_beta_ts;
 	std::mt19937 m_rng{std::random_device{}()};
 
+	void initialize_weights(std::span<half_float::half, kNNWeighCount> weights);
 	void create_result_image();
 	void create_weight_buffer();
 	void create_adam_buffer();
@@ -69,13 +73,10 @@ public:
 	}
 	inline const myvk::Ptr<myvk::Device> &GetDevicePtr() const { return m_queue_ptr->GetDevicePtr(); }
 	static VkDeviceSize GetEvalRecordBufferSize(VkExtent2D extent);
-	static VkDeviceSize GetTrainBatchRecordBufferSize();
-
+	static VkDeviceSize GetBatchTrainRecordBufferSize();
 	static constexpr uint32_t GetTrainBatchCount() { return kTrainBatchCount; }
 	static constexpr uint32_t GetTrainBatchSize() { return kTrainBatchSize; }
-	static constexpr uint32_t GetWeightCount() {
-		return kNNWidth * kNNWidth * kNNHiddenLayers + kNNWidth * kNNOutWidth;
-	}
+	static constexpr uint32_t GetWeightCount() { return kNNWeighCount; }
 	static constexpr glm::vec2 GetAdamBeta() { return kAdamBeta; }
 	static constexpr float GetLearningRate() { return kLearningRate; }
 };

@@ -9,9 +9,8 @@ layout(local_size_x = WORKGROUP_SIZE, local_size_y = 1, local_size_z = 1) in;
 #define NRC_SCENE_UNPACK
 #include "NRCRecord.glsl"
 
-layout(constant_id = 1) const uint kBatchIndex = 0;
 layout(std430, binding = 8) readonly buffer uuBatchTrainRecords { NRCTrainRecord uBatchTrainRecords[]; };
-layout(binding = 9) uniform uuBatchTrainCounts { uint uBatchTrainCounts[kBatchIndex + 1]; };
+layout(binding = 9) uniform uuBatchTrainCounts { uint uBatchTrainCount; };
 
 #define NN_BACKPROPAGATION
 #define WEIGHTS_BINDING 10
@@ -21,10 +20,15 @@ layout(binding = 9) uniform uuBatchTrainCounts { uint uBatchTrainCounts[kBatchIn
 void main() {
 	uvec4 inputs[8] = uvec4[8](uvec4(0), uvec4(0), uvec4(0), uvec4(0), uvec4(0), uvec4(0), uvec4(0), uvec4(0));
 	f16vec3 target = f16vec3(0);
-	if (gl_GlobalInvocationID.x < uBatchTrainCounts[kBatchIndex]) {
-		NRCTrainRecord train_record = uBatchTrainRecords[kBatchIndex * NRC_TRAIN_BATCH_SIZE + gl_GlobalInvocationID.x];
-		NRCInputEncode(UnpackNRCInput(train_record.packed_input), inputs);
-		target = f16vec3(unpackFloat2x16(train_record.radiance_RG), unpackFloat2x16(train_record.radiance_B).x);
+	if (gl_GlobalInvocationID.x < uBatchTrainCount) {
+		/* NRCTrainRecord train_record = uBatchTrainRecords[kBatchIndex * NRC_TRAIN_BATCH_SIZE +
+		gl_GlobalInvocationID.x]; NRCInputEncode(UnpackNRCInput(train_record.packed_input), inputs); target =
+		f16vec3(unpackFloat2x16(train_record.radiance_RG), unpackFloat2x16(train_record.radiance_B).x); */
+
+		// For testing
+		inputs = uvec4[8](uvec4(0), uvec4(0), uvec4(0), uvec4(0), uvec4(0), uvec4(0), uvec4(0),
+		                  uvec4(0, 0, 0, packHalf2x16(vec2(1.0))));
+		target = f16vec3(1);
 	}
 
 	fcoopmatNV<16, gl_ScopeSubgroup, 16, 16> act_coopmats[6][COOPMAT_X][SUBGROUP_ACT_COOPMAT_Y],

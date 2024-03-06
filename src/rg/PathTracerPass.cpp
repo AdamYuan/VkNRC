@@ -57,10 +57,12 @@ PathTracerPass::PathTracerPass(myvk_rg::Parent parent, const PathTracerPass::Arg
 	                                                                                             args.eval_count);
 	AddDescriptorInput<myvk_rg::Usage::kStorageBufferW, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>({13}, {"eval_records"},
 	                                                                                            args.eval_records);
-	AddDescriptorInput<myvk_rg::Usage::kStorageBufferRW, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>(
-	    {14}, {"batch_train_counts"}, args.batch_train_counts);
-	AddDescriptorInput<myvk_rg::Usage::kStorageBufferW, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>(
-	    {15}, {"batch_train_records"}, args.batch_train_records);
+	for (uint32_t b = 0; b < VkNRCState::GetTrainBatchCount(); ++b) {
+		AddDescriptorInput<myvk_rg::Usage::kStorageBufferRW, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>(
+		    {14, b}, {"batch_train_count", b}, args.batch_train_counts[b]);
+		AddDescriptorInput<myvk_rg::Usage::kStorageBufferW, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>(
+		    {15, b}, {"batch_train_records", b}, args.batch_train_records[b]);
+	}
 }
 
 void PathTracerPass::CreatePipeline() {

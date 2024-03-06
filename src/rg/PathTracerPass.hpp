@@ -21,7 +21,8 @@ public:
 		const myvk::Ptr<VkScene> &scene_ptr;
 		const SceneResources &scene_resources;
 		const myvk::Ptr<VkNRCState> &nrc_state_ptr;
-		const myvk_rg::Buffer &eval_count, &eval_records, &batch_train_counts, &batch_train_records;
+		const myvk_rg::Buffer &eval_count, &eval_records;
+		std::span<const myvk_rg::Buffer, VkNRCState::GetTrainBatchCount()> batch_train_records, batch_train_counts;
 		const myvk::Ptr<Camera> &camera_ptr;
 	};
 
@@ -36,11 +37,15 @@ public:
 	inline ~PathTracerPass() final = default;
 	void CreatePipeline() final;
 	void CmdExecute(const myvk::Ptr<myvk::CommandBuffer> &command_buffer) const final;
-	inline auto GetColorOutput() { return MakeImageOutput({"color"}); }
-	inline auto GetEvalCountOutput() { return MakeBufferOutput({"eval_count"}); }
-	inline auto GetEvalRecordsOutput() { return MakeBufferOutput({"eval_records"}); }
-	inline auto GetBatchTrainCountsOutput() { return MakeBufferOutput({"batch_train_counts"}); }
-	inline auto GetBatchTrainRecordsOutput() { return MakeBufferOutput({"batch_train_records"}); }
+	inline auto GetColorOutput() const { return MakeImageOutput({"color"}); }
+	inline auto GetEvalCountOutput() const { return MakeBufferOutput({"eval_count"}); }
+	inline auto GetEvalRecordsOutput() const { return MakeBufferOutput({"eval_records"}); }
+	inline auto GetBatchTrainCountOutput(uint32_t batch_index) const {
+		return MakeBufferOutput({"batch_train_count", batch_index});
+	}
+	inline auto GetBatchTrainRecordsOutput(uint32_t batch_index) const {
+		return MakeBufferOutput({"batch_train_records", batch_index});
+	}
 };
 
 } // namespace rg

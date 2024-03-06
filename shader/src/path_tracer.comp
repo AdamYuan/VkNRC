@@ -27,8 +27,10 @@ layout(binding = 9) uniform usampler2D uPrimitiveID_InstanceID;
 layout(binding = 11, rgba32f) writeonly uniform image2D uColor;
 layout(binding = 12) buffer uuEvalCount { uint uEvalCount; };
 layout(binding = 13) writeonly buffer uuEvalRecords { NRCEvalRecord uEvalRecords[]; };
-layout(binding = 14) buffer uuBatchTrainCounts { uint uBatchTrainCounts[]; };
-layout(binding = 15) writeonly buffer uuBatchTrainRecords { NRCTrainRecord uBatchTrainRecords[]; };
+layout(binding = 14) buffer uuBatchTrainCounts { uint count; }
+uBatchTrainCounts[];
+layout(binding = 15) writeonly buffer uuBatchTrainRecords { NRCTrainRecord records[]; }
+uBatchTrainRecords[];
 
 struct Ray {
 	vec3 o, d;
@@ -169,6 +171,10 @@ void main() {
 		uint eval_id = atomicAdd(uEvalCount, 1u, gl_ScopeQueueFamily, gl_StorageSemanticsBuffer, gl_SemanticsRelaxed);
 		uEvalRecords[eval_id].pixel_x_y = coord.x | (coord.y << 16u);
 	}
+	uBatchTrainCounts[0].count = 1;
+	uBatchTrainCounts[1].count = 1;
+	uBatchTrainCounts[2].count = 1;
+	uBatchTrainCounts[3].count = 1;
 
 	color = IsValidRGB(color) ? color : vec3(0);
 	imageStore(uColor, ivec2(coord), vec4(color, 0));

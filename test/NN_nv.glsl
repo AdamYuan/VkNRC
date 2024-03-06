@@ -161,9 +161,8 @@ f16vec3 NNOutput3(in const fcoopmatNV<16, gl_ScopeSubgroup, 16, 16> act_coopmats
 void NNLoadDA3_L2Loss(in const f16vec3 predict,
                       in const f16vec3 target,
                       inout fcoopmatNV<16, gl_ScopeSubgroup, 16, 16> da_coopmats_t[SUBGROUP_ACT_COOPMAT_Y]) {
-	f16vec3 d_l2 = predict - target;
-	SHARED_BUFFER[gl_LocalInvocationID.x * UV4_X] =
-	    uvec4(packFloat2x16(d_l2.xy), packFloat2x16(f16vec2(d_l2.z, 0)), 0u, 0u);
+	vec3 d_l2 = vec3(predict) - vec3(target);
+	SHARED_BUFFER[gl_LocalInvocationID.x * UV4_X] = uvec4(packHalf2x16(d_l2.xy), packHalf2x16(vec2(d_l2.z, 0)), 0u, 0u);
 	[[unroll]] for (uint i = 1; i < 16 / FP16_PER_UV4; ++i)
 		SHARED_BUFFER[gl_LocalInvocationID.x * UV4_X + i] = uvec4(0u);
 	barrier();

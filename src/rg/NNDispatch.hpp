@@ -15,14 +15,12 @@ private:
 	class NNGenIndirect final : public myvk_rg::ComputePassBase {
 	private:
 		myvk::Ptr<myvk::ComputePipeline> m_pipeline;
-		uint32_t m_index;
 		struct VkDispatchIndirectCommand {
 			uint32_t x, y, z;
 		};
 
 	public:
-		NNGenIndirect(myvk_rg::Parent parent, const myvk_rg::Buffer &count, uint32_t count_index)
-		    : myvk_rg::ComputePassBase(parent), m_index{count_index} {
+		NNGenIndirect(myvk_rg::Parent parent, const myvk_rg::Buffer &count) : myvk_rg::ComputePassBase(parent) {
 			auto indirect_cmd =
 			    CreateResource<myvk_rg::ManagedBuffer>({"indirect_cmd"}, sizeof(VkDispatchIndirectCommand));
 			AddDescriptorInput<myvk_rg::Usage::kUniformBuffer, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>({0}, {"count"},
@@ -37,7 +35,6 @@ private:
 #include <shader/nrc_indirect.comp.u32>
 			};
 			auto shader_module = myvk::ShaderModule::Create(device, kCompSpv, sizeof(kCompSpv));
-			shader_module->AddSpecialization(0, m_index);
 			m_pipeline = myvk::ComputePipeline::Create(pipeline_layout, shader_module);
 		}
 		void CmdExecute(const myvk::Ptr<myvk::CommandBuffer> &command_buffer) const final {
@@ -51,9 +48,8 @@ private:
 
 public:
 	template <typename... Args>
-	NNDispatch(myvk_rg::Parent parent, const myvk_rg::Buffer &count, uint32_t count_index, Args &&...args)
-	    : myvk_rg::PassGroupBase(parent) {
-		auto gen_indirect_pass = CreatePass<NNGenIndirect>({"gen_pass"}, count, count_index);
+	NNDispatch(myvk_rg::Parent parent, const myvk_rg::Buffer &count, Args &&...args) : myvk_rg::PassGroupBase(parent) {
+		auto gen_indirect_pass = CreatePass<NNGenIndirect>({"gen_pass"}, count);
 		CreatePass<NNPass>({"pass"}, gen_indirect_pass->GetIndirectCmdOutput(), std::forward<Args>(args)...);
 	}
 	inline NNPass *Get() const { return GetPass<NNPass>({"pass"}); }

@@ -26,6 +26,10 @@ void main() {
 		NRCEvalRecord eval_record = uEvalRecords[gl_GlobalInvocationID.x];
 		NRCInputEncode(UnpackNRCInput(eval_record.packed_input), inputs);
 		pixel_x_y = eval_record.pixel_x_y;
+
+		// For testing
+		inputs = uvec4[8](uvec4(0), uvec4(0), uvec4(0), uvec4(0), uvec4(0), uvec4(0), uvec4(0),
+		                  uvec4(0, 0, 0, packHalf2x16(vec2(1.0))));
 	}
 
 	fcoopmatNV<16, gl_ScopeSubgroup, 16, 16> act_coopmats[2][COOPMAT_X][SUBGROUP_ACT_COOPMAT_Y];
@@ -43,6 +47,6 @@ void main() {
 		vec3 radiance = max(vec3(predict), vec3(0));
 		vec3 color = imageLoad(uColor, coord).rgb;
 		color *= radiance;
-		// imageStore(uColor, coord, vec4(color, 0));
+		imageStore(uColor, coord, vec4(color, 0));
 	}
 }

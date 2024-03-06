@@ -37,14 +37,14 @@ NRCRenderGraph::NRCRenderGraph(const myvk::Ptr<myvk::FrameManager> &frame_manage
 	                                               .scene_ptr = m_scene_ptr,
 	                                               .scene_resources = scene_resources,
 	                                               .nrc_state_ptr = m_nrc_state_ptr,
-	                                               .eval_count = nrc_resources.eval_record_count,
+	                                               .eval_count = nrc_resources.eval_count,
 	                                               .eval_records = nrc_resources.eval_records,
-	                                               .batch_train_counts = nrc_resources.train_batch_record_counts,
-	                                               .batch_train_records = nrc_resources.train_batch_records,
+	                                               .batch_train_records = nrc_resources.batch_train_records,
+	                                               .batch_train_counts = nrc_resources.batch_train_counts,
 	                                               .camera_ptr = camera_ptr});
 
 	auto nn_inference_pass = CreatePass<NNDispatch<NNInference>>(
-	    {"nn_inference_pass"}, path_tracer_pass->GetEvalCountOutput(), 0,
+	    {"nn_inference_pass"}, path_tracer_pass->GetEvalCountOutput(),
 	    NNInference::Args{.scene_ptr = m_scene_ptr,
 	                      .scene_resources = scene_resources,
 	                      .color = path_tracer_pass->GetColorOutput(),
@@ -65,8 +65,8 @@ NRCRenderGraph::NRCRenderGraph(const myvk::Ptr<myvk::FrameManager> &frame_manage
 		                                  .scene_ptr = m_scene_ptr,
 		                                  .scene_resources = scene_resources,
 		                                  .nrc_state_ptr = m_nrc_state_ptr,
-		                                  .batch_train_counts = path_tracer_pass->GetBatchTrainCountsOutput(),
-		                                  .batch_train_records = path_tracer_pass->GetBatchTrainRecordsOutput(),
+		                                  .batch_train_count = path_tracer_pass->GetBatchTrainCountOutput(b),
+		                                  .batch_train_records = path_tracer_pass->GetBatchTrainRecordsOutput(b),
 		                                  .batch_index = b});
 	}
 
@@ -92,14 +92,9 @@ void NRCRenderGraph::PreExecute() const {
 	GetResource<myvk_rg::InputImage>({"accumulate"})->SetVkImageView(m_nrc_state_ptr->GetResultImageView());
 	// Update Mapped Internals
 	m_scene_ptr->UpdateTransformBuffer(GetResource<myvk_rg::ManagedBuffer>({"transforms"})->GetMappedData());
-	std::ranges::fill(
-	    std::span<uint32_t>{GetResource<myvk_rg::ManagedBuffer>({"eval_record_count"})->GetMappedData<uint32_t>(), 1},
-	    0);
-	std::ranges::fill(
-	    std::span<uint32_t>{
-	        GetResource<myvk_rg::ManagedBuffer>({"train_batch_record_counts"})->GetMappedData<uint32_t>(),
-	        VkNRCState::GetTrainBatchCount()},
-	    0);
+	*GetResource<myvk_rg::ManagedBuffer>({"eval_count"})->GetMappedData<uint32_t>() = 0u;
+	for (uint32_t b = 0; b < VkNRCState::GetTrainBatchCount(); ++b)
+		*GetResource<myvk_rg::ManagedBuffer>({"batch_train_count", b})->GetMappedData<uint32_t>() = 0u;
 }
 
 SceneResources NRCRenderGraph::create_scene_resources() {
@@ -131,12 +126,18 @@ NRCResources NRCRenderGraph::create_nrc_resources() {
 	eval_record_buffer->SetSizeFunc(
 	    [](VkExtent2D extent) -> VkDeviceSize { return VkNRCState::GetEvalRecordBufferSize(extent); });
 
-	auto eval_record_count_buffer = CreateResource<myvk_rg::ManagedBuffer>({"eval_record_count"}, sizeof(uint32_t));
+	auto eval_record_count_buffer = CreateResource<myvk_rg::ManagedBuffer>({"eval_count"}, sizeof(uint32_t));
 	eval_record_count_buffer->SetMapped(true);
 
-	auto train_batch_record_count_buffer = CreateResource<myvk_rg::ManagedBuffer>(
-	    {"train_batch_record_counts"}, VkNRCState::GetTrainBatchCount() * sizeof(uint32_t));
-	train_batch_record_count_buffer->SetMapped(true);
+	std::array<myvk_rg::Buffer, VkNRCState::GetTrainBatchCount()> batch_train_counts, batch_train_records;
+	for (uint32_t b = 0; b < VkNRCState::GetTrainBatchCount(); ++b) {
+		auto count_buffer = CreateResource<myvk_rg::ManagedBuffer>({"batch_train_count", b}, sizeof(uint32_t));
+		count_buffer->SetMapped(true);
+		auto record_buffer = CreateResource<myvk_rg::ManagedBuffer>({"batch_train_records", b},
+		                                                            VkNRCState::GetBatchTrainRecordBufferSize());
+		batch_train_counts[b] = count_buffer->Alias();
+		batch_train_records[b] = record_buffer->Alias();
+	}
 
 	NRCResources nr = {
 	    .accumulate =
@@ -144,11 +145,9 @@ NRCResources NRCRenderGraph::create_nrc_resources() {
 	    .weights = CreateResource<myvk_rg::InputBuffer>({"weights"}, m_nrc_state_ptr->GetWeightBuffer())->Alias(),
 	    .adam_mv = CreateResource<myvk_rg::InputBuffer>({"adam_mv"}, m_nrc_state_ptr->GetAdamMVBuffer())->Alias(),
 	    .eval_records = eval_record_buffer->Alias(),
-	    .eval_record_count = eval_record_count_buffer->Alias(),
-	    .train_batch_records =
-	        CreateResource<myvk_rg::ManagedBuffer>({"train_batch_records"}, VkNRCState::GetTrainBatchRecordBufferSize())
-	            ->Alias(),
-	    .train_batch_record_counts = train_batch_record_count_buffer->Alias(),
+	    .eval_count = eval_record_count_buffer->Alias(),
+	    .batch_train_records = std::move(batch_train_records),
+	    .batch_train_counts = std::move(batch_train_counts),
 	};
 	return nr;
 }

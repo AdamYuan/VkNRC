@@ -23,7 +23,7 @@ public:
 		const myvk::Ptr<VkScene> &scene_ptr;
 		const SceneResources &scene_resources;
 		const myvk::Ptr<VkNRCState> &nrc_state_ptr;
-		const myvk_rg::Buffer &batch_train_counts, &batch_train_records;
+		const myvk_rg::Buffer &batch_train_count, &batch_train_records;
 		uint32_t batch_index;
 	};
 
@@ -32,7 +32,6 @@ private:
 	private:
 		myvk::Ptr<myvk::ComputePipeline> m_pipeline;
 		myvk::Ptr<VkScene> m_scene_ptr;
-		uint32_t m_batch_index;
 
 	public:
 		NNGradient(myvk_rg::Parent parent, const myvk_rg::Buffer &cmd, const myvk_rg::Buffer &gradients,
@@ -63,8 +62,8 @@ public:
 		auto gradients =
 		    CreateResource<myvk_rg::ManagedBuffer>({"gradients"}, VkNRCState::GetWeightCount() * sizeof(float));
 		auto clear_pass = CreatePass<myvk_rg::BufferFillPass>({"clear_pass"}, gradients->Alias(), 0);
-		auto gradient_pass = CreatePass<NNDispatch<NNGradient>>({"gradient_pass"}, args.batch_train_counts,
-		                                                        args.batch_index, clear_pass->GetDstOutput(), args);
+		auto gradient_pass = CreatePass<NNDispatch<NNGradient>>({"gradient_pass"}, args.batch_train_count,
+		                                                        clear_pass->GetDstOutput(), args);
 		CreatePass<NNAdam>({"adam_pass"}, gradient_pass->Get()->GetGradientOutput(), args);
 	}
 	inline ~NNTrain() final = default;
