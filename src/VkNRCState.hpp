@@ -20,7 +20,6 @@ private:
 	                                 kTrainBatchCount = 4;
 	inline static constexpr uint32_t kNNWeighCount = kNNWidth * kNNWidth * kNNHiddenLayers + kNNWidth * kNNOutWidth;
 	inline static constexpr glm::vec2 kAdamBeta{0.9, 0.999};
-	inline static constexpr float kLearningRate{0.001};
 
 	myvk::Ptr<myvk::Queue> m_queue_ptr;
 	myvk::Ptr<myvk::Buffer> m_weights, m_adam_mv;
@@ -78,7 +77,6 @@ public:
 	static constexpr uint32_t GetTrainBatchSize() { return kTrainBatchSize; }
 	static constexpr uint32_t GetWeightCount() { return kNNWeighCount; }
 	static constexpr glm::vec2 GetAdamBeta() { return kAdamBeta; }
-	static constexpr float GetLearningRate() { return kLearningRate; }
 };
 
 #endif // VKNRC_VKNRCSTATE_HPP

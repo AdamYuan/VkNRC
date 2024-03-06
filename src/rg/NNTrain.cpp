@@ -91,7 +91,6 @@ void NNTrain::NNAdam::CreatePipeline() {
 	auto shader_module = myvk::ShaderModule::Create(device, kCompSpv, sizeof(kCompSpv));
 	shader_module->AddSpecialization(0, VkNRCState::GetAdamBeta().x);
 	shader_module->AddSpecialization(1, VkNRCState::GetAdamBeta().y);
-	shader_module->AddSpecialization(2, VkNRCState::GetLearningRate());
 	m_pipeline = myvk::ComputePipeline::Create(pipeline_layout, shader_module);
 }
 void NNTrain::NNAdam::CmdExecute(const myvk::Ptr<myvk::CommandBuffer> &command_buffer) const {
