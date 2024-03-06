@@ -1,15 +1,16 @@
 //
-// Created by adamyuan on 3/1/24.
+// Created by adamyuan on 3/5/24.
 //
 
-#include "NNInference.hpp"
+#include "NNTrain.hpp"
 
-#include "NNInferenceShader.hpp"
+#include "NNGradientShader.hpp"
 
 namespace rg {
 
-NNInference::NNInference(myvk_rg::Parent parent, const myvk_rg::Buffer &cmd, const NNInference::Args &args)
-    : myvk_rg::ComputePassBase(parent), m_scene_ptr(args.scene_ptr) {
+NNTrain::NNGradient::NNGradient(myvk_rg::Parent parent, const myvk_rg::Buffer &cmd, const myvk_rg::Buffer &gradients,
+                                const NNTrain::Args &args)
+    : myvk_rg::ComputePassBase(parent), m_scene_ptr(args.scene_ptr), m_batch_index{args.batch_index} {
 	AddInput<myvk_rg::Usage::kDrawIndirectBuffer>({"cmd"}, cmd);
 	// Scene
 	AddDescriptorInput<myvk_rg::Usage::kStorageBufferR, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>(
@@ -32,21 +33,21 @@ NNInference::NNInference(myvk_rg::Parent parent, const myvk_rg::Buffer &cmd, con
 		++texture_id;
 	}
 	// NRC
-	AddDescriptorInput<myvk_rg::Usage::kStorageBufferR, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>({8}, {"eval_records"},
-	                                                                                            args.eval_records);
-	AddDescriptorInput<myvk_rg::Usage::kUniformBuffer, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>({9}, {"eval_count"},
-	                                                                                           args.eval_count);
+	AddDescriptorInput<myvk_rg::Usage::kStorageBufferR, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>(
+	    {8}, {"batch_train_records"}, args.batch_train_records);
+	AddDescriptorInput<myvk_rg::Usage::kUniformBuffer, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>(
+	    {9}, {"batch_train_counts"}, args.batch_train_counts);
 	AddDescriptorInput<myvk_rg::Usage::kStorageBufferR, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>({10}, {"weights"},
 	                                                                                            args.weights);
-	AddDescriptorInput<myvk_rg::Usage::kStorageImageRW, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>({11}, {"color"},
-	                                                                                            args.color);
+	AddDescriptorInput<myvk_rg::Usage::kStorageBufferRW, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>({11}, {"gradients"},
+	                                                                                             gradients);
 }
-
-void NNInference::CreatePipeline() {
+void NNTrain::NNGradient::CreatePipeline() {
 	auto &device = GetRenderGraphPtr()->GetDevicePtr();
 	auto pipeline_layout = myvk::PipelineLayout::Create(device, {GetVkDescriptorSetLayout()}, {});
-	auto [shader_module, required_subgroup_info] = NNInferenceShader::Create(device);
+	auto [shader_module, required_subgroup_info] = NNGradientShader::Create(device);
 	shader_module->AddSpecialization(0, (uint32_t)m_scene_ptr->GetTextures().size());
+	shader_module->AddSpecialization(1, m_batch_index);
 	VkPipelineShaderStageCreateInfo shader_stage =
 	    shader_module->GetPipelineShaderStageCreateInfo(VK_SHADER_STAGE_COMPUTE_BIT);
 	shader_stage.flags |= VK_PIPELINE_SHADER_STAGE_CREATE_REQUIRE_FULL_SUBGROUPS_BIT;
@@ -57,8 +58,7 @@ void NNInference::CreatePipeline() {
 	};
 	m_pipeline = myvk::ComputePipeline::Create(pipeline_layout, create_info);
 }
-
-void NNInference::CmdExecute(const myvk::Ptr<myvk::CommandBuffer> &command_buffer) const {
+void NNTrain::NNGradient::CmdExecute(const myvk::Ptr<myvk::CommandBuffer> &command_buffer) const {
 	command_buffer->CmdBindPipeline(m_pipeline);
 	command_buffer->CmdBindDescriptorSets({GetVkDescriptorSet()}, m_pipeline);
 	command_buffer->CmdDispatchIndirect(GetInputBuffer({"cmd"})->GetBufferView().buffer);

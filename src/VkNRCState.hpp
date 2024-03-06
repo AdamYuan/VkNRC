@@ -14,8 +14,8 @@
 
 class VkNRCState final : public myvk::DeviceObjectBase {
 private:
-	inline static constexpr uint32_t kNNHiddenLayers = 5, kNNWidth = 64, kPaddedNNOutWidth = 16,
-	                                 kTrainBatchSize = 16384, kTrainBatchCount = 4;
+	inline static constexpr uint32_t kNNHiddenLayers = 5, kNNWidth = 64, kNNOutWidth = 3, kTrainBatchSize = 16384,
+	                                 kTrainBatchCount = 4;
 	inline static constexpr glm::vec2 kAdamBeta{0.9, 0.999};
 
 	myvk::Ptr<myvk::Queue> m_queue_ptr;
@@ -74,7 +74,7 @@ public:
 	static constexpr uint32_t GetTrainBatchCount() { return kTrainBatchCount; }
 	static constexpr uint32_t GetTrainBatchSize() { return kTrainBatchSize; }
 	static constexpr uint32_t GetWeightCount() {
-		return kNNWidth * kNNWidth * kNNHiddenLayers + kNNWidth * kPaddedNNOutWidth;
+		return kNNWidth * kNNWidth * kNNHiddenLayers + kNNWidth * kNNOutWidth;
 	}
 	static constexpr glm::vec2 GetAdamBeta() { return kAdamBeta; }
 };

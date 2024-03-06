@@ -25,7 +25,7 @@ public:
 		vkCmdFillBuffer(command_buffer->GetHandle(), buffer_view.buffer->GetHandle(), buffer_view.offset,
 		                buffer_view.size, m_data);
 	}
-	inline auto GetDstOutput() { return MakeImageOutput({"dst"}); }
+	inline auto GetDstOutput() { return MakeBufferOutput({"dst"}); }
 };
 } // namespace myvk_rg
 

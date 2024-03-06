@@ -10,8 +10,7 @@
 
 namespace rg {
 
-template <std::derived_from<myvk_rg::ComputePassBase> NNComputePass>
-class NNDispatch final : public myvk_rg::PassGroupBase {
+template <typename NNPass> class NNDispatch final : public myvk_rg::PassGroupBase {
 private:
 	class NNGenIndirect final : public myvk_rg::ComputePassBase {
 	private:
@@ -55,9 +54,9 @@ public:
 	NNDispatch(myvk_rg::Parent parent, const myvk_rg::Buffer &count, uint32_t count_index, Args &&...args)
 	    : myvk_rg::PassGroupBase(parent) {
 		auto gen_indirect_pass = CreatePass<NNGenIndirect>({"gen_pass"}, count, count_index);
-		CreatePass<NNComputePass>({"pass"}, gen_indirect_pass->GetIndirectCmdOutput(), std::forward<Args>(args)...);
+		CreatePass<NNPass>({"pass"}, gen_indirect_pass->GetIndirectCmdOutput(), std::forward<Args>(args)...);
 	}
-	inline NNComputePass *Get() const { return GetPass<NNComputePass>({"pass"}); }
+	inline NNPass *Get() const { return GetPass<NNPass>({"pass"}); }
 	inline ~NNDispatch() final = default;
 };
 

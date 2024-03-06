@@ -45,7 +45,7 @@ add_executable(VkNRC
         src/rg/ScreenPass.cpp
         src/rg/NNInference.cpp
         src/rg/NNInferenceShader.cpp
-        src/rg/NNGradient.cpp
+        src/rg/NNTrain.cpp
         src/rg/NNGradientShader.cpp
 )
 target_link_libraries(VkNRC PRIVATE dep shader)

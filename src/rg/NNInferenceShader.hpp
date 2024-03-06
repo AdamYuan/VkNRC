@@ -11,7 +11,8 @@
 namespace rg {
 
 struct NNInferenceShader {
-	static myvk::Ptr<myvk::ShaderModule> Create(const myvk::Ptr<myvk::Device> &device);
+	static std::tuple<myvk::Ptr<myvk::ShaderModule>, VkPipelineShaderStageRequiredSubgroupSizeCreateInfo>
+	Create(const myvk::Ptr<myvk::Device> &device);
 };
 
 } // namespace rg

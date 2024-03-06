@@ -29,12 +29,15 @@ layout(std430, set = NN_SET, binding = DWEIGHTS_BINDING) buffer uuDWeights { flo
 #define ACT_Y WORKGROUP_SIZE
 #define ACT_COUNT (FP_X * ACT_Y)
 #define WEIGHT_64_COUNT (FP_X * 64)
-#define WEIGHT_16_COUNT (FP_X * 16)
+#define WEIGHT_3_COUNT (FP_X * 3)
 // UVec4 Counts
 #define UV4_X (FP_X / FP16_PER_UV4)                          // 8
 #define ACT_UV4_COUNT (ACT_COUNT / FP16_PER_UV4)             // 1024
 #define WEIGHT_64_UV4_COUNT (WEIGHT_64_COUNT / FP16_PER_UV4) // 512
-#define WEIGHT_16_UV4_COUNT (WEIGHT_16_COUNT / FP16_PER_UV4) // 128
+#define WEIGHT_3_UV4_COUNT (WEIGHT_3_COUNT / FP16_PER_UV4)   // 24
+#if WEIGHT_3_UV4_COUNT > WORKGROUP_SIZE
+#error
+#endif
 // Cooperative Matrix Counts
 #define COOPMAT_X (FP_X / 16)                                 // 4
 #define ACT_COOPMAT_COUNT (ACT_COUNT / (16 * 16))             // 32
@@ -70,10 +73,10 @@ void _nn_load_weight_64(in const uint layer) {
 	barrier();
 }
 
-void _nn_load_weight_16(in const uint layer) {
-	// assert(WEIGHT_16_UV4_COUNT == 128 == WORKGROUP_SIZE);
+void _nn_load_weight_3(in const uint layer) {
 	const uint kLayerUV4Base = layer * WEIGHT_64_UV4_COUNT;
-	SHARED_BUFFER[gl_LocalInvocationID.x] = uWeights[kLayerUV4Base + gl_LocalInvocationID.x];
+	SHARED_BUFFER[gl_LocalInvocationID.x] =
+	    gl_LocalInvocationID.x < WEIGHT_3_UV4_COUNT ? uWeights[kLayerUV4Base + gl_LocalInvocationID.x] : uvec4(0u);
 	barrier();
 }
 
@@ -122,10 +125,10 @@ void NNForward64_ReLU(in const uint layer,
 	}
 }
 
-void NNForward16(in const uint layer,
-                 in const fcoopmatNV<16, gl_ScopeSubgroup, 16, 16> src_coopmats[COOPMAT_X][SUBGROUP_ACT_COOPMAT_Y],
-                 inout fcoopmatNV<16, gl_ScopeSubgroup, 16, 16> dst_coopmats[SUBGROUP_ACT_COOPMAT_Y]) {
-	_nn_load_weight_16(layer);
+void NNForward3(in const uint layer,
+                in const fcoopmatNV<16, gl_ScopeSubgroup, 16, 16> src_coopmats[COOPMAT_X][SUBGROUP_ACT_COOPMAT_Y],
+                inout fcoopmatNV<16, gl_ScopeSubgroup, 16, 16> dst_coopmats[SUBGROUP_ACT_COOPMAT_Y]) {
+	_nn_load_weight_3(layer);
 	// Zero Initialize
 	[[unroll]] for (uint y = 0; y < SUBGROUP_ACT_COOPMAT_Y; ++y)
 		dst_coopmats[y] = fcoopmatNV<16, gl_ScopeSubgroup, 16, 16>(0);
@@ -141,29 +144,27 @@ void NNForward16(in const uint layer,
 	barrier();
 }
 
-uvec2 NNOutputUV2(in const fcoopmatNV<16, gl_ScopeSubgroup, 16, 16> act_coopmats[SUBGROUP_ACT_COOPMAT_Y]) {
+f16vec3 NNOutput3(in const fcoopmatNV<16, gl_ScopeSubgroup, 16, 16> act_coopmats[SUBGROUP_ACT_COOPMAT_Y]) {
 	// Store
 	[[unroll]] for (uint y = 0; y < SUBGROUP_ACT_COOPMAT_Y; ++y) {
 		uint workgroup_y = gl_SubgroupID * SUBGROUP_ACT_COOPMAT_Y + y;
 		coopMatStoreNV(act_coopmats[y], SHARED_BUFFER, MAT64_COOPMAT_ELEMENT(0, workgroup_y), MAT64_COOPMAT_STRIDE,
 		               ACT_COOPMAT_MAJOR);
 	}
-	uvec2 ret = SHARED_BUFFER[gl_LocalInvocationID.x * UV4_X].rg;
+	uvec2 uv2 = SHARED_BUFFER[gl_LocalInvocationID.x * UV4_X].rg;
 	barrier();
-	return ret;
+	return f16vec3(unpackFloat2x16(uv2.x), unpackFloat2x16(uv2.y).x);
 }
 
 #ifdef NN_BACKPROPAGATION
 // http://cs231n.stanford.edu/slides/2018/cs231n_2018_ds02.pdf
-void NNLoadDA16_L2Loss(in const uvec2 predict,
-                       in const uvec2 target,
-                       inout fcoopmatNV<16, gl_ScopeSubgroup, 16, 16> da_coopmats_t[SUBGROUP_ACT_COOPMAT_Y]) {
-	vec4 output_v4 = vec4(unpackHalf2x16(predict.x).xy, unpackHalf2x16(predict.y).x, 0);
-	vec4 target_v4 = vec4(unpackHalf2x16(target.x).xy, unpackHalf2x16(target.y).x, 0);
-	vec4 d_l2_v4 = output_v4 - target_v4;
-	uvec2 d_l2 = uvec2(packHalf2x16(d_l2_v4.xy), packHalf2x16(d_l2_v4.zw));
-	SHARED_BUFFER[gl_LocalInvocationID.x * UV4_X] = uvec4(d_l2, 0u, 0u);
-	[[unroll]] for (uint i = 1; i < UV4_X; ++i)
+void NNLoadDA3_L2Loss(in const f16vec3 predict,
+                      in const f16vec3 target,
+                      inout fcoopmatNV<16, gl_ScopeSubgroup, 16, 16> da_coopmats_t[SUBGROUP_ACT_COOPMAT_Y]) {
+	f16vec3 d_l2 = predict - target;
+	SHARED_BUFFER[gl_LocalInvocationID.x * UV4_X] =
+	    uvec4(packFloat2x16(d_l2.xy), packFloat2x16(f16vec2(d_l2.z, 0)), 0u, 0u);
+	[[unroll]] for (uint i = 1; i < 16 / FP16_PER_UV4; ++i)
 		SHARED_BUFFER[gl_LocalInvocationID.x * UV4_X + i] = uvec4(0u);
 	barrier();
 	[[unroll]] for (uint y = 0; y < SUBGROUP_ACT_COOPMAT_Y; ++y) {
@@ -174,12 +175,12 @@ void NNLoadDA16_L2Loss(in const uvec2 predict,
 	barrier();
 }
 
-void NNBackwardDA16_ReLU(
+void NNBackwardDA3_ReLU(
     in const uint layer,
     in const fcoopmatNV<16, gl_ScopeSubgroup, 16, 16> src_da_coopmats_t[SUBGROUP_ACT_COOPMAT_Y],
     inout fcoopmatNV<16, gl_ScopeSubgroup, 16, 16> dst_da_coopmats_t[COOPMAT_X][SUBGROUP_ACT_COOPMAT_Y]) {
 
-	_nn_load_weight_16(layer);
+	_nn_load_weight_3(layer);
 	// da_coopmats^T (128, 16) x weights (16, 64) = dA^T (128, 64)
 	fcoopmatNV<16, gl_ScopeSubgroup, 16, 16> weight_coopmat;
 	[[unroll]] for (uint x = 0; x < COOPMAT_X; ++x) {
@@ -232,9 +233,9 @@ void NNBackwardDA64_ReLU(
 	}
 }
 
-void NNUpdateDW16(in const uint layer,
-                  in const fcoopmatNV<16, gl_ScopeSubgroup, 16, 16> da_coopmats_t[SUBGROUP_ACT_COOPMAT_Y],
-                  in const fcoopmatNV<16, gl_ScopeSubgroup, 16, 16> act_coopmats[COOPMAT_X][SUBGROUP_ACT_COOPMAT_Y]) {
+void NNUpdateDW3(in const uint layer,
+                 in const fcoopmatNV<16, gl_ScopeSubgroup, 16, 16> da_coopmats_t[SUBGROUP_ACT_COOPMAT_Y],
+                 in const fcoopmatNV<16, gl_ScopeSubgroup, 16, 16> act_coopmats[COOPMAT_X][SUBGROUP_ACT_COOPMAT_Y]) {
 	// (act_coopmats (64, 128) x da_coopmats^T (128, 16))^T = dW (16, 64)
 	fcoopmatNV<16, gl_ScopeSubgroup, 16, 16> dw_coopmats[COOPMAT_X], act_coopmat_t;
 	[[unroll]] for (uint w_y = 0; w_y < COOPMAT_X; ++w_y) {
@@ -260,10 +261,12 @@ void NNUpdateDW16(in const uint layer,
 	}
 	barrier();
 	// Store
-	const uint kWeightFP16Base = layer * WEIGHT_64_COUNT + gl_LocalInvocationID.x * FP16_PER_UV4;
-	[[unroll]] for (uint i = 0; i < FP16_PER_UV4 / 2; ++i) {
-		atomicAdd(uDWeights[kWeightFP16Base + (i << 1u)], d_w[i].x);
-		atomicAdd(uDWeights[kWeightFP16Base + (i << 1u | 1u)], d_w[i].y);
+	if (gl_LocalInvocationID.x < WEIGHT_3_UV4_COUNT) {
+		const uint kWeightFP16Base = layer * WEIGHT_64_COUNT + gl_LocalInvocationID.x * FP16_PER_UV4;
+		[[unroll]] for (uint i = 0; i < FP16_PER_UV4 / 2; ++i) {
+			atomicAdd(uDWeights[kWeightFP16Base + (i << 1u)], d_w[i].x);
+			atomicAdd(uDWeights[kWeightFP16Base + (i << 1u | 1u)], d_w[i].y);
+		}
 	}
 }
 

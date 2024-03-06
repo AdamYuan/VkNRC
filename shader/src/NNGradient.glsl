@@ -20,11 +20,11 @@ layout(binding = 9) uniform uuBatchTrainCounts { uint uBatchTrainCounts[kBatchIn
 
 void main() {
 	uvec4 inputs[8] = uvec4[8](uvec4(0), uvec4(0), uvec4(0), uvec4(0), uvec4(0), uvec4(0), uvec4(0), uvec4(0));
-	uvec2 target = uvec2(0);
+	f16vec3 target = f16vec3(0);
 	if (gl_GlobalInvocationID.x < uBatchTrainCounts[kBatchIndex]) {
 		NRCTrainRecord train_record = uBatchTrainRecords[kBatchIndex * NRC_TRAIN_BATCH_SIZE + gl_GlobalInvocationID.x];
 		NRCInputEncode(UnpackNRCInput(train_record.packed_input), inputs);
-		target = uvec2(train_record.radiance_RG, train_record.radiance_B);
+		target = f16vec3(unpackFloat2x16(train_record.radiance_RG), unpackFloat2x16(train_record.radiance_B).x);
 	}
 
 	fcoopmatNV<16, gl_ScopeSubgroup, 16, 16> act_coopmats[6][COOPMAT_X][SUBGROUP_ACT_COOPMAT_Y],
@@ -35,11 +35,11 @@ void main() {
 	NNForward64_ReLU(2, act_coopmats[2], act_coopmats[3]);
 	NNForward64_ReLU(3, act_coopmats[3], act_coopmats[4]);
 	NNForward64_ReLU(4, act_coopmats[4], act_coopmats[5]);
-	NNForward16(5, act_coopmats[5], out_coopmats);
-	uvec2 predict = NNOutputUV2(out_coopmats);
-	NNLoadDA16_L2Loss(predict, target, out_coopmats);
-	NNUpdateDW16(5, out_coopmats, act_coopmats[5]);
-	NNBackwardDA16_ReLU(5, out_coopmats, act_coopmats[5]);
+	NNForward3(5, act_coopmats[5], out_coopmats);
+	f16vec3 predict = NNOutput3(out_coopmats);
+	NNLoadDA3_L2Loss(predict, target, out_coopmats);
+	NNUpdateDW3(5, out_coopmats, act_coopmats[5]);
+	NNBackwardDA3_ReLU(5, out_coopmats, act_coopmats[5]);
 	NNUpdateDW64(4, act_coopmats[5], act_coopmats[4]);
 	NNBackwardDA64_ReLU(4, act_coopmats[5], act_coopmats[4]);
 	NNUpdateDW64(3, act_coopmats[4], act_coopmats[3]);

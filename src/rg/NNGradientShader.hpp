@@ -10,10 +10,11 @@
 
 namespace rg {
 
-class NNGradientShader {
-	static myvk::Ptr<myvk::ShaderModule> Create(const myvk::Ptr<myvk::Device> &device);
+struct NNGradientShader {
+	static std::tuple<myvk::Ptr<myvk::ShaderModule>, VkPipelineShaderStageRequiredSubgroupSizeCreateInfo>
+	Create(const myvk::Ptr<myvk::Device> &device);
 };
 
-}
+} // namespace rg
 
 #endif // VKNRC_NNGRADIENTSHADER_HPP

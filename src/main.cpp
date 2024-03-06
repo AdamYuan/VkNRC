@@ -35,6 +35,7 @@ int main(int argc, char **argv) {
 	features.vk12.vulkanMemoryModel = VK_TRUE;
 	features.vk12.vulkanMemoryModelDeviceScope = VK_TRUE;
 	features.vk13.computeFullSubgroups = VK_TRUE;
+	features.vk13.subgroupSizeControl = VK_TRUE;
 	VkPhysicalDeviceCooperativeMatrixFeaturesNV cooperative_matrix_features = {
 	    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_COOPERATIVE_MATRIX_FEATURES_NV,
 	    .cooperativeMatrix = VK_TRUE,
