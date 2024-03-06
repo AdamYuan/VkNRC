@@ -44,7 +44,7 @@ private:
 	class NNAdam final : public myvk_rg::ComputePassBase {
 	private:
 		myvk::Ptr<myvk::ComputePipeline> m_pipeline;
-		myvk::Ptr<VkScene> m_scene_ptr;
+		myvk::Ptr<VkNRCState> m_nrc_state_ptr;
 		uint32_t m_batch_index;
 
 	public:
