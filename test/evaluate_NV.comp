@@ -26,6 +26,6 @@ void main() {
 	NNForward64_ReLU(3, act_coopmats[1], act_coopmats[0]);
 	NNForward64_ReLU(4, act_coopmats[0], act_coopmats[1]);
 	NNForward3(5, act_coopmats[1], act_coopmats[0][0]);
-	f16vec3 predict = NNOutput3(act_coopmats[0][0]);
+	f16vec3 predict = f16vec3(NNOutput3(act_coopmats[0][0]));
 	uOutputs[gl_GlobalInvocationID.x] = F16Vec3(predict.x, predict.y, predict.z);
 }

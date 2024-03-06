@@ -19,7 +19,7 @@ layout(binding = 9) uniform uuBatchTrainCounts { uint uBatchTrainCount; };
 
 void main() {
 	uvec4 inputs[8] = uvec4[8](uvec4(0), uvec4(0), uvec4(0), uvec4(0), uvec4(0), uvec4(0), uvec4(0), uvec4(0));
-	f16vec3 target = f16vec3(0);
+	vec3 target = vec3(0);
 	if (gl_GlobalInvocationID.x < uBatchTrainCount) {
 		/* NRCTrainRecord train_record = uBatchTrainRecords[kBatchIndex * NRC_TRAIN_BATCH_SIZE +
 		gl_GlobalInvocationID.x]; NRCInputEncode(UnpackNRCInput(train_record.packed_input), inputs); target =
@@ -28,7 +28,7 @@ void main() {
 		// For testing
 		inputs = uvec4[8](uvec4(0), uvec4(0), uvec4(0), uvec4(0), uvec4(0), uvec4(0), uvec4(0),
 		                  uvec4(0, 0, 0, packHalf2x16(vec2(1.0))));
-		target = f16vec3(1);
+		target = vec3(1);
 	}
 
 	fcoopmatNV<16, gl_ScopeSubgroup, 16, 16> act_coopmats[6][COOPMAT_X][SUBGROUP_ACT_COOPMAT_Y],
@@ -40,8 +40,8 @@ void main() {
 	NNForward64_ReLU(3, act_coopmats[3], act_coopmats[4]);
 	NNForward64_ReLU(4, act_coopmats[4], act_coopmats[5]);
 	NNForward3(5, act_coopmats[5], out_coopmats);
-	f16vec3 predict = NNOutput3(out_coopmats);
-	NNLoadDA3_L2Loss(predict, target, out_coopmats);
+	vec3 predict = NNOutput3(out_coopmats);
+	NNLoadDA3_RelativeL2LuminanceLoss(predict, target, out_coopmats);
 	NNUpdateDW3(5, out_coopmats, act_coopmats[5]);
 	NNBackwardDA3_ReLU(5, out_coopmats, act_coopmats[5]);
 	NNUpdateDW64(4, act_coopmats[5], act_coopmats[4]);

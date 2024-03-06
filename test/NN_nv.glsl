@@ -144,7 +144,7 @@ void NNForward3(in const uint layer,
 	barrier();
 }
 
-f16vec3 NNOutput3(in const fcoopmatNV<16, gl_ScopeSubgroup, 16, 16> act_coopmats[SUBGROUP_ACT_COOPMAT_Y]) {
+vec3 NNOutput3(in const fcoopmatNV<16, gl_ScopeSubgroup, 16, 16> act_coopmats[SUBGROUP_ACT_COOPMAT_Y]) {
 	// Store
 	[[unroll]] for (uint y = 0; y < SUBGROUP_ACT_COOPMAT_Y; ++y) {
 		uint workgroup_y = gl_SubgroupID * SUBGROUP_ACT_COOPMAT_Y + y;
@@ -153,16 +153,34 @@ f16vec3 NNOutput3(in const fcoopmatNV<16, gl_ScopeSubgroup, 16, 16> act_coopmats
 	}
 	uvec2 uv2 = SHARED_BUFFER[gl_LocalInvocationID.x * UV4_X].rg;
 	barrier();
-	return f16vec3(unpackFloat2x16(uv2.x), unpackFloat2x16(uv2.y).x);
+	return vec3(unpackHalf2x16(uv2.x), unpackHalf2x16(uv2.y).x);
 }
 
 #ifdef NN_BACKPROPAGATION
 // http://cs231n.stanford.edu/slides/2018/cs231n_2018_ds02.pdf
-void NNLoadDA3_L2Loss(in const f16vec3 predict,
-                      in const f16vec3 target,
+void NNLoadDA3_L2Loss(in const vec3 predict,
+                      in const vec3 target,
                       inout fcoopmatNV<16, gl_ScopeSubgroup, 16, 16> da_coopmats_t[SUBGROUP_ACT_COOPMAT_Y]) {
-	vec3 d_l2 = vec3(predict) - vec3(target);
+	vec3 d_l2 = predict - target;
 	SHARED_BUFFER[gl_LocalInvocationID.x * UV4_X] = uvec4(packHalf2x16(d_l2.xy), packHalf2x16(vec2(d_l2.z, 0)), 0u, 0u);
+	[[unroll]] for (uint i = 1; i < 16 / FP16_PER_UV4; ++i)
+		SHARED_BUFFER[gl_LocalInvocationID.x * UV4_X + i] = uvec4(0u);
+	barrier();
+	[[unroll]] for (uint y = 0; y < SUBGROUP_ACT_COOPMAT_Y; ++y) {
+		uint workgroup_y = gl_SubgroupID * SUBGROUP_ACT_COOPMAT_Y + y;
+		coopMatLoadNV(da_coopmats_t[y], SHARED_BUFFER, MAT64_COOPMAT_ELEMENT(0, workgroup_y), MAT64_COOPMAT_STRIDE,
+		              COOPMAT_MAJOR_T(ACT_COOPMAT_MAJOR));
+	}
+	barrier();
+}
+void NNLoadDA3_RelativeL2LuminanceLoss(
+    in const vec3 predict,
+    in const vec3 target,
+    inout fcoopmatNV<16, gl_ScopeSubgroup, 16, 16> da_coopmats_t[SUBGROUP_ACT_COOPMAT_Y]) {
+	float predict_luminance = dot(vec3(0.299, 0.587, 0.114), predict);
+	vec3 d_loss = 2.0 * (predict - target) / (predict_luminance * predict_luminance + 0.01);
+	SHARED_BUFFER[gl_LocalInvocationID.x * UV4_X] =
+	    uvec4(packHalf2x16(d_loss.xy), packHalf2x16(vec2(d_loss.z, 0)), 0u, 0u);
 	[[unroll]] for (uint i = 1; i < 16 / FP16_PER_UV4; ++i)
 		SHARED_BUFFER[gl_LocalInvocationID.x * UV4_X + i] = uvec4(0u);
 	barrier();

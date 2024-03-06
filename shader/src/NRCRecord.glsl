@@ -29,22 +29,19 @@ struct UnpackedNRCInput {
 vec2 NRCSphEncode(in const vec3 d) {
 	return vec2(d.xy == vec2(0) ? 0.5 : 0.5 + atan(d.y, d.x) / (2.0 * M_PI), acos(clamp(d.z, -1, 1)) / M_PI);
 }
+
 // x in [0, 1]
 vec4 NRCOneBlob4Encode(in const float mu) {
-	// (S)igma = 1 / 4
-#define INV_S 4
-#define INV_S2 16
-#define INV_SQRT_2_PI inversesqrt(2.0 * M_PI)
-	vec4 x_minus_mu = vec4(0.125, 0.375, 0.625, 0.875) - mu;
-	return INV_S * INV_SQRT_2_PI * exp(-0.5 * INV_S2 * x_minus_mu * x_minus_mu);
-#undef INV_S
-#undef INV_S2
-#undef INV_SQRT_2_PI
+	// Quartic Function
+	vec4 x = vec4(0.125, 0.375, 0.625, 0.875) - mu;
+	vec4 y = 1.0 - x * x;
+	return 0.9375 * y * y;
 }
 
+vec4 _nrc_tri(in const vec4 x) { return 2.0 * abs(mod(x - 0.5, 2.0) - 1.0) - 1.0; }
 mat3x4 NRCFrequencyEncode(in const float p) {
-	mat3x4 f = mat3x4(vec4(1, 2, 4, 8), vec4(16, 32, 64, 128), vec4(256, 512, 1024, 2048)) * (M_PI * p);
-	return mat3x4(sin(f[0]), sin(f[1]), sin(f[2]));
+	mat3x4 f = mat3x4(vec4(1, 2, 4, 8), vec4(16, 32, 64, 128), vec4(256, 512, 1024, 2048)) * p;
+	return mat3x4(_nrc_tri(f[0]), _nrc_tri(f[1]), _nrc_tri(f[2]));
 }
 
 uvec4 NRCPackHalf8x16(in const vec4 a, in const vec4 b) {

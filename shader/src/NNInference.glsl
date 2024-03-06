@@ -40,13 +40,11 @@ void main() {
 	NNForward64_ReLU(3, act_coopmats[1], act_coopmats[0]);
 	NNForward64_ReLU(4, act_coopmats[0], act_coopmats[1]);
 	NNForward3(5, act_coopmats[1], act_coopmats[0][0]);
-	f16vec3 predict = NNOutput3(act_coopmats[0][0]);
+	vec3 predict = NNOutput3(act_coopmats[0][0]);
 
 	if (pixel_x_y != -1u) {
 		ivec2 coord = ivec2(pixel_x_y & 0xFFFF, pixel_x_y >> 16);
-		vec3 radiance = max(vec3(predict), vec3(0));
-		vec3 color = imageLoad(uColor, coord).rgb;
-		color *= radiance;
+		vec3 color = imageLoad(uColor, coord).rgb * max(predict, vec3(0));
 		imageStore(uColor, coord, vec4(color, 0));
 	}
 }
