@@ -27,6 +27,7 @@ set(SHADER_SRC
         nrc_gradient_16.comp
         nrc_gradient_32.comp
         nrc_gradient_64.comp
+        nrc_adam.comp
 )
 
 set(SHADER_SOURCE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/src)

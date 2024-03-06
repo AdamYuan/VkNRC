@@ -1,0 +1,24 @@
+#version 450
+#extension GL_EXT_shader_explicit_arithmetic_types_float16 : enable
+layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
+
+layout(constant_id = 0) const uint kBatchIndex = 0;
+layout(constant_id = 1) const float kAdamBeta1 = 0;
+layout(constant_id = 2) const float kAdamBeta2 = 0;
+layout(constant_id = 3) const float kLearningRate = 0;
+
+layout(std430, binding = 0) buffer uuWeights { float16_t uWeights[]; };
+layout(std430, binding = 1) readonly buffer uuGradients { float uGradients[]; };
+layout(std430, binding = 2) buffer uuAdamMV { vec2 uAdamMV[]; };
+layout(binding = 4) uniform uuBatchTrainCounts { uint uBatchTrainCounts[kBatchIndex + 1]; };
+
+layout(push_constant) uniform uuPushConstant { vec2 uAdamBetaT; };
+
+void main() {
+	vec2 mv = uAdamMV[gl_GlobalInvocationID.x];
+	float g = uGradients[gl_GlobalInvocationID.x] / float(uBatchTrainCounts[kBatchIndex]);
+	mv = vec2(kAdamBeta1, kAdamBeta2) * mv + (1.0 - vec2(kAdamBeta1, kAdamBeta2)) * vec2(g, g * g);
+	vec2 hmv = mv / (1.0 - uAdamBetaT);
+	uAdamMV[gl_GlobalInvocationID.x] = mv;
+	uWeights[gl_GlobalInvocationID.x] -= float16_t(kLearningRate * hmv.x / (sqrt(hmv.y) + 1e-8));
+}

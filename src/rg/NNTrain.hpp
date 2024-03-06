@@ -62,6 +62,7 @@ public:
 		auto clear_pass = CreatePass<myvk_rg::BufferFillPass>({"clear_pass"}, gradients->Alias(), 0);
 		auto gradient_pass = CreatePass<NNDispatch<NNGradient>>({"gradient_pass"}, args.batch_train_counts,
 		                                                        args.batch_index, clear_pass->GetDstOutput(), args);
+		gradient_pass->Get()->GetGradientOutput();
 	}
 	inline ~NNTrain() final = default;
 };
