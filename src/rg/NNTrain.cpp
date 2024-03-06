@@ -64,4 +64,47 @@ void NNTrain::NNGradient::CmdExecute(const myvk::Ptr<myvk::CommandBuffer> &comma
 	command_buffer->CmdDispatchIndirect(GetInputBuffer({"cmd"})->GetBufferView().buffer);
 }
 
+NNTrain::NNAdam::NNAdam(myvk_rg::Parent parent, const myvk_rg::Buffer &gradients, const NNTrain::Args &args)
+    : myvk_rg::ComputePassBase(parent), m_nrc_state_ptr(args.nrc_state_ptr), m_batch_index{args.batch_index} {
+	AddDescriptorInput<myvk_rg::Usage::kStorageBufferRW, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>({0}, {"weights"},
+	                                                                                             args.weights);
+	AddDescriptorInput<myvk_rg::Usage::kStorageBufferR, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>({1}, {"gradients"},
+	                                                                                            gradients);
+	AddDescriptorInput<myvk_rg::Usage::kStorageBufferRW, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>({2}, {"adam_mv"},
+	                                                                                             args.adam_mv);
+	AddDescriptorInput<myvk_rg::Usage::kUniformBuffer, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>(
+	    {3}, {"batch_train_counts"}, args.batch_train_counts);
+}
+namespace nn_adam {
+struct PushConstant_Data {
+	glm::vec2 adam_beta_t;
+};
+} // namespace nn_adam
+void NNTrain::NNAdam::CreatePipeline() {
+	using nn_adam::PushConstant_Data;
+
+	auto &device = GetRenderGraphPtr()->GetDevicePtr();
+	auto pipeline_layout = myvk::PipelineLayout::Create(device, {GetVkDescriptorSetLayout()},
+	                                                    {{VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(PushConstant_Data)}});
+	constexpr uint32_t kCompSpv[] = {
+#include <shader/nrc_adam.comp.u32>
+	};
+	auto shader_module = myvk::ShaderModule::Create(device, kCompSpv, sizeof(kCompSpv));
+	shader_module->AddSpecialization(0, m_batch_index);
+	shader_module->AddSpecialization(1, VkNRCState::GetAdamBeta().x);
+	shader_module->AddSpecialization(2, VkNRCState::GetAdamBeta().y);
+	shader_module->AddSpecialization(3, VkNRCState::GetLearningRate());
+	m_pipeline = myvk::ComputePipeline::Create(pipeline_layout, shader_module);
+}
+void NNTrain::NNAdam::CmdExecute(const myvk::Ptr<myvk::CommandBuffer> &command_buffer) const {
+	using nn_adam::PushConstant_Data;
+	PushConstant_Data pc_data{.adam_beta_t = m_nrc_state_ptr->GetAdamBetaT(m_batch_index)};
+
+	command_buffer->CmdBindPipeline(m_pipeline);
+	command_buffer->CmdBindDescriptorSets({GetVkDescriptorSet()}, m_pipeline);
+	command_buffer->CmdPushConstants(m_pipeline->GetPipelineLayoutPtr(), VK_SHADER_STAGE_COMPUTE_BIT, 0,
+	                                 sizeof(pc_data), &pc_data);
+	command_buffer->CmdDispatch(VkNRCState::GetWeightCount() / 64, 1, 1);
+}
+
 } // namespace rg

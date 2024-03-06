@@ -264,8 +264,10 @@ void NNUpdateDW3(in const uint layer,
 	if (gl_LocalInvocationID.x < WEIGHT_3_UV4_COUNT) {
 		const uint kWeightFP16Base = layer * WEIGHT_64_COUNT + gl_LocalInvocationID.x * FP16_PER_UV4;
 		[[unroll]] for (uint i = 0; i < FP16_PER_UV4 / 2; ++i) {
-			atomicAdd(uDWeights[kWeightFP16Base + (i << 1u)], d_w[i].x);
-			atomicAdd(uDWeights[kWeightFP16Base + (i << 1u | 1u)], d_w[i].y);
+			atomicAdd(uDWeights[kWeightFP16Base + (i << 1u)], d_w[i].x, gl_ScopeQueueFamily, gl_StorageSemanticsBuffer,
+			          gl_SemanticsRelaxed);
+			atomicAdd(uDWeights[kWeightFP16Base + (i << 1u | 1u)], d_w[i].y, gl_ScopeQueueFamily,
+			          gl_StorageSemanticsBuffer, gl_SemanticsRelaxed);
 		}
 	}
 }
@@ -312,8 +314,10 @@ void NNUpdateDW64(in const uint layer,
 	[[unroll]] for (uint u = 0; u < THREAD_WEIGHT_64_UV4_COUNT; ++u) {
 		const uint kWeightFP16Base = (kWeightUV4Base + u) * FP16_PER_UV4;
 		[[unroll]] for (uint i = 0; i < (FP16_PER_UV4 / 2); ++i) {
-			atomicAdd(uDWeights[kWeightFP16Base + (i << 1u)], d_w[u][i].x);
-			atomicAdd(uDWeights[kWeightFP16Base + (i << 1u | 1u)], d_w[u][i].y);
+			atomicAdd(uDWeights[kWeightFP16Base + (i << 1u)], d_w[u][i].x, gl_ScopeQueueFamily,
+			          gl_StorageSemanticsBuffer, gl_SemanticsRelaxed);
+			atomicAdd(uDWeights[kWeightFP16Base + (i << 1u | 1u)], d_w[u][i].y, gl_ScopeQueueFamily,
+			          gl_StorageSemanticsBuffer, gl_SemanticsRelaxed);
 		}
 	}
 }

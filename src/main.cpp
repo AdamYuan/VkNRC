@@ -29,6 +29,7 @@ int main(int argc, char **argv) {
 	myvk::Ptr<myvk::PresentQueue> present_queue;
 	auto physical_device = myvk::PhysicalDevice::Fetch(instance)[0];
 	auto features = physical_device->GetDefaultFeatures();
+	features.vk11.storageBuffer16BitAccess = VK_TRUE;
 	features.vk12.bufferDeviceAddress = VK_TRUE;
 	features.vk12.hostQueryReset = VK_TRUE;
 	features.vk12.shaderFloat16 = VK_TRUE;
@@ -36,8 +37,12 @@ int main(int argc, char **argv) {
 	features.vk12.vulkanMemoryModelDeviceScope = VK_TRUE;
 	features.vk13.computeFullSubgroups = VK_TRUE;
 	features.vk13.subgroupSizeControl = VK_TRUE;
+	VkPhysicalDeviceShaderAtomicFloatFeaturesEXT atomic_float_features = {
+	    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_ATOMIC_FLOAT_FEATURES_EXT,
+	    .shaderBufferFloat32AtomicAdd = VK_TRUE};
 	VkPhysicalDeviceCooperativeMatrixFeaturesNV cooperative_matrix_features = {
 	    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_COOPERATIVE_MATRIX_FEATURES_NV,
+	    .pNext = &atomic_float_features,
 	    .cooperativeMatrix = VK_TRUE,
 	    .cooperativeMatrixRobustBufferAccess = VK_FALSE};
 	VkPhysicalDeviceRayQueryFeaturesKHR ray_query_features = {
@@ -55,7 +60,7 @@ int main(int argc, char **argv) {
 	    features,
 	    {VK_KHR_SWAPCHAIN_EXTENSION_NAME, VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME,
 	     VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME, VK_KHR_RAY_QUERY_EXTENSION_NAME,
-	     VK_NV_COOPERATIVE_MATRIX_EXTENSION_NAME});
+	     VK_NV_COOPERATIVE_MATRIX_EXTENSION_NAME, VK_EXT_SHADER_ATOMIC_FLOAT_EXTENSION_NAME});
 	myvk::ImGuiInit(window, myvk::CommandPool::Create(generic_queue));
 
 	auto camera = myvk::MakePtr<Camera>();

@@ -6,6 +6,7 @@
 
 #include "NNDispatch.hpp"
 #include "NNInference.hpp"
+#include "NNTrain.hpp"
 #include "PathTracerPass.hpp"
 #include "ScreenPass.hpp"
 #include "VBufferPass.hpp"
@@ -51,6 +52,24 @@ NRCRenderGraph::NRCRenderGraph(const myvk::Ptr<myvk::FrameManager> &frame_manage
 	                      .eval_count = path_tracer_pass->GetEvalCountOutput(),
 	                      .eval_records = path_tracer_pass->GetEvalRecordsOutput()});
 
+	for (uint32_t b = 0; b < VkNRCState::GetTrainBatchCount(); ++b) {
+		myvk_rg::Buffer weights = nrc_resources.weights, adam_mv = nrc_resources.adam_mv;
+		if (b) {
+			auto prev_train_pass = GetPass<NNTrain>({"nn_train_pass", b - 1});
+			weights = prev_train_pass->GetWeightOutput();
+			adam_mv = prev_train_pass->GetAdamMVOutput();
+		}
+		CreatePass<NNTrain>({"nn_train_pass", b},
+		                    NNTrain::Args{.weights = weights,
+		                                  .adam_mv = adam_mv,
+		                                  .scene_ptr = m_scene_ptr,
+		                                  .scene_resources = scene_resources,
+		                                  .nrc_state_ptr = m_nrc_state_ptr,
+		                                  .batch_train_counts = path_tracer_pass->GetBatchTrainCountsOutput(),
+		                                  .batch_train_records = path_tracer_pass->GetBatchTrainRecordsOutput(),
+		                                  .batch_index = b});
+	}
+
 	auto swapchain_image = CreateResource<myvk_rg::SwapchainImage>({"swapchain_image"}, frame_manager);
 	swapchain_image->SetLoadOp(VK_ATTACHMENT_LOAD_OP_DONT_CARE);
 
@@ -61,6 +80,10 @@ NRCRenderGraph::NRCRenderGraph(const myvk::Ptr<myvk::FrameManager> &frame_manage
 	                                      .screen_image = swapchain_image->Alias()});
 	auto imgui_pass = CreatePass<myvk_rg::ImGuiPass>({"imgui_pass"}, screen_pass->GetScreenOutput());
 	AddResult({"present"}, imgui_pass->GetImageOutput());
+
+	auto final_train_pass = GetPass<NNTrain>({"nn_train_pass", VkNRCState::GetTrainBatchCount() - 1});
+	AddResult({"weights"}, final_train_pass->GetWeightOutput());
+	AddResult({"adam_mv"}, final_train_pass->GetAdamMVOutput());
 }
 
 void NRCRenderGraph::PreExecute() const {

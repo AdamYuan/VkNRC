@@ -17,13 +17,14 @@ private:
 	inline static constexpr uint32_t kNNHiddenLayers = 5, kNNWidth = 64, kNNOutWidth = 3, kTrainBatchSize = 16384,
 	                                 kTrainBatchCount = 4;
 	inline static constexpr glm::vec2 kAdamBeta{0.9, 0.999};
+	inline static constexpr float kLearningRate{0.001};
 
 	myvk::Ptr<myvk::Queue> m_queue_ptr;
 	myvk::Ptr<myvk::Buffer> m_weights, m_adam_mv;
 	myvk::Ptr<myvk::ImageView> m_result_view;
 	VkExtent2D m_extent{};
 	uint32_t m_samples{}, m_seed{};
-	std::array<glm::vec2, kTrainBatchCount> m_batch_adam_ts;
+	std::array<glm::vec2, kTrainBatchCount> m_batch_adam_beta_ts;
 	std::mt19937 m_rng{std::random_device{}()};
 
 	void create_result_image();
@@ -32,11 +33,11 @@ private:
 
 public:
 	inline VkNRCState(const myvk::Ptr<myvk::Queue> &queue_ptr, VkExtent2D extent)
-	    : m_queue_ptr(queue_ptr), m_batch_adam_ts() {
+	    : m_queue_ptr(queue_ptr), m_batch_adam_beta_ts() {
 		SetExtent(extent);
-		m_batch_adam_ts[0] = kAdamBeta;
+		m_batch_adam_beta_ts[0] = kAdamBeta;
 		for (std::size_t i = 1; i < kTrainBatchCount; ++i)
-			m_batch_adam_ts[i] = m_batch_adam_ts[i - 1] * kAdamBeta;
+			m_batch_adam_beta_ts[i] = m_batch_adam_beta_ts[i - 1] * kAdamBeta;
 		create_weight_buffer();
 		create_adam_buffer();
 	}
@@ -48,14 +49,14 @@ public:
 
 	inline uint32_t GetSampleCount() const { return m_samples; }
 	inline uint32_t GetSeed() const { return m_seed; }
-	inline const glm::vec2 &GetAdamT(uint32_t batch) { return m_batch_adam_ts[batch]; }
+	inline const glm::vec2 &GetAdamBetaT(uint32_t batch) { return m_batch_adam_beta_ts[batch]; }
 
 	inline void Next() {
 		++m_samples;
 		m_seed = std::uniform_int_distribution<uint32_t>{0, 0xFFFFFFFFu}(m_rng);
-		m_batch_adam_ts[0] = m_batch_adam_ts.back() * kAdamBeta;
+		m_batch_adam_beta_ts[0] = m_batch_adam_beta_ts.back() * kAdamBeta;
 		for (std::size_t i = 1; i < kTrainBatchCount; ++i)
-			m_batch_adam_ts[i] = m_batch_adam_ts[i - 1] * kAdamBeta;
+			m_batch_adam_beta_ts[i] = m_batch_adam_beta_ts[i - 1] * kAdamBeta;
 	}
 	inline void Reset() { m_samples = 0; }
 
@@ -76,6 +77,7 @@ public:
 		return kNNWidth * kNNWidth * kNNHiddenLayers + kNNWidth * kNNOutWidth;
 	}
 	static constexpr glm::vec2 GetAdamBeta() { return kAdamBeta; }
+	static constexpr float GetLearningRate() { return kLearningRate; }
 };
 
 #endif // VKNRC_VKNRCSTATE_HPP

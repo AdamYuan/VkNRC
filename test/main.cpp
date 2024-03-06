@@ -92,10 +92,12 @@ void test_inference(std::size_t blocks) {
 	std::vector<half> weights(64 * 64 * 5 + 64 * kOutputCount), inputs(kWorkgroupSize * blocks * 64);
 
 	for (int x = 0; auto &w : weights)
-		w = half(0.00001 * (x++)); // std::uniform_real_distribution<float>{0, 0.25}(random);
-		                           // w = std::uniform_real_distribution<float>{0, 0.1}(random);
+		w = half(std::uniform_real_distribution<float>{-0.02, 0.02}(random));
+	// for (int x = 0; auto &w : weights)
+	// 		w = half(0.00001 * (x++)); // std::uniform_real_distribution<float>{0, 0.25}(random);
+	// w = std::uniform_real_distribution<float>{0, 0.1}(random);
 	for (int x = 0; auto &i : inputs)
-		i = half(std::uniform_real_distribution<float>{0, 0.0625}(random));
+		i = half(std::uniform_real_distribution<float>{0, 1.0}(random));
 
 	std::vector<half> comp_outputs(kWorkgroupSize * blocks * kOutputCount);
 	{
@@ -149,8 +151,8 @@ void test_train(std::size_t blocks) {
 	std::vector<half> weights(64 * 64 * 5 + 64 * kOutputCount), inputs(kWorkgroupSize * blocks * 64),
 	    targets(kWorkgroupSize * blocks * kOutputCount);
 
-	// for (int x = 0; auto &w : weights)
-	// 	w = half(std::uniform_real_distribution<float>{-0.02, 0.02}(random));
+	for (int x = 0; auto &w : weights)
+		w = half(std::uniform_real_distribution<float>{-0.02, 0.02}(random));
 	// w = 0.1 - 0.00001 * (x++); // std::uniform_real_distribution<float>{0, 0.25}(random);
 	// w = std::uniform_real_distribution<float>{0, 0.02}(random);
 	for (auto &i : inputs)

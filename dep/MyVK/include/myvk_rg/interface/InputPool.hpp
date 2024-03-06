@@ -61,10 +61,10 @@ protected:
 		return PoolBase::template Get<InputType>(input_key);
 	}
 
-	inline OutputBufferAlias MakeBufferOutput(const PoolKey &input_key) {
+	inline OutputBufferAlias MakeBufferOutput(const PoolKey &input_key) const {
 		return PoolBase::template Get<BufferInput>(input_key)->GetOutput();
 	}
-	inline OutputImageAlias MakeImageOutput(const PoolKey &input_key) {
+	inline OutputImageAlias MakeImageOutput(const PoolKey &input_key) const {
 		return PoolBase::template Get<ImageInput>(input_key)->GetOutput();
 	}
 	inline void ClearInputs() {

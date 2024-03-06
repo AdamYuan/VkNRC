@@ -18,10 +18,12 @@ namespace rg {
 class NNTrain final : public myvk_rg::PassGroupBase {
 public:
 	struct Args {
+		const myvk_rg::Buffer &weights, &adam_mv;
+
 		const myvk::Ptr<VkScene> &scene_ptr;
 		const SceneResources &scene_resources;
 		const myvk::Ptr<VkNRCState> &nrc_state_ptr;
-		const myvk_rg::Buffer &weights, &batch_train_counts, &batch_train_records;
+		const myvk_rg::Buffer &batch_train_counts, &batch_train_records;
 		uint32_t batch_index;
 	};
 
@@ -38,7 +40,7 @@ private:
 		inline ~NNGradient() final = default;
 		void CreatePipeline() final;
 		void CmdExecute(const myvk::Ptr<myvk::CommandBuffer> &command_buffer) const final;
-		inline auto GetGradientOutput() { return MakeImageOutput({"gradient"}); }
+		inline auto GetGradientOutput() const { return MakeBufferOutput({"gradients"}); }
 	};
 
 	class NNAdam final : public myvk_rg::ComputePassBase {
@@ -48,11 +50,12 @@ private:
 		uint32_t m_batch_index;
 
 	public:
-		NNAdam(myvk_rg::Parent parent, const myvk_rg::Buffer &gradients);
+		NNAdam(myvk_rg::Parent parent, const myvk_rg::Buffer &gradients, const Args &args);
 		inline ~NNAdam() final = default;
 		void CreatePipeline() final;
 		void CmdExecute(const myvk::Ptr<myvk::CommandBuffer> &command_buffer) const final;
-		inline auto GetWeightOutput() { return MakeImageOutput({"weights"}); }
+		inline auto GetWeightOutput() const { return MakeBufferOutput({"weights"}); }
+		inline auto GetAdamMVOutput() const { return MakeBufferOutput({"adam_mv"}); }
 	};
 
 public:
@@ -62,9 +65,11 @@ public:
 		auto clear_pass = CreatePass<myvk_rg::BufferFillPass>({"clear_pass"}, gradients->Alias(), 0);
 		auto gradient_pass = CreatePass<NNDispatch<NNGradient>>({"gradient_pass"}, args.batch_train_counts,
 		                                                        args.batch_index, clear_pass->GetDstOutput(), args);
-		gradient_pass->Get()->GetGradientOutput();
+		CreatePass<NNAdam>({"adam_pass"}, gradient_pass->Get()->GetGradientOutput(), args);
 	}
 	inline ~NNTrain() final = default;
+	inline auto GetWeightOutput() const { return GetPass<NNAdam>({"adam_pass"})->GetWeightOutput(); }
+	inline auto GetAdamMVOutput() const { return GetPass<NNAdam>({"adam_pass"})->GetAdamMVOutput(); }
 };
 
 } // namespace rg
