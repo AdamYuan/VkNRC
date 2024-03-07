@@ -42,6 +42,10 @@ NNInference::NNInference(myvk_rg::Parent parent, const myvk_rg::Buffer &cmd, con
 	                                                                                            args.base_extra_r);
 	AddDescriptorInput<myvk_rg::Usage::kStorageImageR, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>({12}, {"extra_gb"},
 	                                                                                           args.extra_gb);
+	for (uint32_t b = 0; b < VkNRCState::GetTrainBatchCount(); ++b) {
+		AddDescriptorInput<myvk_rg::Usage::kStorageBufferRW, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>(
+		    {13, b}, {"batch_train_records", b}, args.batch_train_records[b]);
+	}
 }
 
 void NNInference::CreatePipeline() {

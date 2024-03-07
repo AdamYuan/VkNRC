@@ -6,6 +6,7 @@
 #ifndef VKNRC_RG_NNINFERENCE_HPP
 #define VKNRC_RG_NNINFERENCE_HPP
 
+#include "../VkNRCState.hpp"
 #include "../VkScene.hpp"
 #include "SceneResources.hpp"
 #include <myvk_rg/RenderGraph.hpp>
@@ -19,6 +20,7 @@ public:
 		const SceneResources &scene_resources;
 		const myvk_rg::Image &base_extra_r, &extra_gb;
 		const myvk_rg::Buffer &weights, &eval_count, &eval_records;
+		std::span<const myvk_rg::Buffer, VkNRCState::GetTrainBatchCount()> batch_train_records;
 	};
 
 private:
@@ -31,6 +33,9 @@ public:
 	void CreatePipeline() final;
 	void CmdExecute(const myvk::Ptr<myvk::CommandBuffer> &command_buffer) const final;
 	inline auto GetColorOutput() const { return MakeImageOutput({"base_extra_r"}); }
+	inline auto GetBatchTrainRecordsOutput(uint32_t batch_index) const {
+		return MakeBufferOutput({"batch_train_records", batch_index});
+	}
 };
 
 } // namespace rg

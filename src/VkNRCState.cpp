@@ -14,11 +14,12 @@ struct PackedNRCInput {
 	uint32_t scattered_dir_2x16U;
 };
 struct NRCEvalRecord {
-	uint32_t pixel_x_y;
+	uint32_t screen_x16_y16, train_b4_l14_r14;
 	PackedNRCInput packed_input;
 };
 struct NRCTrainRecord {
-	uint32_t radiance_RG, radiance_B;
+	alignas(glm::vec4) glm::vec4 base_extra_r;
+	alignas(glm::vec2) glm::vec2 extra_gb;
 	PackedNRCInput packed_input;
 };
 } // namespace nrc

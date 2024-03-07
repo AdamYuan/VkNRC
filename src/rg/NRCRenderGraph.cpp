@@ -51,7 +51,8 @@ NRCRenderGraph::NRCRenderGraph(const myvk::Ptr<myvk::FrameManager> &frame_manage
 	                      .extra_gb = path_tracer_pass->GetExtraGBOutput(),
 	                      .weights = nrc_resources.weights,
 	                      .eval_count = path_tracer_pass->GetEvalCountOutput(),
-	                      .eval_records = path_tracer_pass->GetEvalRecordsOutput()});
+	                      .eval_records = path_tracer_pass->GetEvalRecordsOutput(),
+	                      .batch_train_records = path_tracer_pass->GetBatchTrainRecordsOutputs()});
 
 	for (uint32_t b = 0; b < VkNRCState::GetTrainBatchCount(); ++b) {
 		myvk_rg::Buffer weights = nrc_resources.weights, adam_mv = nrc_resources.adam_mv;
@@ -60,15 +61,16 @@ NRCRenderGraph::NRCRenderGraph(const myvk::Ptr<myvk::FrameManager> &frame_manage
 			weights = prev_train_pass->GetWeightOutput();
 			adam_mv = prev_train_pass->GetAdamMVOutput();
 		}
-		CreatePass<NNTrain>({"nn_train_pass", b},
-		                    NNTrain::Args{.weights = weights,
-		                                  .adam_mv = adam_mv,
-		                                  .scene_ptr = m_scene_ptr,
-		                                  .scene_resources = scene_resources,
-		                                  .nrc_state_ptr = m_nrc_state_ptr,
-		                                  .batch_train_count = path_tracer_pass->GetBatchTrainCountOutput(b),
-		                                  .batch_train_records = path_tracer_pass->GetBatchTrainRecordsOutput(b),
-		                                  .batch_index = b});
+		CreatePass<NNTrain>(
+		    {"nn_train_pass", b},
+		    NNTrain::Args{.weights = weights,
+		                  .adam_mv = adam_mv,
+		                  .scene_ptr = m_scene_ptr,
+		                  .scene_resources = scene_resources,
+		                  .nrc_state_ptr = m_nrc_state_ptr,
+		                  .batch_train_count = path_tracer_pass->GetBatchTrainCountOutput(b),
+		                  .batch_train_records = nn_inference_pass->Get()->GetBatchTrainRecordsOutput(b),
+		                  .batch_index = b});
 	}
 
 	auto swapchain_image = CreateResource<myvk_rg::SwapchainImage>({"swapchain_image"}, frame_manager);

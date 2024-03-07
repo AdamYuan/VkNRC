@@ -10,12 +10,13 @@ struct PackedNRCInput {
 };
 
 struct NRCEvalRecord {
-	uint screen_xy;
+	uint screen_x16_y16, train_l14_r14_b4;
 	PackedNRCInput packed_input;
 };
 
 struct NRCTrainRecord {
-	uint radiance_RG, radiance_B;
+	vec4 base_extra_r;
+	vec2 extra_gb;
 	PackedNRCInput packed_input;
 };
 

@@ -44,8 +44,14 @@ public:
 	inline auto GetBatchTrainCountOutput(uint32_t batch_index) const {
 		return MakeBufferOutput({"batch_train_count", batch_index});
 	}
-	inline auto GetBatchTrainRecordsOutput(uint32_t batch_index) const {
+	/* inline auto GetBatchTrainRecordsOutput(uint32_t batch_index) const {
 		return MakeBufferOutput({"batch_train_records", batch_index});
+	} */
+	inline std::array<myvk_rg::Buffer, VkNRCState::GetTrainBatchCount()> GetBatchTrainRecordsOutputs() const {
+		std::array<myvk_rg::Buffer, VkNRCState::GetTrainBatchCount()> ret;
+		for (uint32_t b = 0; b < VkNRCState::GetTrainBatchCount(); ++b)
+			ret[b] = MakeBufferOutput({"batch_train_records", b});
+		return ret;
 	}
 };
 
