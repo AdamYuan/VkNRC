@@ -20,7 +20,7 @@ layout(binding = 9) uniform uuEvalCount { uint uEvalCount; };
 
 layout(binding = 11, rgba32f) uniform image2D uBase_ExtraR;
 layout(binding = 12, rg32f) readonly uniform image2D uExtraGB;
-layout(binding = 13) buffer uuBatchTrainRecords { NRCTrainRecord records[]; }
+layout(std430, binding = 13) buffer uuBatchTrainRecords { NRCTrainRecord records[]; }
 uBatchTrainRecords[NRC_TRAIN_BATCH_COUNT];
 
 void main() {
@@ -56,10 +56,13 @@ void main() {
 	if (train_l14_r14_b4 != -1u) {
 		uint b = train_l14_r14_b4 >> 28u, l = train_l14_r14_b4 & 0x3FFFu, r = (train_l14_r14_b4 >> 14u) & 0x3FFFu;
 		[[unroll]] for (uint i = l; i <= r; ++i) {
-			vec4 base_extra_r = uBatchTrainRecords[b].records[i].base_extra_r;
-			vec2 extra_gb = uBatchTrainRecords[b].records[i].extra_gb;
-			vec3 color = base_extra_r.rgb + vec3(base_extra_r.a, extra_gb) * predict;
-			uBatchTrainRecords[b].records[i].base_extra_r.rgb = color;
+			NRCTrainRecord train_record = uBatchTrainRecords[b].records[i];
+			vec3 base = vec3(train_record.base_r, train_record.base_g, train_record.base_b);
+			vec3 extra = vec3(train_record.extra_r, train_record.extra_g, train_record.extra_b);
+			vec3 color = base + extra * predict;
+			uBatchTrainRecords[b].records[i].base_r = color.r;
+			uBatchTrainRecords[b].records[i].base_g = color.g;
+			uBatchTrainRecords[b].records[i].base_b = color.b;
 		}
 	}
 }

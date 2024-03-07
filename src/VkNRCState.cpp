@@ -18,8 +18,7 @@ struct NRCEvalRecord {
 	PackedNRCInput packed_input;
 };
 struct NRCTrainRecord {
-	alignas(glm::vec4) glm::vec4 base_extra_r;
-	alignas(glm::vec2) glm::vec2 extra_gb;
+	float base_r, base_g, base_b, extra_r, extra_g, extra_b;
 	PackedNRCInput packed_input;
 };
 } // namespace nrc

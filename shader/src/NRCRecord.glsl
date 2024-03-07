@@ -15,8 +15,7 @@ struct NRCEvalRecord {
 };
 
 struct NRCTrainRecord {
-	vec4 base_extra_r;
-	vec2 extra_gb;
+	float base_r, base_g, base_b, extra_r, extra_g, extra_b;
 	PackedNRCInput packed_input;
 };
 

@@ -2,6 +2,8 @@
 #extension GL_EXT_shader_explicit_arithmetic_types_float16 : enable
 layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
 
+#include "Constant.glsl"
+
 layout(constant_id = 0) const float kAdamBeta1 = 0;
 layout(constant_id = 1) const float kAdamBeta2 = 0;
 
@@ -16,9 +18,12 @@ layout(push_constant) uniform uuPushConstant { vec2 uAdamBetaT; };
 
 void main() {
 	vec2 mv = uAdamMV[gl_GlobalInvocationID.x];
-	float g = uGradients[gl_GlobalInvocationID.x] / float(uBatchTrainCount);
+	float g = uGradients[gl_GlobalInvocationID.x] / float(clamp(uBatchTrainCount, 1u, NRC_TRAIN_BATCH_SIZE));
+	if (isnan(g) || isinf(g))
+		g = 0.0;
 	mv = vec2(kAdamBeta1, kAdamBeta2) * mv + (1.0 - vec2(kAdamBeta1, kAdamBeta2)) * vec2(g, g * g);
 	vec2 hmv = mv / (1.0 - uAdamBetaT);
 	uAdamMV[gl_GlobalInvocationID.x] = mv;
-	uWeights[gl_GlobalInvocationID.x] -= float16_t(LEARNING_RATE * hmv.x / (sqrt(hmv.y) + 1e-8));
+	// uWeights[gl_GlobalInvocationID.x] -= float16_t(LEARNING_RATE * hmv.x / (sqrt(hmv.y) + 1e-8));
+	uWeights[gl_GlobalInvocationID.x] -= float16_t(0.001 * g);
 }

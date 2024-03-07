@@ -11,7 +11,7 @@ namespace rg {
 NNTrain::NNGradient::NNGradient(myvk_rg::Parent parent, const myvk_rg::Buffer &cmd, const myvk_rg::Buffer &gradients,
                                 const NNTrain::Args &args)
     : myvk_rg::ComputePassBase(parent), m_scene_ptr(args.scene_ptr) {
-	AddInput<myvk_rg::Usage::kDrawIndirectBuffer>({"cmd"}, cmd);
+	// AddInput<myvk_rg::Usage::kDrawIndirectBuffer>({"cmd"}, cmd);
 	// Scene
 	AddDescriptorInput<myvk_rg::Usage::kStorageBufferR, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>(
 	    {0}, {"vertices"}, args.scene_resources.vertices);
@@ -60,7 +60,8 @@ void NNTrain::NNGradient::CreatePipeline() {
 void NNTrain::NNGradient::CmdExecute(const myvk::Ptr<myvk::CommandBuffer> &command_buffer) const {
 	command_buffer->CmdBindPipeline(m_pipeline);
 	command_buffer->CmdBindDescriptorSets({GetVkDescriptorSet()}, m_pipeline);
-	command_buffer->CmdDispatchIndirect(GetInputBuffer({"cmd"})->GetBufferView().buffer);
+	// command_buffer->CmdDispatchIndirect(GetInputBuffer({"cmd"})->GetBufferView().buffer);
+	command_buffer->CmdDispatch(VkNRCState::GetTrainBatchSize() / 128, 1, 1);
 }
 
 NNTrain::NNAdam::NNAdam(myvk_rg::Parent parent, const myvk_rg::Buffer &gradients, const NNTrain::Args &args)
