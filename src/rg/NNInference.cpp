@@ -38,8 +38,10 @@ NNInference::NNInference(myvk_rg::Parent parent, const myvk_rg::Buffer &cmd, con
 	                                                                                           args.eval_count);
 	AddDescriptorInput<myvk_rg::Usage::kStorageBufferR, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>({10}, {"weights"},
 	                                                                                            args.weights);
-	AddDescriptorInput<myvk_rg::Usage::kStorageImageRW, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>({11}, {"color"},
-	                                                                                            args.color);
+	AddDescriptorInput<myvk_rg::Usage::kStorageImageRW, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>({11}, {"base_extra_r"},
+	                                                                                            args.base_extra_r);
+	AddDescriptorInput<myvk_rg::Usage::kStorageImageR, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>({12}, {"extra_gb"},
+	                                                                                           args.extra_gb);
 }
 
 void NNInference::CreatePipeline() {

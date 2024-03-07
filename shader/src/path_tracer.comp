@@ -2,7 +2,7 @@
 #extension GL_EXT_ray_tracing : require
 #extension GL_EXT_ray_query : require
 #extension GL_KHR_shader_subgroup_basic : require
-#extension GL_KHR_shader_subgroup_ballot : require
+#extension GL_KHR_shader_subgroup_vote : enable
 #extension GL_KHR_memory_scope_semantics : enable
 layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
 
@@ -24,7 +24,6 @@ layout(push_constant) uniform uuPushConstant {
 // V-Buffer
 layout(binding = 9) uniform usampler2D uPrimitiveID_InstanceID;
 // NRC
-layout(binding = 11, rgba32f) writeonly uniform image2D uColor;
 layout(binding = 12) buffer uuEvalCount { uint uEvalCount; };
 layout(binding = 13) writeonly buffer uuEvalRecords { NRCEvalRecord uEvalRecords[]; };
 layout(binding = 14) buffer uuBatchTrainCounts { uint count; }
@@ -32,14 +31,22 @@ uBatchTrainCounts[];
 layout(binding = 15) writeonly buffer uuBatchTrainRecords { NRCTrainRecord records[]; }
 uBatchTrainRecords[];
 
+layout(binding = 16, rgba32f) writeonly uniform image2D uBase_ExtraR;
+layout(binding = 17, rg32f) writeonly uniform image2D uExtraGB;
+
 struct Ray {
 	vec3 o, d;
 };
 
 struct Hit {
-	vec3 position, normal;
+	vec3 position;
+	uint primitive_id;
+	vec3 normal;
+	uint instance_id;
 	vec2 texcoord;
+	vec2 barycentric;
 	Material material;
+	bool flip_normal;
 };
 
 Hit GetVBufferHit(in const uint primitive_id, in const uint instance_id, in const Ray ray) {
@@ -60,7 +67,11 @@ Hit GetVBufferHit(in const uint primitive_id, in const uint instance_id, in cons
 	n = normalize(n);
 
 	Hit hit;
-	hit.normal = dot(n, ray.d) < 0 ? n : -n;
+	hit.flip_normal = dot(n, ray.d) >= 0;
+	hit.normal = hit.flip_normal ? -n : n;
+	hit.primitive_id = primitive_id;
+	hit.instance_id = instance_id;
+	hit.barycentric = barycentric.yz;
 	hit.position = mat3(vertex_0, vertex_1, vertex_2) * barycentric;
 	hit.texcoord = mat3x2(texcoord_0, texcoord_1, texcoord_2) * barycentric;
 	hit.material = GetSceneMaterial(primitive_id);
@@ -79,13 +90,17 @@ Hit GetRayQueryHit(in const rayQueryEXT ray_query, in const Ray ray) {
 	vec3 vertex_0 = GetSceneVertex(instance_id, primitive_id, 0);
 	vec3 vertex_1 = GetSceneVertex(instance_id, primitive_id, 1);
 	vec3 vertex_2 = GetSceneVertex(instance_id, primitive_id, 2);
-	vec3 normal = normalize(cross(vertex_1 - vertex_0, vertex_2 - vertex_0));
+	vec3 n = normalize(cross(vertex_1 - vertex_0, vertex_2 - vertex_0));
 
 	vec3 barycentric = vec3(0, rayQueryGetIntersectionBarycentricsEXT(ray_query, true));
 	barycentric.x = 1.0 - barycentric.y - barycentric.z;
 
 	Hit hit;
-	hit.normal = dot(normal, ray.d) < 0 ? normal : -normal;
+	hit.flip_normal = dot(n, ray.d) >= 0;
+	hit.normal = hit.flip_normal ? -n : n;
+	hit.primitive_id = primitive_id;
+	hit.instance_id = instance_id;
+	hit.barycentric = barycentric.yz;
 	hit.position = mat3(vertex_0, vertex_1, vertex_2) * barycentric;
 	hit.texcoord = mat3x2(texcoord_0, texcoord_1, texcoord_2) * barycentric;
 	hit.material = GetSceneMaterial(primitive_id);
@@ -108,28 +123,74 @@ const vec3 kConstLight = vec3(10, 10, 10);
 
 bool IsValidRGB(in const vec3 rgb) { return !any(isnan(rgb)) && !any(isinf(rgb)) && !any(lessThan(rgb, vec3(0))); }
 
-bool PathTraceBRDFStep(in const Hit hit, inout Ray io_ray, inout vec3 io_accumulate) {
+struct BRDFStepInfo {
+	vec3 color;
+	float cosine;
+	Ray ray;
+	float pdf;
+	float dist2;
+};
+
+float _distance_2(in const vec3 l, in const vec3 r) {
+	vec3 d = l - r;
+	return dot(d, d);
+}
+
+PackedNRCInput MakeNRCInput(in const Hit hit, in const Ray ray) {
+	PackedNRCInput i;
+	i.primitive_id = hit.primitive_id;
+	i.flip_bit_instance_id = hit.instance_id | (uint(hit.flip_normal) << 31u);
+	i.barycentric_2x16U = packUnorm2x16(hit.barycentric);
+	i.scattered_dir_2x16U = packUnorm2x16(NRCSphEncode(ray.d));
+	return i;
+}
+
+bool PathTraceBRDFStep(in const Hit hit, in const Ray ray, inout BRDFStepInfo o_info) {
+	BRDFStepInfo info;
 	CookTorranceBRDFArgs brdf_args = GetHitBRDFArgs(hit);
-	vec4 sample_dir_pdf = CookTorranceSample(brdf_args, -io_ray.d, hit.normal);
-	if (sample_dir_pdf.w == 0)
+	vec3 dir;
+	float pdf;
+	{
+		vec4 sample_dir_pdf = CookTorranceSample(brdf_args, -ray.d, hit.normal);
+		dir = sample_dir_pdf.xyz;
+		pdf = sample_dir_pdf.w;
+	}
+	if (pdf == 0)
 		return false;
-	vec3 brdf = CookTorranceBRDF(brdf_args, sample_dir_pdf.xyz, -io_ray.d, hit.normal); // sample_dir is incidence dir
-	io_accumulate *= brdf * abs(dot(hit.normal, sample_dir_pdf.xyz)) / sample_dir_pdf.w;
-	if (!IsValidRGB(io_accumulate))
+	vec3 brdf = CookTorranceBRDF(brdf_args, dir, -ray.d, hit.normal); // sample_dir is incidence dir
+	float cosine = abs(dot(hit.normal, dir));
+	vec3 color = brdf * cosine / pdf;
+	if (!IsValidRGB(color))
 		return false;
-	io_ray = Ray(hit.position, sample_dir_pdf.xyz);
+	o_info.color = color;
+	o_info.ray = Ray(hit.position, dir);
+	o_info.cosine = cosine;
+	o_info.pdf = pdf;
+	o_info.dist2 = _distance_2(ray.o, hit.position);
 	return true;
 }
 
+struct PathTraceResult {
+	vec3 base, extra;
+};
+
 #define T_MIN 1e-6
 #define T_MAX 4.0
-vec3 PathTrace(Hit hit, Ray ray) {
-	vec3 accumulate = vec3(1), irradiance = vec3(0);
+#define C 0.01
+PathTraceResult PathTrace(Hit hit, Ray ray) {
+	uint bounce = 0;
+	vec3 radiance = vec3(0), accumulate = vec3(1);
 
-	if (!PathTraceBRDFStep(hit, ray, accumulate))
-		return irradiance;
+	BRDFStepInfo info;
 
-	for (uint bounce = 0; bounce < 2; ++bounce) {
+	if (!PathTraceBRDFStep(hit, ray, info))
+		return PathTraceResult(radiance, accumulate);
+	accumulate *= info.color;
+	ray = info.ray;
+
+	float a0 = info.dist2 / (4 * M_PI * info.cosine);
+	float sqrt_a_sum = 0.0;
+	while (sqrt_a_sum * sqrt_a_sum <= C * a0 && bounce++ < MAX_BOUNCE) {
 		rayQueryEXT ray_query;
 		rayQueryInitializeEXT(ray_query, uTLAS, gl_RayFlagsOpaqueEXT, 0xFF, ray.o, T_MIN, ray.d, T_MAX);
 		while (rayQueryProceedEXT(ray_query))
@@ -137,45 +198,133 @@ vec3 PathTrace(Hit hit, Ray ray) {
 
 		if (rayQueryGetIntersectionTypeEXT(ray_query, true) == gl_RayQueryCommittedIntersectionTriangleEXT) {
 			hit = GetRayQueryHit(ray_query, ray);
-			if (!PathTraceBRDFStep(hit, ray, accumulate))
-				break;
+			if (!PathTraceBRDFStep(hit, ray, info))
+				return PathTraceResult(radiance, accumulate);
+			accumulate *= info.color;
+			ray = info.ray;
+			sqrt_a_sum += sqrt(info.dist2 / (info.pdf * info.cosine));
 		} else {
-			irradiance += accumulate * kConstLight;
-			break;
+			radiance += accumulate * kConstLight;
+			return PathTraceResult(radiance, accumulate);
 		}
 	}
-	return irradiance;
+
+	// Push a EvalRecord
+	uint eval_id = atomicAdd(uEvalCount, 1u, gl_ScopeQueueFamily, gl_StorageSemanticsBuffer, gl_SemanticsRelaxed);
+	NRCEvalRecord eval_record;
+	eval_record.screen_xy = gl_GlobalInvocationID.x | (gl_GlobalInvocationID.y << 16u);
+	eval_record.packed_input = MakeNRCInput(hit, ray);
+	uEvalRecords[eval_id] = eval_record;
+
+	return PathTraceResult(radiance, accumulate);
 }
 
+/* vec3 ExtendedPathTrace(Hit hit, Ray ray) {
+    uint bounce = 0;
+    vec3 accumulate = vec3(1), radiance = vec3(0);
+
+    BRDFStepInfo info;
+
+    if (!PathTraceBRDFStep(hit, ray, info))
+        return radiance;
+    accumulate *= info.color;
+    ray = info.ray;
+
+    float a0 = info.dist2 / (4 * M_PI * info.cosine);
+    float sqrt_a_sum = 0.0;
+    while (sqrt_a_sum * sqrt_a_sum <= C * a0 && bounce++ < MAX_BOUNCE) {
+        rayQueryEXT ray_query;
+        rayQueryInitializeEXT(ray_query, uTLAS, gl_RayFlagsOpaqueEXT, 0xFF, ray.o, T_MIN, ray.d, T_MAX);
+        while (rayQueryProceedEXT(ray_query))
+            ;
+
+        if (rayQueryGetIntersectionTypeEXT(ray_query, true) == gl_RayQueryCommittedIntersectionTriangleEXT) {
+            hit = GetRayQueryHit(ray_query, ray);
+            if (!PathTraceBRDFStep(hit, ray, info))
+                return radiance;
+            accumulate *= info.color;
+            ray = info.ray;
+            sqrt_a_sum += sqrt(info.dist2 / (info.pdf * info.cosine));
+        } else {
+            radiance += accumulate * kConstLight;
+            return radiance;
+        }
+    }
+
+    // Push a EvalRecord
+    uint eval_id = atomicAdd(uEvalCount, 1u, gl_ScopeQueueFamily, gl_StorageSemanticsBuffer, gl_SemanticsRelaxed);
+    NRCEvalRecord eval_record;
+    eval_record.screen_xy = gl_GlobalInvocationID.x | (gl_GlobalInvocationID.y << 16u);
+    eval_record.packed_input = MakeNRCInput(hit, ray);
+    uEvalRecords[eval_id] = eval_record;
+
+    if (subgroupAll(train)) {
+        sqrt_a_sum = 0;
+        while (sqrt_a_sum * sqrt_a_sum <= C * a0 && bounce++ < MAX_BOUNCE) {
+            rayQueryEXT ray_query;
+            rayQueryInitializeEXT(ray_query, uTLAS, gl_RayFlagsOpaqueEXT, 0xFF, ray.o, T_MIN, ray.d, T_MAX);
+            while (rayQueryProceedEXT(ray_query))
+                ;
+
+            if (rayQueryGetIntersectionTypeEXT(ray_query, true) == gl_RayQueryCommittedIntersectionTriangleEXT) {
+                hit = GetRayQueryHit(ray_query, ray);
+                if (!PathTraceBRDFStep(hit, ray, info))
+                    return radiance;
+                accumulate *= info.color;
+                ray = info.ray;
+                sqrt_a_sum += sqrt(info.dist2 / (info.pdf * info.cosine));
+            } else {
+                radiance += accumulate * kConstLight;
+                return radiance;
+            }
+        }
+        return vec3(1, 0, 0);
+    }
+
+    return accumulate;
+} */
+
+shared bool sTrain;
 void main() {
 	uvec2 coord = gl_GlobalInvocationID.xy;
+
+	// Seed on 256 x 256 Tile
+	uint seed = (((coord.y & 0xFF) << 8) | (coord.x & 0xFF)) + uSeed;
+	RNGSetState(seed);
+	if (gl_LocalInvocationID.x == 0)
+		sTrain = RNGNext() <= 0.03;
+	barrier();
+
 	if (any(greaterThanEqual(coord, uExtent)))
 		return;
+	bool train = sTrain;
 
 	uvec2 primitive_id_instance_id = texelFetch(uPrimitiveID_InstanceID, ivec2(coord), 0).rg;
 	uint primitive_id = primitive_id_instance_id.x, instance_id = primitive_id_instance_id.y;
 
-	vec3 color;
+	PathTraceResult result;
 	if (primitive_id == -1u)
-		color = kConstLight;
+		result = PathTraceResult(kConstLight, vec3(0));
 	else {
-		vec2 clip = (vec2(coord) + 0.5) / vec2(uExtent);
-		clip = clip * 2.0 - 1.0;
-		Ray ray = Ray(uOrigin, normalize(uLook + clip.x * uSide + clip.y * uUp));
+		Ray ray;
+		{
+			vec2 clip = (vec2(coord) + 0.5) / vec2(uExtent);
+			clip = clip * 2.0 - 1.0;
+			ray = Ray(uOrigin, normalize(uLook + clip.x * uSide + clip.y * uUp));
+		}
 		Hit hit = GetVBufferHit(primitive_id, instance_id, ray);
-		// Seed on 256 x 256 Tile
-		uint seed = (((coord.y & 0xFF) << 8) | (coord.x & 0xFF)) + uSeed;
-		RNGSetState(seed);
-		color = PathTrace(hit, ray);
-
-		uint eval_id = atomicAdd(uEvalCount, 1u, gl_ScopeQueueFamily, gl_StorageSemanticsBuffer, gl_SemanticsRelaxed);
-		uEvalRecords[eval_id].pixel_x_y = coord.x | (coord.y << 16u);
+		// if (subgroupAll(train))
+		// result = PathTraceResult(vec3(1, 0, 0), vec3(0));
+		// else if (subgroupAll(!train))
+		result = PathTrace(hit, ray);
 	}
 	uBatchTrainCounts[0].count = 1;
 	uBatchTrainCounts[1].count = 1;
 	uBatchTrainCounts[2].count = 1;
 	uBatchTrainCounts[3].count = 1;
 
-	color = IsValidRGB(color) ? color : vec3(0);
-	imageStore(uColor, ivec2(coord), vec4(color, 0));
+	result.base = IsValidRGB(result.base) ? result.base : vec3(0);
+	result.extra = IsValidRGB(result.extra) ? result.extra : vec3(0);
+	imageStore(uBase_ExtraR, ivec2(coord), vec4(result.base, result.extra.r));
+	imageStore(uExtraGB, ivec2(coord), vec4(result.extra.gb, 0, 0));
 }

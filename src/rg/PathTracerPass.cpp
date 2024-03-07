@@ -51,8 +51,6 @@ PathTracerPass::PathTracerPass(myvk_rg::Parent parent, const PathTracerPass::Arg
 	    myvk::Sampler::Create(GetRenderGraphPtr()->GetDevicePtr(), VK_FILTER_NEAREST,
 	                          VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_SAMPLER_MIPMAP_MODE_NEAREST, 0.0f));
 	// NRC
-	AddDescriptorInput<myvk_rg::Usage::kStorageImageW, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>(
-	    {11}, {"color"}, CreateResource<myvk_rg::ManagedImage>({"color"}, VK_FORMAT_R32G32B32A32_SFLOAT)->Alias());
 	AddDescriptorInput<myvk_rg::Usage::kStorageBufferRW, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>({12}, {"eval_count"},
 	                                                                                             args.eval_count);
 	AddDescriptorInput<myvk_rg::Usage::kStorageBufferW, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>({13}, {"eval_records"},
@@ -63,6 +61,11 @@ PathTracerPass::PathTracerPass(myvk_rg::Parent parent, const PathTracerPass::Arg
 		AddDescriptorInput<myvk_rg::Usage::kStorageBufferW, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>(
 		    {15, b}, {"batch_train_records", b}, args.batch_train_records[b]);
 	}
+	AddDescriptorInput<myvk_rg::Usage::kStorageImageW, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>(
+	    {16}, {"base_extra_r"},
+	    CreateResource<myvk_rg::ManagedImage>({"base_extra_r"}, VK_FORMAT_R32G32B32A32_SFLOAT)->Alias());
+	AddDescriptorInput<myvk_rg::Usage::kStorageImageW, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>(
+	    {17}, {"extra_gb"}, CreateResource<myvk_rg::ManagedImage>({"extra_gb"}, VK_FORMAT_R32G32_SFLOAT)->Alias());
 }
 
 void PathTracerPass::CreatePipeline() {

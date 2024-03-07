@@ -29,8 +29,8 @@ public:
 	inline ~VBufferPass() final = default;
 	void CreatePipeline() final;
 	void CmdExecute(const myvk::Ptr<myvk::CommandBuffer> &command_buffer) const final;
-	auto GetVBufferOutput() { return MakeImageOutput({"v_buffer_in"}); }
-	auto GetDepthOutput() { return MakeImageOutput({"depth_in"}); }
+	auto GetVBufferOutput() const { return MakeImageOutput({"v_buffer_in"}); }
+	auto GetDepthOutput() const { return MakeImageOutput({"depth_in"}); }
 };
 
 } // namespace rg

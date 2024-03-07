@@ -17,7 +17,7 @@ public:
 	struct Args {
 		const myvk::Ptr<VkScene> &scene_ptr;
 		const SceneResources &scene_resources;
-		const myvk_rg::Image &color;
+		const myvk_rg::Image &base_extra_r, &extra_gb;
 		const myvk_rg::Buffer &weights, &eval_count, &eval_records;
 	};
 
@@ -30,7 +30,7 @@ public:
 	inline ~NNInference() final = default;
 	void CreatePipeline() final;
 	void CmdExecute(const myvk::Ptr<myvk::CommandBuffer> &command_buffer) const final;
-	inline auto GetColorOutput() { return MakeImageOutput({"color"}); }
+	inline auto GetColorOutput() const { return MakeImageOutput({"base_extra_r"}); }
 };
 
 } // namespace rg

@@ -17,12 +17,12 @@ vec3 ToneMapFilmic_Hejl2015(in const vec3 hdr, in const float white_pt) {
 void main() {
 	vec3 color = subpassLoad(uColor).rgb;
 
-	ivec2 coord = ivec2(gl_FragCoord.xy);
+	/* ivec2 coord = ivec2(gl_FragCoord.xy);
 	if (uSampleCount != 0) {
-		color += imageLoad(uAccumulate, coord).rgb * float(uSampleCount);
-		color /= float(uSampleCount + 1);
+	    color += imageLoad(uAccumulate, coord).rgb * float(uSampleCount);
+	    color /= float(uSampleCount + 1);
 	}
-	imageStore(uAccumulate, coord, vec4(color, 0));
+	imageStore(uAccumulate, coord, vec4(color, 0)); */
 
 	vec3 screen = pow(ToneMapFilmic_Hejl2015(color, 3.2), vec3(1 / 2.2));
 	oScreen = vec4(screen, 1.0);

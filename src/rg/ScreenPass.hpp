@@ -27,7 +27,7 @@ public:
 	inline ~ScreenPass() final = default;
 	void CreatePipeline() final;
 	void CmdExecute(const myvk::Ptr<myvk::CommandBuffer> &command_buffer) const final;
-	inline auto GetScreenOutput() { return MakeImageOutput({"screen"}); }
+	inline auto GetScreenOutput() const { return MakeImageOutput({"screen"}); }
 };
 
 } // namespace rg

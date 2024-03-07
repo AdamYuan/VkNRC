@@ -10,7 +10,7 @@ struct PackedNRCInput {
 };
 
 struct NRCEvalRecord {
-	uint pixel_x_y;
+	uint screen_xy;
 	PackedNRCInput packed_input;
 };
 

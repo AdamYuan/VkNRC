@@ -47,7 +47,8 @@ NRCRenderGraph::NRCRenderGraph(const myvk::Ptr<myvk::FrameManager> &frame_manage
 	    {"nn_inference_pass"}, path_tracer_pass->GetEvalCountOutput(),
 	    NNInference::Args{.scene_ptr = m_scene_ptr,
 	                      .scene_resources = scene_resources,
-	                      .color = path_tracer_pass->GetColorOutput(),
+	                      .base_extra_r = path_tracer_pass->GetBaseExtraROutput(),
+	                      .extra_gb = path_tracer_pass->GetExtraGBOutput(),
 	                      .weights = nrc_resources.weights,
 	                      .eval_count = path_tracer_pass->GetEvalCountOutput(),
 	                      .eval_records = path_tracer_pass->GetEvalRecordsOutput()});
