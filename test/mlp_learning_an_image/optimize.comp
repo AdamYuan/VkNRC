@@ -7,7 +7,7 @@ struct AdamInfo {
 	uint t;
 };
 
-#define LEARNING_RATE 0.001
+#define LEARNING_RATE 0.01
 #define BETA1 0.9
 #define BETA2 0.99
 #define EPSILON 1e-8

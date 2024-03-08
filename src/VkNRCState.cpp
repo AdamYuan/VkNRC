@@ -21,16 +21,18 @@ struct NRCTrainRecord {
 	float base_r, base_g, base_b, extra_r, extra_g, extra_b;
 	PackedNRCInput packed_input;
 };
+struct AdamInfo {
+	float m, v;
+	uint32_t t;
+};
 } // namespace nrc
 
 VkDeviceSize VkNRCState::GetEvalRecordBufferSize(VkExtent2D extent) {
-	return VkDeviceSize{extent.width} * VkDeviceSize{extent.height} * sizeof(nrc::NRCEvalRecord);
+	return (extent.width * extent.height + kTrainBatchSize * kTrainBatchCount) * sizeof(nrc::NRCEvalRecord);
 }
-VkDeviceSize VkNRCState::GetBatchTrainRecordBufferSize() {
-	return VkDeviceSize{kTrainBatchSize} * sizeof(nrc::NRCTrainRecord);
-}
+VkDeviceSize VkNRCState::GetBatchTrainRecordBufferSize() { return kTrainBatchSize * sizeof(nrc::NRCTrainRecord); }
 
-void VkNRCState::initialize_weights(std::span<half_float::half, kNNWeighCount> weights) {
+void VkNRCState::initialize_weights(std::span<float, kNNWeighCount> weights) {
 	// (He) Kaiming Initialization
 	std::normal_distribution<float> norm{0, std::sqrt(2.0f / float(kNNWidth))};
 	for (auto &w : weights)
@@ -40,16 +42,23 @@ void VkNRCState::initialize_weights(std::span<half_float::half, kNNWeighCount> w
 void VkNRCState::create_weight_buffer() {
 	m_weights = myvk::Buffer::Create(GetDevicePtr(), GetWeightCount() * sizeof(uint16_t), 0,
 	                                 VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+	m_fp_weights = myvk::Buffer::Create(GetDevicePtr(), GetWeightCount() * sizeof(float), 0,
+	                                    VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 
-	std::array<half_float::half, GetWeightCount()> initial_weights;
-	initialize_weights(initial_weights);
+	std::array<float, GetWeightCount()> fp_initial_weights{};
+	initialize_weights(fp_initial_weights);
+	std::array<half_float::half, GetWeightCount()> initial_weights{};
+	for (uint32_t i = 0; i < GetWeightCount(); ++i)
+		initial_weights[i] = fp_initial_weights[i];
 
 	auto weights_staging = myvk::Buffer::CreateStaging(GetDevicePtr(), initial_weights.begin(), initial_weights.end());
+	auto fp_weights_staging =
+	    myvk::Buffer::CreateStaging(GetDevicePtr(), fp_initial_weights.begin(), fp_initial_weights.end());
 
-	// Zero Initialize
 	auto command_buffer = myvk::CommandBuffer::Create(myvk::CommandPool::Create(m_queue_ptr));
 	command_buffer->Begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
-	command_buffer->CmdCopy(weights_staging, m_weights, {VkBufferCopy{.size = GetWeightCount() * sizeof(uint16_t)}});
+	command_buffer->CmdCopy(weights_staging, m_weights, {VkBufferCopy{.size = m_weights->GetSize()}});
+	command_buffer->CmdCopy(fp_weights_staging, m_fp_weights, {VkBufferCopy{.size = m_fp_weights->GetSize()}});
 	command_buffer->End();
 
 	auto fence = myvk::Fence::Create(GetDevicePtr());
@@ -57,12 +66,12 @@ void VkNRCState::create_weight_buffer() {
 	fence->Wait();
 }
 void VkNRCState::create_adam_buffer() {
-	m_adam_mv = myvk::Buffer::Create(GetDevicePtr(), GetWeightCount() * sizeof(float) * 2, 0,
-	                                 VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+	m_adam_tmv = myvk::Buffer::Create(GetDevicePtr(), GetWeightCount() * sizeof(nrc::AdamInfo), 0,
+	                                  VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 	// Zero Initialize
 	auto command_buffer = myvk::CommandBuffer::Create(myvk::CommandPool::Create(m_queue_ptr));
 	command_buffer->Begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
-	vkCmdFillBuffer(command_buffer->GetHandle(), m_adam_mv->GetHandle(), 0, m_adam_mv->GetSize(), 0);
+	vkCmdFillBuffer(command_buffer->GetHandle(), m_adam_tmv->GetHandle(), 0, m_adam_tmv->GetSize(), 0);
 	command_buffer->End();
 
 	auto fence = myvk::Fence::Create(GetDevicePtr());

@@ -5,6 +5,7 @@
 #define NRC_HIDDEN_LAYERS 5
 #define NRC_TRAIN_BATCH_COUNT 4
 #define NRC_TRAIN_BATCH_SIZE 16384
-#define MAX_BOUNCE 8
+#define MAX_BOUNCE 5
+#define LOSS_SCALE 16.0
 
 #endif

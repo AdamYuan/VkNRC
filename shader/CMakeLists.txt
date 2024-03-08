@@ -21,6 +21,7 @@ set(SHADER_SRC
         screen.frag
         screen.vert
         nrc_indirect.comp
+        nrc_train_indirect.comp
         nrc_inference_16.comp
         nrc_inference_32.comp
         nrc_inference_64.comp

@@ -63,6 +63,7 @@ std::vector<float> Train(std::span<half> weights, std::span<half> inputs, std::s
 	// std::cout << dat_matrix << std::endl;
 	for (int i = 5; i >= 0; --i) {
 		DWMatrix dw_matrix = (act_matrices[i] * dat_matrix).eval().transpose().cast<float>();
+		printf("%lu %lu\n", dw_matrix.rows(), dw_matrix.cols());
 		std::copy(dw_matrix.data(), dw_matrix.data() + dw_matrix.size(), dw.data() + i * 64 * 64);
 		dat_matrix = (dat_matrix * weight_matrices[i]).eval().unaryExpr([](const half &x) -> half {
 			return x >= 0 ? half(1) : half(0);
@@ -152,14 +153,13 @@ void test_train(std::size_t blocks) {
 	    targets(kWorkgroupSize * blocks * kOutputCount);
 
 	for (int x = 0; auto &w : weights)
-		w = half(0); // half(std::uniform_real_distribution<float>{-0.02, 0.02}(random));
+		w = half(std::uniform_real_distribution<float>{-0.02, 0.02}(random));
 	// w = 0.1 - 0.00001 * (x++); // std::uniform_real_distribution<float>{0, 0.25}(random);
 	// w = std::uniform_real_distribution<float>{0, 0.02}(random);
 	for (auto &i : inputs)
-		i = half(1); // half(std::uniform_real_distribution<float>{0, 1.0}(random));
+		i = half(std::uniform_real_distribution<float>{0, 1.0}(random));
 	for (auto &i : targets)
-		i = half(1);
-	//	i = half(std::uniform_real_distribution<float>{0, 1.0}(random));
+		i = half(std::uniform_real_distribution<float>{0, 1.0}(random));
 
 	std::vector<float> comp_dw(5 * 64 * 64 + kOutputCount * 64);
 	{
@@ -238,7 +238,7 @@ int main(int argc, char **argv) {
 
 	cudaSetDevice(0);
 
-	test_inference(blocks);
+	// test_inference(blocks);
 	test_train(blocks);
 
 	return 0;

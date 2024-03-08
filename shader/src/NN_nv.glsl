@@ -1,6 +1,7 @@
 #ifndef NN_NV_GLSL
 #define NN_NV_GLSL
 
+#extension GL_EXT_shader_explicit_arithmetic_types_int16 : enable
 #extension GL_EXT_shader_explicit_arithmetic_types_float16 : enable
 #extension GL_EXT_control_flow_attributes : enable
 #extension GL_NV_cooperative_matrix : enable
@@ -160,8 +161,9 @@ vec3 NNOutput3(in const fcoopmatNV<16, gl_ScopeSubgroup, 16, 16> act_coopmats[SU
 // http://cs231n.stanford.edu/slides/2018/cs231n_2018_ds02.pdf
 void NNLoadDA3_L2Loss(in const vec3 predict,
                       in const vec3 target,
+                      in const float loss_scale,
                       inout fcoopmatNV<16, gl_ScopeSubgroup, 16, 16> da_coopmats_t[SUBGROUP_ACT_COOPMAT_Y]) {
-	vec3 d_l2 = predict - target;
+	vec3 d_l2 = 2.0 * (predict - target) * loss_scale;
 	SHARED_BUFFER[gl_LocalInvocationID.x * UV4_X] = uvec4(packHalf2x16(d_l2.xy), packHalf2x16(vec2(d_l2.z, 0)), 0u, 0u);
 	[[unroll]] for (uint i = 1; i < 16 / FP16_PER_UV4; ++i)
 		SHARED_BUFFER[gl_LocalInvocationID.x * UV4_X + i] = uvec4(0u);
@@ -176,9 +178,10 @@ void NNLoadDA3_L2Loss(in const vec3 predict,
 void NNLoadDA3_RelativeL2LuminanceLoss(
     in const vec3 predict,
     in const vec3 target,
+    in const float loss_scale,
     inout fcoopmatNV<16, gl_ScopeSubgroup, 16, 16> da_coopmats_t[SUBGROUP_ACT_COOPMAT_Y]) {
-	float predict_luminance = dot(vec3(0.299, 0.587, 0.114), predict);
-	vec3 d_loss = 2.0 * (predict - target) / (predict_luminance * predict_luminance + 0.01);
+	float predict_luminance = dot(vec3(0.299, 0.587, 0.114), max(predict, vec3(0)));
+	vec3 d_loss = 2.0 * loss_scale * (predict - target) / (predict_luminance * predict_luminance + 0.01);
 	SHARED_BUFFER[gl_LocalInvocationID.x * UV4_X] =
 	    uvec4(packHalf2x16(d_loss.xy), packHalf2x16(vec2(d_loss.z, 0)), 0u, 0u);
 	[[unroll]] for (uint i = 1; i < 16 / FP16_PER_UV4; ++i)
@@ -192,10 +195,36 @@ void NNLoadDA3_RelativeL2LuminanceLoss(
 	barrier();
 }
 
+void _nn_act_64_relu_mask_t(
+    inout fcoopmatNV<16, gl_ScopeSubgroup, 16, 16> coopmats[COOPMAT_X][SUBGROUP_ACT_COOPMAT_Y]) {
+	[[unroll]] for (uint y = 0; y < SUBGROUP_ACT_COOPMAT_Y; ++y) {
+		uint workgroup_y = gl_SubgroupID * SUBGROUP_ACT_COOPMAT_Y + y;
+		[[unroll]] for (uint x = 0; x < COOPMAT_X; ++x) {
+			coopMatStoreNV(coopmats[x][y], SHARED_BUFFER, MAT64_COOPMAT_ELEMENT(x, workgroup_y), MAT64_COOPMAT_STRIDE,
+			               ACT_COOPMAT_MAJOR);
+		}
+	}
+	barrier();
+	[[unroll]] for (uint y = 0; y < SUBGROUP_ACT_COOPMAT_Y; ++y) {
+		uint workgroup_y = gl_SubgroupID * SUBGROUP_ACT_COOPMAT_Y + y;
+		[[unroll]] for (uint x = 0; x < COOPMAT_X; ++x) {
+			coopMatLoadNV(coopmats[x][y], SHARED_BUFFER, MAT64_COOPMAT_ELEMENT(x, workgroup_y), MAT64_COOPMAT_STRIDE,
+			              COOPMAT_MAJOR_T(ACT_COOPMAT_MAJOR));
+			// NAN for zero
+			for (uint k = 0; k < coopmats[x][y].length(); ++k)
+				coopmats[x][y][k] = coopmats[x][y][k] > 0.0 ? float16_t(0.0) : uint16BitsToHalf(uint16_t(0x7FFF));
+		}
+	}
+	barrier();
+}
+
 void NNBackwardDA3_ReLU(
     in const uint layer,
     in const fcoopmatNV<16, gl_ScopeSubgroup, 16, 16> src_da_coopmats_t[SUBGROUP_ACT_COOPMAT_Y],
     inout fcoopmatNV<16, gl_ScopeSubgroup, 16, 16> dst_da_coopmats_t[COOPMAT_X][SUBGROUP_ACT_COOPMAT_Y]) {
+
+	// For Inv ReLU
+	_nn_act_64_relu_mask_t(dst_da_coopmats_t);
 
 	_nn_load_weight_3(layer);
 	// da_coopmats^T (128, 16) x weights (16, 64) = dA^T (128, 64)
@@ -204,13 +233,11 @@ void NNBackwardDA3_ReLU(
 		coopMatLoadNV(weight_coopmat, SHARED_BUFFER, MAT64_COOPMAT_ELEMENT(x, 0), MAT64_COOPMAT_STRIDE,
 		              WEIGHT_COOPMAT_MAJOR);
 		[[unroll]] for (uint y = 0; y < SUBGROUP_ACT_COOPMAT_Y; ++y) {
-			// Zero Initialize
-			dst_da_coopmats_t[x][y] = fcoopmatNV<16, gl_ScopeSubgroup, 16, 16>(0);
 			// MMA
 			dst_da_coopmats_t[x][y] = coopMatMulAddNV(src_da_coopmats_t[y], weight_coopmat, dst_da_coopmats_t[x][y]);
-			// Inv ReLU
 			for (uint k = 0; k < dst_da_coopmats_t[x][y].length(); ++k)
-				dst_da_coopmats_t[x][y][k] = dst_da_coopmats_t[x][y][k] >= 0.0 ? float16_t(1.0) : float16_t(0.0);
+				dst_da_coopmats_t[x][y][k] =
+				    isnan(dst_da_coopmats_t[x][y][k]) ? float16_t(0) : dst_da_coopmats_t[x][y][k];
 		}
 	}
 	barrier();
@@ -220,12 +247,10 @@ void NNBackwardDA64_ReLU(
     in const uint layer,
     in const fcoopmatNV<16, gl_ScopeSubgroup, 16, 16> src_da_coopmats_t[COOPMAT_X][SUBGROUP_ACT_COOPMAT_Y],
     inout fcoopmatNV<16, gl_ScopeSubgroup, 16, 16> dst_da_coopmats_t[COOPMAT_X][SUBGROUP_ACT_COOPMAT_Y]) {
-	// Zero Initialize
-	[[unroll]] for (uint x = 0; x < COOPMAT_X; ++x) {
-		[[unroll]] for (uint y = 0; y < SUBGROUP_ACT_COOPMAT_Y; ++y) {
-			dst_da_coopmats_t[x][y] = fcoopmatNV<16, gl_ScopeSubgroup, 16, 16>(0);
-		}
-	}
+
+	// For Inv ReLU
+	_nn_act_64_relu_mask_t(dst_da_coopmats_t);
+
 	// da_coopmats^T (128, 64) x weights (64, 64) = dA^T (128, 64)
 	fcoopmatNV<16, gl_ScopeSubgroup, 16, 16> weight_coopmat;
 	// MMA
@@ -243,10 +268,10 @@ void NNBackwardDA64_ReLU(
 	barrier();
 	// Inv ReLU
 	[[unroll]] for (uint x = 0; x < COOPMAT_X; ++x) {
-		[[unroll]] for (uint y = 0; y < SUBGROUP_ACT_COOPMAT_Y; ++y) {
+		[[unroll]] for (uint y = 0; y < SUBGROUP_ACT_COOPMAT_Y; ++y)
 			for (uint k = 0; k < dst_da_coopmats_t[x][y].length(); ++k)
-				dst_da_coopmats_t[x][y][k] = dst_da_coopmats_t[x][y][k] >= 0.0 ? float16_t(1.0) : float16_t(0.0);
-		}
+				dst_da_coopmats_t[x][y][k] =
+				    isnan(dst_da_coopmats_t[x][y][k]) ? float16_t(0) : dst_da_coopmats_t[x][y][k];
 	}
 }
 
@@ -254,7 +279,7 @@ void NNUpdateDW3(in const uint layer,
                  in const fcoopmatNV<16, gl_ScopeSubgroup, 16, 16> da_coopmats_t[SUBGROUP_ACT_COOPMAT_Y],
                  in const fcoopmatNV<16, gl_ScopeSubgroup, 16, 16> act_coopmats[COOPMAT_X][SUBGROUP_ACT_COOPMAT_Y]) {
 	// (act_coopmats (64, 128) x da_coopmats^T (128, 16))^T = dW (16, 64)
-	fcoopmatNV<16, gl_ScopeSubgroup, 16, 16> dw_coopmats[COOPMAT_X], act_coopmat_t;
+	fcoopmatNV<16, gl_ScopeSubgroup, 16, 16> dw_coopmats[COOPMAT_X];
 	[[unroll]] for (uint w_y = 0; w_y < COOPMAT_X; ++w_y) {
 		dw_coopmats[w_y] = fcoopmatNV<16, gl_ScopeSubgroup, 16, 16>(0);
 		[[unroll]] for (uint a_y = 0; a_y < SUBGROUP_ACT_COOPMAT_Y; ++a_y) {
@@ -293,7 +318,7 @@ void NNUpdateDW64(in const uint layer,
                   in const fcoopmatNV<16, gl_ScopeSubgroup, 16, 16> da_coopmats_t[COOPMAT_X][SUBGROUP_ACT_COOPMAT_Y],
                   in const fcoopmatNV<16, gl_ScopeSubgroup, 16, 16> act_coopmats[COOPMAT_X][SUBGROUP_ACT_COOPMAT_Y]) {
 	// (act_coopmats (64, 128) x da_coopmats^T (128, 64))^T = dW (64, 64)
-	fcoopmatNV<16, gl_ScopeSubgroup, 16, 16> dw_coopmats[COOPMAT_X][COOPMAT_X], act_coopmat_t;
+	fcoopmatNV<16, gl_ScopeSubgroup, 16, 16> dw_coopmats[COOPMAT_X][COOPMAT_X];
 	[[unroll]] for (uint w_y = 0; w_y < COOPMAT_X; ++w_y) {
 		[[unroll]] for (uint x = 0; x < COOPMAT_X; ++x) {
 			dw_coopmats[w_y][x] = fcoopmatNV<16, gl_ScopeSubgroup, 16, 16>(0);

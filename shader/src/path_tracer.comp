@@ -296,9 +296,9 @@ PathTraceResult ExtendedPathTrace(Hit hit, Ray ray) {
 		}
 	}
 
-	if (lights[bounce - 1] == vec3(0)) {
-		return result;
-	}
+	/* if (lights[bounce - 1] == vec3(0)) {
+	    return result;
+	} */
 
 	for (uint i = bounce - 2u; i != -1u; --i) {
 		lights[i] += colors[i] * lights[i + 1];
@@ -323,14 +323,14 @@ PathTraceResult ExtendedPathTrace(Hit hit, Ray ray) {
 		uBatchTrainRecords[batch].records[train_id + i] = train_record;
 	}
 
-	/* if (lights[bounce - 1] == vec3(0)) {
-	    uint eval_id = atomicAdd(uEvalCount, 1u, gl_ScopeQueueFamily, gl_StorageSemanticsBuffer, gl_SemanticsRelaxed);
-	    NRCEvalRecord eval_record;
-	    eval_record.screen_x16_y16 = -1;
-	    eval_record.train_l14_r14_b4 = train_id | ((train_id + train_count - 1) << 14u) | (batch << 28u);
-	    eval_record.packed_input = inputs[bounce - 1];
-	    uEvalRecords[eval_id] = eval_record;
-	} */
+	if (lights[bounce - 1] == vec3(0)) {
+		uint eval_id = atomicAdd(uEvalCount, 1u, gl_ScopeQueueFamily, gl_StorageSemanticsBuffer, gl_SemanticsRelaxed);
+		NRCEvalRecord eval_record;
+		eval_record.screen_x16_y16 = -1;
+		eval_record.train_l14_r14_b4 = train_id | ((train_id + train_count - 1) << 14u) | (batch << 28u);
+		eval_record.packed_input = inputs[bounce - 1];
+		uEvalRecords[eval_id] = eval_record;
+	}
 
 	return result;
 }
@@ -343,7 +343,7 @@ void main() {
 	uint seed = (((coord.y & 0xFF) << 8) | (coord.x & 0xFF)) + uSeed;
 	RNGSetState(seed);
 	if (gl_LocalInvocationID.x == 0)
-		sTrain = RNGNext() <= 0.1;
+		sTrain = RNGNext() <= 0.3;
 	barrier();
 
 	if (any(greaterThanEqual(coord, uExtent)))

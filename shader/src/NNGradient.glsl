@@ -1,6 +1,8 @@
 #define WORKGROUP_SIZE 128
 layout(local_size_x = WORKGROUP_SIZE, local_size_y = 1, local_size_z = 1) in;
 
+#include "Constant.glsl"
+
 #define SCENE_TEXTURE_BINDING 7
 #define SCENE_TEXTURE_NUM_CONST_ID 0
 #define SCENE_BUFFERS_FIRST_BINDING 0
@@ -20,16 +22,13 @@ layout(binding = 9) uniform uuBatchTrainCounts { uint uBatchTrainCount; };
 void main() {
 	uvec4 inputs[8] = uvec4[8](uvec4(0), uvec4(0), uvec4(0), uvec4(0), uvec4(0), uvec4(0), uvec4(0), uvec4(0));
 	vec3 target = vec3(0);
-	if (gl_GlobalInvocationID.x < uBatchTrainCount) {
-		NRCTrainRecord train_record = uBatchTrainRecords[gl_GlobalInvocationID.x];
-		NRCInputEncode(UnpackNRCInput(train_record.packed_input), inputs);
-		target = vec3(train_record.base_r, train_record.base_g, train_record.base_b);
 
-		// For testing
-		/* inputs = uvec4[8](uvec4(0), uvec4(0), uvec4(0), uvec4(0), uvec4(0), uvec4(0), uvec4(0),
-		                  uvec4(0, 0, 0, packHalf2x16(vec2(1.0))));
-		target = vec3(1); */
-	}
+	NRCTrainRecord train_record = uBatchTrainRecords[gl_GlobalInvocationID.x];
+	UnpackedNRCInput unpacked_input = UnpackNRCInput(train_record.packed_input);
+	NRCInputEncode(unpacked_input, inputs);
+	target = vec3(train_record.base_r, train_record.base_g, train_record.base_b);
+	// target = 10 * unpacked_input.diffuse;
+	// target = vec3(10);
 
 	fcoopmatNV<16, gl_ScopeSubgroup, 16, 16> act_coopmats[6][COOPMAT_X][SUBGROUP_ACT_COOPMAT_Y],
 	    out_coopmats[SUBGROUP_ACT_COOPMAT_Y];
@@ -41,7 +40,7 @@ void main() {
 	NNForward64_ReLU(4, act_coopmats[4], act_coopmats[5]);
 	NNForward3(5, act_coopmats[5], out_coopmats);
 	vec3 predict = NNOutput3(out_coopmats);
-	NNLoadDA3_RelativeL2LuminanceLoss(predict, target, out_coopmats);
+	NNLoadDA3_RelativeL2LuminanceLoss(predict, target, LOSS_SCALE, out_coopmats);
 	NNUpdateDW3(5, out_coopmats, act_coopmats[5]);
 	NNBackwardDA3_ReLU(5, out_coopmats, act_coopmats[5]);
 	NNUpdateDW64(4, act_coopmats[5], act_coopmats[4]);
