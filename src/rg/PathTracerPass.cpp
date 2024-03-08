@@ -62,10 +62,10 @@ PathTracerPass::PathTracerPass(myvk_rg::Parent parent, const PathTracerPass::Arg
 		    {15, b}, {"batch_train_records", b}, args.batch_train_records[b]);
 	}
 	AddDescriptorInput<myvk_rg::Usage::kStorageImageW, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>(
-	    {16}, {"base_extra_r"},
-	    CreateResource<myvk_rg::ManagedImage>({"base_extra_r"}, VK_FORMAT_R32G32B32A32_SFLOAT)->Alias());
+	    {16}, {"bias_factor_r"},
+	    CreateResource<myvk_rg::ManagedImage>({"bias_factor_r"}, VK_FORMAT_R32G32B32A32_SFLOAT)->Alias());
 	AddDescriptorInput<myvk_rg::Usage::kStorageImageW, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>(
-	    {17}, {"extra_gb"}, CreateResource<myvk_rg::ManagedImage>({"extra_gb"}, VK_FORMAT_R32G32_SFLOAT)->Alias());
+	    {17}, {"factor_gb"}, CreateResource<myvk_rg::ManagedImage>({"factor_gb"}, VK_FORMAT_R32G32_SFLOAT)->Alias());
 }
 
 void PathTracerPass::CreatePipeline() {

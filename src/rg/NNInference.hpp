@@ -18,7 +18,7 @@ public:
 	struct Args {
 		const myvk::Ptr<VkScene> &scene_ptr;
 		const SceneResources &scene_resources;
-		const myvk_rg::Image &base_extra_r, &extra_gb;
+		const myvk_rg::Image &bias_factor_r, &factor_gb;
 		const myvk_rg::Buffer &weights, &eval_count, &eval_records;
 		std::span<const myvk_rg::Buffer, VkNRCState::GetTrainBatchCount()> batch_train_records;
 	};

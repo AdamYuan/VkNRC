@@ -32,8 +32,8 @@ uBatchTrainCounts[NRC_TRAIN_BATCH_COUNT];
 layout(std430, binding = 15) writeonly buffer uuBatchTrainRecords { NRCTrainRecord records[]; }
 uBatchTrainRecords[NRC_TRAIN_BATCH_COUNT];
 
-layout(binding = 16, rgba32f) writeonly uniform image2D uBase_ExtraR;
-layout(binding = 17, rg32f) writeonly uniform image2D uExtraGB;
+layout(binding = 16, rgba32f) writeonly uniform image2D uBias_FactorR;
+layout(binding = 17, rg32f) writeonly uniform image2D uFactorGB;
 
 struct Ray {
 	vec3 o, d;
@@ -172,7 +172,7 @@ bool PathTraceBRDFStep(in const Hit hit, in const Ray ray, inout BRDFStepInfo o_
 }
 
 struct PathTraceResult {
-	vec3 base, extra;
+	vec3 bias, factor;
 };
 
 #define T_MIN 1e-6
@@ -313,12 +313,12 @@ PathTraceResult ExtendedPathTrace(Hit hit, Ray ray) {
 	uint train_count = min(bounce, NRC_TRAIN_BATCH_SIZE - train_id);
 	for (uint i = 0; i < train_count; ++i) {
 		NRCTrainRecord train_record;
-		train_record.base_r = lights[i].r;
-		train_record.base_g = lights[i].g;
-		train_record.base_b = lights[i].b;
-		train_record.extra_r = colors[i].r;
-		train_record.extra_g = colors[i].g;
-		train_record.extra_b = colors[i].b;
+		train_record.bias_r = lights[i].r;
+		train_record.bias_g = lights[i].g;
+		train_record.bias_b = lights[i].b;
+		train_record.factor_r = colors[i].r;
+		train_record.factor_g = colors[i].g;
+		train_record.factor_b = colors[i].b;
 		train_record.packed_input = inputs[i];
 		uBatchTrainRecords[batch].records[train_id + i] = train_record;
 	}
@@ -343,7 +343,7 @@ void main() {
 	uint seed = (((coord.y & 0xFF) << 8) | (coord.x & 0xFF)) + uSeed;
 	RNGSetState(seed);
 	if (gl_LocalInvocationID.x == 0)
-		sTrain = RNGNext() <= 0.3;
+		sTrain = RNGNext() <= 0.03;
 	barrier();
 
 	if (any(greaterThanEqual(coord, uExtent)))
@@ -370,8 +370,8 @@ void main() {
 			result = PathTrace(hit, ray);
 	}
 
-	result.base = IsValidRGB(result.base) ? result.base : vec3(0);
-	result.extra = IsValidRGB(result.extra) ? result.extra : vec3(0);
-	imageStore(uBase_ExtraR, ivec2(coord), vec4(result.base, result.extra.r));
-	imageStore(uExtraGB, ivec2(coord), vec4(result.extra.gb, 0, 0));
+	result.bias = IsValidRGB(result.bias) ? result.bias : vec3(0);
+	result.factor = IsValidRGB(result.factor) ? result.factor : vec3(0);
+	imageStore(uBias_FactorR, ivec2(coord), vec4(result.bias, result.factor.r));
+	imageStore(uFactorGB, ivec2(coord), vec4(result.factor.gb, 0, 0));
 }

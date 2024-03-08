@@ -37,15 +37,15 @@ public:
 	inline ~PathTracerPass() final = default;
 	void CreatePipeline() final;
 	void CmdExecute(const myvk::Ptr<myvk::CommandBuffer> &command_buffer) const final;
-	inline auto GetBaseExtraROutput() const { return MakeImageOutput({"base_extra_r"}); }
-	inline auto GetExtraGBOutput() const { return MakeImageOutput({"extra_gb"}); }
+	inline auto GetBiasFactorROutput() const { return MakeImageOutput({"bias_factor_r"}); }
+	inline auto GetFactorGBOutput() const { return MakeImageOutput({"factor_gb"}); }
 	inline auto GetEvalCountOutput() const { return MakeBufferOutput({"eval_count"}); }
 	inline auto GetEvalRecordsOutput() const { return MakeBufferOutput({"eval_records"}); }
 	inline auto GetBatchTrainCountOutput(uint32_t batch_index) const {
 		return MakeBufferOutput({"batch_train_count", batch_index});
 	}
 	/* inline auto GetBatchTrainRecordsOutput(uint32_t batch_index) const {
-		return MakeBufferOutput({"batch_train_records", batch_index});
+	    return MakeBufferOutput({"batch_train_records", batch_index});
 	} */
 	inline std::array<myvk_rg::Buffer, VkNRCState::GetTrainBatchCount()> GetBatchTrainRecordsOutputs() const {
 		std::array<myvk_rg::Buffer, VkNRCState::GetTrainBatchCount()> ret;

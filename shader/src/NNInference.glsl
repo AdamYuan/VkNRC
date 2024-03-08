@@ -18,8 +18,8 @@ layout(binding = 9) uniform uuEvalCount { uint uEvalCount; };
 #define WEIGHTS_BINDING 10
 #include "NN_nv.glsl"
 
-layout(binding = 11, rgba32f) uniform image2D uBase_ExtraR;
-layout(binding = 12, rg32f) readonly uniform image2D uExtraGB;
+layout(binding = 11, rgba32f) uniform image2D uBias_FactorR;
+layout(binding = 12, rg32f) readonly uniform image2D uFactorGB;
 layout(std430, binding = 13) buffer uuBatchTrainRecords { NRCTrainRecord records[]; }
 uBatchTrainRecords[NRC_TRAIN_BATCH_COUNT];
 
@@ -47,22 +47,22 @@ void main() {
 	// Write to Screen
 	if (screen_x16_y16 != -1u) {
 		ivec2 coord = ivec2(screen_x16_y16 & 0xFFFF, screen_x16_y16 >> 16);
-		vec4 base_extra_r = imageLoad(uBase_ExtraR, coord);
-		vec2 extra_gb = imageLoad(uExtraGB, coord).rg;
-		vec3 color = base_extra_r.rgb + vec3(base_extra_r.a, extra_gb) * predict;
-		imageStore(uBase_ExtraR, coord, vec4(color, 0));
+		vec4 bias_factor_r = imageLoad(uBias_FactorR, coord);
+		vec2 factor_gb = imageLoad(uFactorGB, coord).rg;
+		vec3 color = bias_factor_r.rgb + vec3(bias_factor_r.a, factor_gb) * predict;
+		imageStore(uBias_FactorR, coord, vec4(color, 0));
 	}
 	// Write to Train Records
 	if (train_l14_r14_b4 != -1u) {
 		uint b = train_l14_r14_b4 >> 28u, l = train_l14_r14_b4 & 0x3FFFu, r = (train_l14_r14_b4 >> 14u) & 0x3FFFu;
 		[[unroll]] for (uint i = l; i <= r; ++i) {
 			NRCTrainRecord train_record = uBatchTrainRecords[b].records[i];
-			vec3 base = vec3(train_record.base_r, train_record.base_g, train_record.base_b);
-			vec3 extra = vec3(train_record.extra_r, train_record.extra_g, train_record.extra_b);
-			vec3 color = base + extra * predict;
-			uBatchTrainRecords[b].records[i].base_r = color.r;
-			uBatchTrainRecords[b].records[i].base_g = color.g;
-			uBatchTrainRecords[b].records[i].base_b = color.b;
+			vec3 bias = vec3(train_record.bias_r, train_record.bias_g, train_record.bias_b);
+			vec3 factor = vec3(train_record.factor_r, train_record.factor_g, train_record.factor_b);
+			vec3 color = bias + factor * predict;
+			uBatchTrainRecords[b].records[i].bias_r = color.r;
+			uBatchTrainRecords[b].records[i].bias_g = color.g;
+			uBatchTrainRecords[b].records[i].bias_b = color.b;
 		}
 	}
 }

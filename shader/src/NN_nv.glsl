@@ -205,6 +205,7 @@ void _nn_act_64_relu_mask_t(
 		}
 	}
 	barrier();
+	float16_t nan_16 = uint16BitsToHalf(uint16_t(0x7FFF));
 	[[unroll]] for (uint y = 0; y < SUBGROUP_ACT_COOPMAT_Y; ++y) {
 		uint workgroup_y = gl_SubgroupID * SUBGROUP_ACT_COOPMAT_Y + y;
 		[[unroll]] for (uint x = 0; x < COOPMAT_X; ++x) {
@@ -212,7 +213,7 @@ void _nn_act_64_relu_mask_t(
 			              COOPMAT_MAJOR_T(ACT_COOPMAT_MAJOR));
 			// NAN for zero
 			for (uint k = 0; k < coopmats[x][y].length(); ++k)
-				coopmats[x][y][k] = coopmats[x][y][k] > 0.0 ? float16_t(0.0) : uint16BitsToHalf(uint16_t(0x7FFF));
+				coopmats[x][y][k] = coopmats[x][y][k] > 0.0 ? float16_t(0.0) : nan_16;
 		}
 	}
 	barrier();

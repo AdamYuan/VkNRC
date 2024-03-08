@@ -18,7 +18,7 @@ struct NRCEvalRecord {
 	PackedNRCInput packed_input;
 };
 struct NRCTrainRecord {
-	float base_r, base_g, base_b, extra_r, extra_g, extra_b;
+	float bias_r, bias_g, bias_b, factor_r, factor_g, factor_b;
 	PackedNRCInput packed_input;
 };
 struct AdamInfo {
