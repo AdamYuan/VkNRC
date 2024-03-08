@@ -24,6 +24,8 @@ public:
 		uint32_t diffuse_texture_id;
 		alignas(sizeof(glm::vec4)) glm::vec3 specular;
 		uint32_t specular_texture_id;
+		alignas(sizeof(glm::vec4)) glm::vec3 emission;
+		uint32_t emission_texture_id;
 		float metallic, roughness, ior;
 	};
 	struct Transform {

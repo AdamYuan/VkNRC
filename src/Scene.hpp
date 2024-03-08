@@ -17,6 +17,8 @@ public:
 		std::filesystem::path diffuse_texture;
 		glm::vec3 specular;
 		std::filesystem::path specular_texture;
+		glm::vec3 emission;
+		std::filesystem::path emission_texture;
 		float metallic, roughness, ior;
 	};
 	struct Instance {

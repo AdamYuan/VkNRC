@@ -119,12 +119,15 @@ std::vector<VkScene::Material> VkScene::make_materials(const Scene &scene) {
 		    .diffuse_texture_id = -1u,
 		    .specular = material.specular,
 		    .specular_texture_id = -1u,
+		    .emission = material.emission,
+		    .emission_texture_id = -1u,
 		    .metallic = material.metallic,
 		    .roughness = material.roughness,
 		    .ior = material.ior,
 		});
 	load_textures<TexLoad{&Scene::Material::diffuse_texture, &Material::diffuse_texture_id},
-	              TexLoad{&Scene::Material::specular_texture, &Material::specular_texture_id}>(
+	              TexLoad{&Scene::Material::specular_texture, &Material::specular_texture_id},
+	              TexLoad{&Scene::Material::emission_texture, &Material::emission_texture_id}>(
 	    scene, [&](uint32_t material_id) -> Material & { return materials[material_id]; });
 	return materials;
 }

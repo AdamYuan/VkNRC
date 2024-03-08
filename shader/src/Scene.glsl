@@ -14,6 +14,8 @@ struct Material {
 	uint diffuse_texture_id;
 	vec3 specular;
 	uint specular_texture_id;
+	vec3 emission;
+	uint emission_texture_id;
 	float metallic, roughness, ior;
 };
 
@@ -63,6 +65,9 @@ vec3 GetSceneDiffuse(in const Material mat, in const vec2 texcoord) {
 }
 vec3 GetSceneSpecular(in const Material mat, in const vec2 texcoord) {
 	return mat.specular_texture_id == -1 ? mat.specular : texture(uTextures[mat.specular_texture_id], texcoord).rgb;
+}
+vec3 GetSceneEmission(in const Material mat, in const vec2 texcoord) {
+	return mat.emission_texture_id == -1 ? mat.emission : texture(uTextures[mat.emission_texture_id], texcoord).rgb;
 }
 #endif
 

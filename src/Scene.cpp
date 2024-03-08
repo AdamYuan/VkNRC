@@ -55,6 +55,9 @@ bool Scene::obj_load(const std::filesystem::path &filename, auto &&make_instance
 		    .specular = {material.specular[0], material.specular[1], material.specular[2]},
 		    .specular_texture = material.specular_texname.empty() ? std::filesystem::path{}
 		                                                          : filename.parent_path() / material.specular_texname,
+		    .emission = {material.emission[0], material.emission[1], material.emission[2]},
+		    .emission_texture = material.emissive_texname.empty() ? std::filesystem::path{}
+		                                                          : filename.parent_path() / material.emissive_texname,
 		    .metallic = material.metallic,
 		    .roughness = material.roughness,
 		    .ior = material.ior,

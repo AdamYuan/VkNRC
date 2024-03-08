@@ -1,8 +1,9 @@
 #version 460
 #extension GL_EXT_control_flow_attributes : enable
-#extension GL_EXT_ray_tracing : require
-#extension GL_EXT_ray_query : require
-#extension GL_KHR_shader_subgroup_basic : require
+#extension GL_EXT_ray_tracing : enable
+#extension GL_EXT_ray_query : enable
+#extension GL_KHR_shader_subgroup_ballot : enable
+#extension GL_KHR_shader_subgroup_basic : enable
 #extension GL_KHR_shader_subgroup_vote : enable
 #extension GL_KHR_memory_scope_semantics : enable
 layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
@@ -47,6 +48,9 @@ struct Hit {
 	vec2 texcoord;
 	vec2 barycentric;
 	Material material;
+	vec3 diffuse;
+	vec3 specular;
+	vec3 emission;
 	bool flip_normal;
 };
 
@@ -76,6 +80,10 @@ Hit GetVBufferHit(in const uint primitive_id, in const uint instance_id, in cons
 	hit.position = mat3(vertex_0, vertex_1, vertex_2) * barycentric;
 	hit.texcoord = mat3x2(texcoord_0, texcoord_1, texcoord_2) * barycentric;
 	hit.material = GetSceneMaterial(primitive_id);
+	hit.diffuse = GetSceneDiffuse(hit.material, hit.texcoord);
+	hit.emission = GetSceneEmission(hit.material, hit.texcoord);
+	hit.specular = GetSceneSpecular(hit.material, hit.texcoord);
+
 	return hit;
 }
 
@@ -105,16 +113,16 @@ Hit GetRayQueryHit(in const rayQueryEXT ray_query, in const Ray ray) {
 	hit.position = mat3(vertex_0, vertex_1, vertex_2) * barycentric;
 	hit.texcoord = mat3x2(texcoord_0, texcoord_1, texcoord_2) * barycentric;
 	hit.material = GetSceneMaterial(primitive_id);
+	hit.diffuse = GetSceneDiffuse(hit.material, hit.texcoord);
+	hit.specular = GetSceneSpecular(hit.material, hit.texcoord);
+	hit.emission = GetSceneEmission(hit.material, hit.texcoord);
 	return hit;
 }
 
-vec3 GetHitDiffuse(in const Hit hit) { return GetSceneDiffuse(hit.material, hit.texcoord); }
-vec3 GetHitSpecular(in const Hit hit) { return GetSceneSpecular(hit.material, hit.texcoord); }
-
 CookTorranceBRDFArgs GetHitBRDFArgs(in const Hit hit) {
 	CookTorranceBRDFArgs args;
-	args.diffuse = GetHitDiffuse(hit);
-	args.specular = GetHitSpecular(hit);
+	args.diffuse = hit.diffuse;
+	args.specular = hit.specular;
 	args.roughness = max(hit.material.roughness, 0.001);
 	args.ior = max(hit.material.ior, 1.5);
 	return args;
@@ -122,7 +130,7 @@ CookTorranceBRDFArgs GetHitBRDFArgs(in const Hit hit) {
 
 const vec3 kConstLight = vec3(10, 10, 10);
 
-bool IsValidRGB(in const vec3 rgb) { return !any(isnan(rgb)) && !any(isinf(rgb)) && !any(lessThan(rgb, vec3(0))); }
+vec3 NormalizeRGB(in const vec3 rgb) { return !any(isnan(rgb)) && !any(isinf(rgb)) ? max(rgb, vec3(0)) : vec3(0); }
 
 struct BRDFStepInfo {
 	vec3 color;
@@ -146,8 +154,7 @@ PackedNRCInput MakeNRCInput(in const Hit hit, in const vec3 d) {
 	return i;
 }
 
-bool PathTraceBRDFStep(in const Hit hit, in const Ray ray, inout BRDFStepInfo o_info) {
-	BRDFStepInfo info;
+BRDFStepInfo BRDFStep(in const Hit hit, in const Ray ray) {
 	CookTorranceBRDFArgs brdf_args = GetHitBRDFArgs(hit);
 	vec3 dir;
 	float pdf;
@@ -156,19 +163,17 @@ bool PathTraceBRDFStep(in const Hit hit, in const Ray ray, inout BRDFStepInfo o_
 		dir = sample_dir_pdf.xyz;
 		pdf = sample_dir_pdf.w;
 	}
-	if (pdf == 0)
-		return false;
+	pdf = max(pdf, 1e-6);
 	vec3 brdf = CookTorranceBRDF(brdf_args, dir, -ray.d, hit.normal); // sample_dir is incidence dir
 	float cosine = abs(dot(hit.normal, dir));
-	vec3 color = brdf * cosine / pdf;
-	if (!IsValidRGB(color))
-		return false;
-	o_info.color = color;
-	o_info.ray = Ray(hit.position, dir);
-	o_info.cosine = cosine;
-	o_info.pdf = pdf;
-	o_info.dist2 = _distance_2(ray.o, hit.position);
-	return true;
+	vec3 color = NormalizeRGB(brdf * cosine / pdf);
+	BRDFStepInfo info;
+	info.color = color;
+	info.ray = Ray(hit.position, dir);
+	info.cosine = cosine;
+	info.pdf = pdf;
+	info.dist2 = _distance_2(ray.o, hit.position);
+	return info;
 }
 
 struct PathTraceResult {
@@ -181,10 +186,8 @@ struct PathTraceResult {
 PathTraceResult PathTrace(Hit hit, Ray ray) {
 	vec3 radiance = vec3(0), accumulate = vec3(1);
 
-	BRDFStepInfo info;
-
-	if (!PathTraceBRDFStep(hit, ray, info))
-		return PathTraceResult(radiance, accumulate);
+	BRDFStepInfo info = BRDFStep(hit, ray);
+	radiance += accumulate * hit.emission;
 	accumulate *= info.color;
 	ray = info.ray;
 
@@ -198,8 +201,8 @@ PathTraceResult PathTrace(Hit hit, Ray ray) {
 
 		if (rayQueryGetIntersectionTypeEXT(ray_query, true) == gl_RayQueryCommittedIntersectionTriangleEXT) {
 			hit = GetRayQueryHit(ray_query, ray);
-			if (!PathTraceBRDFStep(hit, ray, info))
-				return PathTraceResult(radiance, accumulate);
+			info = BRDFStep(hit, ray);
+			radiance += accumulate * hit.emission;
 			accumulate *= info.color;
 			ray = info.ray;
 			sqrt_a_sum += sqrt(info.dist2 / (info.pdf * info.cosine));
@@ -231,10 +234,8 @@ PathTraceResult ExtendedPathTrace(Hit hit, Ray ray) {
 
 	vec3 accumulate = vec3(1), radiance = vec3(0);
 
-	BRDFStepInfo info;
-
-	if (!PathTraceBRDFStep(hit, ray, info))
-		return PathTraceResult(radiance, accumulate);
+	BRDFStepInfo info = BRDFStep(hit, ray);
+	radiance += accumulate * hit.emission;
 	accumulate *= info.color;
 	ray = info.ray;
 
@@ -251,11 +252,11 @@ PathTraceResult ExtendedPathTrace(Hit hit, Ray ray) {
 
 		if (rayQueryGetIntersectionTypeEXT(ray_query, true) == gl_RayQueryCommittedIntersectionTriangleEXT) {
 			hit = GetRayQueryHit(ray_query, ray);
-			if (!PathTraceBRDFStep(hit, ray, info))
-				return PathTraceResult(radiance, accumulate);
+			info = BRDFStep(hit, ray);
 			accumulate *= info.color;
 			ray = info.ray;
 			sqrt_a_sum += sqrt(info.dist2 / (info.pdf * info.cosine));
+			lights[bounce - 1] = hit.emission;
 			colors[bounce - 1] = info.color;
 			inputs[bounce] = MakeNRCInput(hit, ray.d);
 		} else {
@@ -284,10 +285,10 @@ PathTraceResult ExtendedPathTrace(Hit hit, Ray ray) {
 
 		if (rayQueryGetIntersectionTypeEXT(ray_query, true) == gl_RayQueryCommittedIntersectionTriangleEXT) {
 			hit = GetRayQueryHit(ray_query, ray);
-			if (!PathTraceBRDFStep(hit, ray, info))
-				return result;
+			info = BRDFStep(hit, ray);
 			ray = info.ray;
 			sqrt_a_sum += sqrt(info.dist2 / (info.pdf * info.cosine));
+			lights[bounce - 1] = hit.emission;
 			colors[bounce - 1] = info.color;
 			inputs[bounce] = MakeNRCInput(hit, ray.d);
 		} else {
@@ -295,10 +296,6 @@ PathTraceResult ExtendedPathTrace(Hit hit, Ray ray) {
 			break;
 		}
 	}
-
-	/* if (lights[bounce - 1] == vec3(0)) {
-	    return result;
-	} */
 
 	for (uint i = bounce - 2u; i != -1u; --i) {
 		lights[i] += colors[i] * lights[i + 1];
@@ -335,20 +332,20 @@ PathTraceResult ExtendedPathTrace(Hit hit, Ray ray) {
 	return result;
 }
 
-shared bool sTrain;
 void main() {
 	uvec2 coord = gl_GlobalInvocationID.xy;
 
 	// Seed on 256 x 256 Tile
 	uint seed = (((coord.y & 0xFF) << 8) | (coord.x & 0xFF)) + uSeed;
 	RNGSetState(seed);
-	if (gl_LocalInvocationID.x == 0)
-		sTrain = RNGNext() <= 0.03;
-	barrier();
 
 	if (any(greaterThanEqual(coord, uExtent)))
 		return;
-	bool train = sTrain;
+
+	bool train;
+	if (subgroupElect())
+		train = RNGNext() <= 0.03;
+	train = subgroupBroadcastFirst(train);
 
 	uvec2 primitive_id_instance_id = texelFetch(uPrimitiveID_InstanceID, ivec2(coord), 0).rg;
 	uint primitive_id = primitive_id_instance_id.x, instance_id = primitive_id_instance_id.y;
@@ -370,8 +367,8 @@ void main() {
 			result = PathTrace(hit, ray);
 	}
 
-	result.bias = IsValidRGB(result.bias) ? result.bias : vec3(0);
-	result.factor = IsValidRGB(result.factor) ? result.factor : vec3(0);
+	result.bias = NormalizeRGB(result.bias);
+	result.factor = NormalizeRGB(result.factor);
 	imageStore(uBias_FactorR, ivec2(coord), vec4(result.bias, result.factor.r));
 	imageStore(uFactorGB, ivec2(coord), vec4(result.factor.gb, 0, 0));
 }
