@@ -160,10 +160,11 @@ vec3 NNOutput3(in const fcoopmatNV<16, gl_ScopeSubgroup, 16, 16> act_coopmats[SU
 // http://cs231n.stanford.edu/slides/2018/cs231n_2018_ds02.pdf
 void NNLoadDA3_L2Loss(in const vec3 predict,
                       in const vec3 target,
+                      in const float loss_scale,
                       inout fcoopmatNV<16, gl_ScopeSubgroup, 16, 16> da_coopmats_t[SUBGROUP_ACT_COOPMAT_Y]) {
-	vec3 d_l2 = predict - target;
+	vec3 d_l2 = (predict - target) * loss_scale;
 	SHARED_BUFFER[gl_LocalInvocationID.x * UV4_X] = uvec4(packHalf2x16(d_l2.xy), packHalf2x16(vec2(d_l2.z, 0)), 0u, 0u);
-	[[unroll]] for (uint i = 1; i < 16 / FP16_PER_UV4; ++i)
+	[[unroll]] for (uint i = 1; i < UV4_X; ++i)
 		SHARED_BUFFER[gl_LocalInvocationID.x * UV4_X + i] = uvec4(0u);
 	barrier();
 	[[unroll]] for (uint y = 0; y < SUBGROUP_ACT_COOPMAT_Y; ++y) {
@@ -176,9 +177,10 @@ void NNLoadDA3_L2Loss(in const vec3 predict,
 void NNLoadDA3_RelativeL2LuminanceLoss(
     in const vec3 predict,
     in const vec3 target,
+    in const float loss_scale,
     inout fcoopmatNV<16, gl_ScopeSubgroup, 16, 16> da_coopmats_t[SUBGROUP_ACT_COOPMAT_Y]) {
-	float predict_luminance = dot(vec3(0.299, 0.587, 0.114), predict);
-	vec3 d_loss = 2.0 * (predict - target) / (predict_luminance * predict_luminance + 0.01);
+	float predict_luminance = dot(vec3(0.299, 0.587, 0.114), max(predict, vec3(0)));
+	vec3 d_loss = 2.0 * loss_scale * (predict - target) / (predict_luminance * predict_luminance + 0.01);
 	SHARED_BUFFER[gl_LocalInvocationID.x * UV4_X] =
 	    uvec4(packHalf2x16(d_loss.xy), packHalf2x16(vec2(d_loss.z, 0)), 0u, 0u);
 	[[unroll]] for (uint i = 1; i < 16 / FP16_PER_UV4; ++i)
@@ -210,7 +212,7 @@ void NNBackwardDA3_ReLU(
 			dst_da_coopmats_t[x][y] = coopMatMulAddNV(src_da_coopmats_t[y], weight_coopmat, dst_da_coopmats_t[x][y]);
 			// Inv ReLU
 			for (uint k = 0; k < dst_da_coopmats_t[x][y].length(); ++k)
-				dst_da_coopmats_t[x][y][k] = dst_da_coopmats_t[x][y][k] >= 0.0 ? float16_t(1.0) : float16_t(0.0);
+				dst_da_coopmats_t[x][y][k] = dst_da_coopmats_t[x][y][k] > 0.0 ? float16_t(1.0) : float16_t(0.0);
 		}
 	}
 	barrier();
@@ -245,7 +247,7 @@ void NNBackwardDA64_ReLU(
 	[[unroll]] for (uint x = 0; x < COOPMAT_X; ++x) {
 		[[unroll]] for (uint y = 0; y < SUBGROUP_ACT_COOPMAT_Y; ++y) {
 			for (uint k = 0; k < dst_da_coopmats_t[x][y].length(); ++k)
-				dst_da_coopmats_t[x][y][k] = dst_da_coopmats_t[x][y][k] >= 0.0 ? float16_t(1.0) : float16_t(0.0);
+				dst_da_coopmats_t[x][y][k] = dst_da_coopmats_t[x][y][k] > 0.0 ? float16_t(1.0) : float16_t(0.0);
 		}
 	}
 }

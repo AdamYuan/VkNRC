@@ -1,0 +1,80 @@
+#version 460
+
+#define NN_BACKPROPAGATION
+#define WEIGHTS_BINDING 0
+#define DWEIGHTS_BINDING 1
+#define WORKGROUP_SIZE 128
+#include "../NN_nv.glsl"
+
+layout(local_size_x = 128, local_size_y = 1, local_size_z = 1) in;
+
+layout(binding = 2) uniform sampler2D uImage;
+
+layout(push_constant) uniform uuPushConstant { uvec2 uSeed; };
+
+uvec2 pcg2d(uvec2 v) {
+	v = v * 1664525u + 1013904223u;
+	v.x += v.y * 1664525u;
+	v.y += v.x * 1664525u;
+	v = v ^ (v >> 16u);
+	v.x += v.y * 1664525u;
+	v.y += v.x * 1664525u;
+	v = v ^ (v >> 16u);
+	return v;
+}
+
+float quartic_cdf(in const float x, in const float inv_radius) {
+	float u = x * inv_radius;
+	float u2 = u * u;
+	float u4 = u2 * u2;
+	return clamp((15.0 / 16.0) * u * (1 - (2.0 / 3.0) * u2 + (1.0 / 5.0) * u4) + 0.5, 0, 1);
+}
+
+void oneblob_32(in const float x, inout float o[32]) {
+	// Quartic Function
+	[[unroll]] for (uint i = 0; i < 32; ++i) {
+		float l = i / 32.0, r = (i + 1) / 32.0;
+		o[i] = quartic_cdf(r - x, 32) - quartic_cdf(l - x, 4);
+	}
+}
+
+void pack_half_32(in const float f[32], in const uint o, inout uvec4 h[8]) {
+	[[unroll]] for (uint i = 0; i < 16; ++i)
+		h[o + (i >> 2u)][i & 3u] = packHalf2x16(vec2(f[i << 1u], f[i << 1u | 1u]));
+}
+
+void main() {
+	vec2 uv = (1.0 / float(0xffffffffu)) *
+	          vec2(pcg2d(uvec2(uSeed.x + gl_GlobalInvocationID.x % 128, uSeed.y + gl_GlobalInvocationID.x / 128)));
+	vec3 target = texture(uImage, uv).rgb;
+
+	float ob_u[32], ob_v[32];
+	oneblob_32(uv.x, ob_u);
+	oneblob_32(uv.y, ob_v);
+	uvec4 inputs[8];
+	pack_half_32(ob_u, 0, inputs);
+	pack_half_32(ob_v, 4, inputs);
+
+	fcoopmatNV<16, gl_ScopeSubgroup, 16, 16> act_coopmats[6][COOPMAT_X][SUBGROUP_ACT_COOPMAT_Y],
+	    out_coopmats[SUBGROUP_ACT_COOPMAT_Y];
+	NNLoadInput(inputs, act_coopmats[0]);
+	NNForward64_ReLU(0, act_coopmats[0], act_coopmats[1]);
+	NNForward64_ReLU(1, act_coopmats[1], act_coopmats[2]);
+	NNForward64_ReLU(2, act_coopmats[2], act_coopmats[3]);
+	NNForward64_ReLU(3, act_coopmats[3], act_coopmats[4]);
+	NNForward64_ReLU(4, act_coopmats[4], act_coopmats[5]);
+	NNForward3(5, act_coopmats[5], out_coopmats);
+	vec3 predict = NNOutput3(out_coopmats);
+	NNLoadDA3_L2Loss(predict, target, 1.0, out_coopmats);
+	NNUpdateDW3(5, out_coopmats, act_coopmats[5]);
+	NNBackwardDA3_ReLU(5, out_coopmats, act_coopmats[5]);
+	NNUpdateDW64(4, act_coopmats[5], act_coopmats[4]);
+	NNBackwardDA64_ReLU(4, act_coopmats[5], act_coopmats[4]);
+	NNUpdateDW64(3, act_coopmats[4], act_coopmats[3]);
+	NNBackwardDA64_ReLU(3, act_coopmats[4], act_coopmats[3]);
+	NNUpdateDW64(2, act_coopmats[3], act_coopmats[2]);
+	NNBackwardDA64_ReLU(2, act_coopmats[3], act_coopmats[2]);
+	NNUpdateDW64(1, act_coopmats[2], act_coopmats[1]);
+	NNBackwardDA64_ReLU(1, act_coopmats[2], act_coopmats[1]);
+	NNUpdateDW64(0, act_coopmats[1], act_coopmats[0]);
+}

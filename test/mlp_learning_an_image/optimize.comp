@@ -1,0 +1,46 @@
+#version 450
+#extension GL_EXT_shader_explicit_arithmetic_types_float16 : enable
+layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
+
+struct AdamInfo {
+	float m, v;
+	uint t;
+};
+
+#define LEARNING_RATE 0.001
+#define BETA1 0.9
+#define BETA2 0.99
+#define EPSILON 1e-8
+
+layout(std430, binding = 0) writeonly buffer uuWeights { float16_t uWeights[]; };
+layout(std430, binding = 1) buffer uuFPWeights { float uFPWeights[]; };
+layout(std430, binding = 2) readonly buffer uuGradients { float uGradients[]; };
+// layout(std430, binding = 3) buffer uuAdamMVT { AdamInfo uAdamMVT[]; };
+// layout(binding = 4) uniform uuBatchTrainCount { uint uBatchTrainCount; };
+
+void main() {
+	float gradient = uGradients[gl_GlobalInvocationID.x] / 16384.0 / 1.0;
+	if (isnan(gradient) || isinf(gradient))
+		return;
+
+	float weight = uFPWeights[gl_GlobalInvocationID.x];
+	weight -= 0.01 * gradient;
+	uFPWeights[gl_GlobalInvocationID.x] = weight;
+	uWeights[gl_GlobalInvocationID.x] = float16_t(weight);
+
+	/* AdamInfo info = uAdamMVT[gl_GlobalInvocationID.x];
+	float moment1 = info.m, moment2 = info.v;
+	uint step = info.t + 1;
+
+	moment1 = BETA1 * moment1 + (1.0 - BETA1) * gradient;
+	moment2 = BETA2 * moment2 + (1.0 - BETA2) * gradient * gradient;
+	float h_moment1 = moment1 / (1.0 - pow(BETA1, step));
+	float h_moment2 = moment2 / (1.0 - pow(BETA2, step));
+
+	float weight = uFPWeights[gl_GlobalInvocationID.x];
+	weight -= LEARNING_RATE * h_moment1 / (sqrt(h_moment2) + EPSILON);
+	// weight -= 0.01 * gradient;
+	uAdamMVT[gl_GlobalInvocationID.x] = AdamInfo(moment1, moment2, step);
+	uFPWeights[gl_GlobalInvocationID.x] = weight;
+	uWeights[gl_GlobalInvocationID.x] = float16_t(weight); */
+}

@@ -1,0 +1,54 @@
+#version 450
+layout(local_size_x = 128, local_size_y = 1, local_size_z = 1) in;
+
+#define WINDOW_SIZE 640
+
+#define WEIGHTS_BINDING 0
+#define WORKGROUP_SIZE 128
+#include "../NN_nv.glsl"
+
+layout(binding = 1, rgba8) writeonly uniform image2D uOutput;
+
+float quartic_cdf(in const float x, in const float inv_radius) {
+	float u = x * inv_radius;
+	float u2 = u * u;
+	float u4 = u2 * u2;
+	return clamp((15.0 / 16.0) * u * (1 - (2.0 / 3.0) * u2 + (1.0 / 5.0) * u4) + 0.5, 0, 1);
+}
+
+void oneblob_32(in const float x, inout float o[32]) {
+	// Quartic Function
+	[[unroll]] for (uint i = 0; i < 32; ++i) {
+		float l = i / 32.0, r = (i + 1) / 32.0;
+		o[i] = quartic_cdf(r - x, 32) - quartic_cdf(l - x, 4);
+	}
+}
+
+void pack_half_32(in const float f[32], in const uint o, inout uvec4 h[8]) {
+	[[unroll]] for (uint i = 0; i < 16; ++i)
+		h[o + (i >> 2u)][i & 3u] = packHalf2x16(vec2(f[i << 1u], f[i << 1u | 1u]));
+}
+
+void main() {
+	ivec2 coord = ivec2(gl_GlobalInvocationID.x % WINDOW_SIZE, gl_GlobalInvocationID / WINDOW_SIZE);
+	vec2 uv = (vec2(coord) + 0.5) / float(WINDOW_SIZE);
+
+	float ob_u[32], ob_v[32];
+	oneblob_32(uv.x, ob_u);
+	oneblob_32(uv.y, ob_v);
+	uvec4 inputs[8];
+	pack_half_32(ob_u, 0, inputs);
+	pack_half_32(ob_v, 4, inputs);
+
+	fcoopmatNV<16, gl_ScopeSubgroup, 16, 16> act_coopmats[2][COOPMAT_X][SUBGROUP_ACT_COOPMAT_Y];
+	NNLoadInput(inputs, act_coopmats[0]);
+	NNForward64_ReLU(0, act_coopmats[0], act_coopmats[1]);
+	NNForward64_ReLU(1, act_coopmats[1], act_coopmats[0]);
+	NNForward64_ReLU(2, act_coopmats[0], act_coopmats[1]);
+	NNForward64_ReLU(3, act_coopmats[1], act_coopmats[0]);
+	NNForward64_ReLU(4, act_coopmats[0], act_coopmats[1]);
+	NNForward3(5, act_coopmats[1], act_coopmats[0][0]);
+	vec3 predict = NNOutput3(act_coopmats[0][0]);
+
+	imageStore(uOutput, coord, vec4(predict, 1.0));
+}
