@@ -11,7 +11,7 @@ struct AdamInfo {
 
 #define LEARNING_RATE 0.001
 #define BETA1 0.9
-#define BETA2 0.99
+#define BETA2 0.999
 #define EPSILON 1e-8
 
 layout(std430, binding = 0) writeonly buffer uuWeights { float16_t uWeights[]; };
@@ -24,7 +24,7 @@ void main() {
 	uint count = (min(uBatchTrainCount, NRC_TRAIN_BATCH_SIZE) / 128) * 128;
 	float gradient = uGradients[gl_GlobalInvocationID.x] / float(count) / LOSS_SCALE;
 	if (isnan(gradient) || isinf(gradient))
-		return;
+		gradient = 0.0;
 
 	AdamInfo info = uAdamMVT[gl_GlobalInvocationID.x];
 	float moment1 = info.m, moment2 = info.v;

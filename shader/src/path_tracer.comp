@@ -297,36 +297,36 @@ PathTraceResult ExtendedPathTrace(Hit hit, Ray ray) {
 		}
 	}
 
-	for (uint i = bounce - 2u; i != -1u; --i) {
-		lights[i] += colors[i] * lights[i + 1];
-		colors[i] *= colors[i + 1];
-	}
-
 	uint batch = clamp(uint(RNGNext() * NRC_TRAIN_BATCH_COUNT), 0u, NRC_TRAIN_BATCH_COUNT - 1);
 	uint train_id = atomicAdd(uBatchTrainCounts[batch].count, bounce, gl_ScopeQueueFamily, gl_StorageSemanticsBuffer,
 	                          gl_SemanticsRelaxed);
-	if (train_id >= NRC_TRAIN_BATCH_SIZE)
-		return result;
-	uint train_count = min(bounce, NRC_TRAIN_BATCH_SIZE - train_id);
-	for (uint i = 0; i < train_count; ++i) {
-		NRCTrainRecord train_record;
-		train_record.bias_r = lights[i].r;
-		train_record.bias_g = lights[i].g;
-		train_record.bias_b = lights[i].b;
-		train_record.factor_r = colors[i].r;
-		train_record.factor_g = colors[i].g;
-		train_record.factor_b = colors[i].b;
-		train_record.packed_input = inputs[i];
-		uBatchTrainRecords[batch].records[train_id + i] = train_record;
-	}
+	if (train_id < NRC_TRAIN_BATCH_SIZE) {
+		for (uint i = bounce - 2u; i != -1u; --i) {
+			lights[i] += colors[i] * lights[i + 1];
+			colors[i] *= colors[i + 1];
+		}
+		uint train_count = min(bounce, NRC_TRAIN_BATCH_SIZE - train_id);
+		for (uint i = 0; i < train_count; ++i) {
+			NRCTrainRecord train_record;
+			train_record.bias_r = lights[i].r;
+			train_record.bias_g = lights[i].g;
+			train_record.bias_b = lights[i].b;
+			train_record.factor_r = colors[i].r;
+			train_record.factor_g = colors[i].g;
+			train_record.factor_b = colors[i].b;
+			train_record.packed_input = inputs[i];
+			uBatchTrainRecords[batch].records[train_id + i] = train_record;
+		}
 
-	if (lights[bounce - 1] == vec3(0)) {
-		uint eval_id = atomicAdd(uEvalCount, 1u, gl_ScopeQueueFamily, gl_StorageSemanticsBuffer, gl_SemanticsRelaxed);
-		NRCEvalRecord eval_record;
-		eval_record.screen_x16_y16 = -1;
-		eval_record.train_l14_r14_b4 = train_id | ((train_id + train_count - 1) << 14u) | (batch << 28u);
-		eval_record.packed_input = inputs[bounce - 1];
-		uEvalRecords[eval_id] = eval_record;
+		if (lights[bounce - 1] == vec3(0)) {
+			uint eval_id =
+			    atomicAdd(uEvalCount, 1u, gl_ScopeQueueFamily, gl_StorageSemanticsBuffer, gl_SemanticsRelaxed);
+			NRCEvalRecord eval_record;
+			eval_record.screen_x16_y16 = -1;
+			eval_record.train_l14_r14_b4 = train_id | ((train_id + train_count - 1) << 14u) | (batch << 28u);
+			eval_record.packed_input = inputs[bounce - 1];
+			uEvalRecords[eval_id] = eval_record;
+		}
 	}
 
 	return result;
