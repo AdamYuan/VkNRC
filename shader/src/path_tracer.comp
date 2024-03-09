@@ -186,6 +186,22 @@ BRDFStepInfo BRDFStep(in const Hit hit, in const Ray ray) {
 	return info;
 }
 
+BRDFStepInfo BRDFQuery(in const Hit hit, in const Ray ray, in const vec3 dir) {
+	CookTorranceBRDFArgs brdf_args = GetHitBRDFArgs(hit);
+	float pdf = CookTorrancePDF(brdf_args, dir, -ray.d, hit.normal);
+	pdf = max(pdf, 1e-6);
+	vec3 brdf = CookTorranceBRDF(brdf_args, dir, -ray.d, hit.normal);
+	float cosine = abs(dot(hit.normal, dir));
+	vec3 color = NormalizeRGB(brdf * cosine / pdf);
+	BRDFStepInfo info;
+	info.color = color;
+	info.ray = Ray(hit.position, dir);
+	info.cosine = cosine;
+	info.pdf = pdf;
+	info.dist2 = _distance_2(ray.o, hit.position);
+	return info;
+}
+
 struct PathTraceResult {
 	vec3 bias, factor;
 };
@@ -283,7 +299,6 @@ PathTraceResult ExtendedPathTrace(Hit hit, Ray ray, in const uint method) {
 		}
 	}
 
-	PathTraceResult result = PathTraceResult(radiance, accumulate);
 	if (lights[bounce - 1] == vec3(0)) {
 		uint eval_id = atomicAdd(uEvalCount, 1u, gl_ScopeQueueFamily, gl_StorageSemanticsBuffer, gl_SemanticsRelaxed);
 		NRCEvalRecord eval_record;
@@ -292,6 +307,8 @@ PathTraceResult ExtendedPathTrace(Hit hit, Ray ray, in const uint method) {
 		eval_record.packed_input = inputs[bounce - 1];
 		uEvalRecords[eval_id] = eval_record;
 	}
+
+	PathTraceResult result = PathTraceResult(radiance, accumulate);
 
 	sqrt_a_sum = 0;
 	for (; bounce < MAX_BOUNCE && sqrt_a_sum * sqrt_a_sum <= c_a0; ++bounce) {

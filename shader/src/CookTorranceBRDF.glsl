@@ -47,10 +47,10 @@ float Schlick_Fresnel(in const float v_dot_h, in const float ior) {
 vec3 CookTorranceBRDF(in const CookTorranceBRDFArgs args, in const vec3 l, in const vec3 v, in const vec3 n) {
 	vec3 h = normalize(l + v);
 
-	float n_dot_h = max(dot(n, h), 0.0);
-	float v_dot_h = max(dot(v, h), 0.0), l_dot_h = v_dot_h;
-	float n_dot_l = max(dot(n, l), 0.0);
-	float n_dot_v = max(dot(n, v), 0.0);
+	float n_dot_h = max(dot(n, h), 1e-6);
+	float v_dot_h = max(dot(v, h), 1e-6), l_dot_h = v_dot_h;
+	float n_dot_l = clamp(dot(n, l), 1e-6, 1.0 - 1e-6);
+	float n_dot_v = clamp(dot(n, v), 1e-6, 1.0 - 1e-6);
 
 	float a = args.roughness, a2 = a * a;
 
