@@ -33,7 +33,7 @@ private:
 	Method m_left_method{kNRC}, m_right_method{kNRC};
 	bool m_accumulate{false};
 	uint32_t m_accumulate_count{0};
-	bool m_use_use_weights{false};
+	bool m_use_ema_weights{false};
 
 	void initialize_weights(std::span<float, kNNWeighCount> weights);
 	void create_result_image();
@@ -56,7 +56,7 @@ public:
 	inline Method GetRightMethod() const { return m_right_method; }
 	inline bool IsAccumulate() const { return m_accumulate; }
 	inline uint32_t GetAccumulateCount() const { return m_accumulate_count; }
-	inline bool IsUseEMAWeights() const { return m_use_use_weights; }
+	inline bool IsUseEMAWeights() const { return m_use_ema_weights; }
 
 	inline void SetLeftMethod(Method method) {
 		if (method != m_left_method) {
@@ -76,7 +76,7 @@ public:
 			m_accumulate_count = 0;
 	}
 	inline void ResetAccumulate() { m_accumulate_count = 0; }
-	inline void SetUseEMAWeights(bool use_ema_weights) { m_use_use_weights = use_ema_weights; }
+	inline void SetUseEMAWeights(bool use_ema_weights) { m_use_ema_weights = use_ema_weights; }
 
 	inline uint32_t GetSeed() const { return m_seed; }
 
