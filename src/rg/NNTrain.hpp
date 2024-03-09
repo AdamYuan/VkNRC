@@ -8,7 +8,6 @@
 
 #include "../VkNRCState.hpp"
 #include "../VkScene.hpp"
-#include "NNTrainDispatch.hpp"
 #include "SceneResources.hpp"
 #include <myvk_rg/RenderGraph.hpp>
 #include <myvk_rg/pass/BufferFillPass.hpp>
@@ -18,23 +17,50 @@ namespace rg {
 class NNTrain final : public myvk_rg::PassGroupBase {
 public:
 	struct Args {
-		const myvk_rg::Buffer &weights, &fp_weights, &adam_tmv;
+		const myvk_rg::Buffer &weights, &fp_weights, &adam_state, &adam_entries;
 
 		const myvk::Ptr<VkScene> &scene_ptr;
 		const SceneResources &scene_resources;
-		const myvk::Ptr<VkNRCState> &nrc_state_ptr;
 		const myvk_rg::Buffer &batch_train_count, &batch_train_records;
 	};
 
 private:
+	class NNPreparePass final : public myvk_rg::ComputePassBase {
+	public:
+		struct Args {
+			const myvk_rg::Buffer &count, &adam_state;
+		};
+
+	private:
+		myvk::Ptr<myvk::ComputePipeline> m_pipeline;
+		struct VkDispatchIndirectCommand {
+			uint32_t x, y, z;
+		};
+
+	public:
+		NNPreparePass(myvk_rg::Parent parent, const Args &args);
+		void CreatePipeline() final;
+		void CmdExecute(const myvk::Ptr<myvk::CommandBuffer> &command_buffer) const final;
+		auto GetIndirectCmdOutput() const { return MakeBufferOutput({"indirect_cmd"}); }
+		auto GetCountOutput() const { return MakeBufferOutput({"count"}); }
+		auto GetAdamStateOutput() const { return MakeBufferOutput({"adam_state"}); }
+		inline ~NNPreparePass() final = default;
+	};
+
 	class NNGradient final : public myvk_rg::ComputePassBase {
+	public:
+		struct Args {
+			const myvk::Ptr<VkScene> &scene_ptr;
+			const SceneResources &scene_resources;
+			const myvk_rg::Buffer &cmd, &gradients, &count, &records, &weights;
+		};
+
 	private:
 		myvk::Ptr<myvk::ComputePipeline> m_pipeline;
 		myvk::Ptr<VkScene> m_scene_ptr;
 
 	public:
-		NNGradient(myvk_rg::Parent parent, const myvk_rg::Buffer &cmd, const myvk_rg::Buffer &gradients,
-		           const Args &args);
+		NNGradient(myvk_rg::Parent parent, const Args &args);
 		inline ~NNGradient() final = default;
 		void CreatePipeline() final;
 		void CmdExecute(const myvk::Ptr<myvk::CommandBuffer> &command_buffer) const final;
@@ -42,18 +68,22 @@ private:
 	};
 
 	class NNAdam final : public myvk_rg::ComputePassBase {
+	public:
+		struct Args {
+			const myvk_rg::Buffer &gradients, &count, &weights, &fp_weights, &adam_state, &adam_entries;
+		};
+
 	private:
 		myvk::Ptr<myvk::ComputePipeline> m_pipeline;
-		myvk::Ptr<VkNRCState> m_nrc_state_ptr;
 
 	public:
-		NNAdam(myvk_rg::Parent parent, const myvk_rg::Buffer &gradients, const Args &args);
+		NNAdam(myvk_rg::Parent parent, const Args &args);
 		inline ~NNAdam() final = default;
 		void CreatePipeline() final;
 		void CmdExecute(const myvk::Ptr<myvk::CommandBuffer> &command_buffer) const final;
 		inline auto GetWeightOutput() const { return MakeBufferOutput({"weights"}); }
 		inline auto GetFPWeightOutput() const { return MakeBufferOutput({"fp_weights"}); }
-		inline auto GetAdamMVOutput() const { return MakeBufferOutput({"adam_tmv"}); }
+		inline auto GetAdamEntriesOutput() const { return MakeBufferOutput({"adam_entries"}); }
 	};
 
 public:
@@ -61,14 +91,28 @@ public:
 		auto gradients =
 		    CreateResource<myvk_rg::ManagedBuffer>({"gradients"}, VkNRCState::GetWeightCount() * sizeof(float));
 		auto clear_pass = CreatePass<myvk_rg::BufferFillPass>({"clear_pass"}, gradients->Alias(), 0);
-		auto gradient_pass = CreatePass<NNTrainDispatch<NNGradient>>({"gradient_pass"}, args.batch_train_count,
-		                                                             clear_pass->GetDstOutput(), args);
-		CreatePass<NNAdam>({"adam_pass"}, gradient_pass->Get()->GetGradientOutput(), args);
+		auto prepare_pass = CreatePass<NNPreparePass>(
+		    {"prepare_pass"}, NNPreparePass::Args{.count = args.batch_train_count, .adam_state = args.adam_state});
+		auto gradient_pass =
+		    CreatePass<NNGradient>({"gradient_pass"}, NNGradient::Args{.scene_ptr = args.scene_ptr,
+		                                                               .scene_resources = args.scene_resources,
+		                                                               .cmd = prepare_pass->GetIndirectCmdOutput(),
+		                                                               .gradients = clear_pass->GetDstOutput(),
+		                                                               .count = prepare_pass->GetCountOutput(),
+		                                                               .records = args.batch_train_records,
+		                                                               .weights = args.weights});
+		CreatePass<NNAdam>({"adam_pass"}, NNAdam::Args{.gradients = gradient_pass->GetGradientOutput(),
+		                                               .count = prepare_pass->GetCountOutput(),
+		                                               .weights = args.weights,
+		                                               .fp_weights = args.fp_weights,
+		                                               .adam_state = prepare_pass->GetAdamStateOutput(),
+		                                               .adam_entries = args.adam_entries});
 	}
 	inline ~NNTrain() final = default;
 	inline auto GetWeightOutput() const { return GetPass<NNAdam>({"adam_pass"})->GetWeightOutput(); }
 	inline auto GetFPWeightOutput() const { return GetPass<NNAdam>({"adam_pass"})->GetFPWeightOutput(); }
-	inline auto GetAdamMVOutput() const { return GetPass<NNAdam>({"adam_pass"})->GetAdamMVOutput(); }
+	inline auto GetAdamEntriesOutput() const { return GetPass<NNAdam>({"adam_pass"})->GetAdamEntriesOutput(); }
+	inline auto GetAdamStateOutput() const { return GetPass<NNPreparePass>({"prepare_pass"})->GetAdamStateOutput(); }
 };
 
 } // namespace rg

@@ -4,40 +4,33 @@ layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
 
 #include "Constant.glsl"
 
-struct AdamInfo {
-	float m, v;
-	uint t;
-};
-
 #define LEARNING_RATE 0.001
-#define BETA1 0.9
-#define BETA2 0.999
 #define EPSILON 1e-8
 
 layout(std430, binding = 0) writeonly buffer uuWeights { float16_t uWeights[]; };
 layout(std430, binding = 1) buffer uuFPWeights { float uFPWeights[]; };
 layout(std430, binding = 2) readonly buffer uuGradients { float uGradients[]; };
-layout(std430, binding = 3) buffer uuAdamMVT { AdamInfo uAdamMVT[]; };
+layout(std430, binding = 3) buffer uuAdamEntries { vec2 uAdamEntries[]; };
 layout(binding = 4) uniform uuBatchTrainCount { uint uBatchTrainCount; };
+layout(binding = 5) uniform uuAdamState {
+	uint uStep;
+	float uBeta1_T, uBeta2_T;
+};
 
 void main() {
-	uint count = (min(uBatchTrainCount, NRC_TRAIN_BATCH_SIZE) / 128) * 128;
-	float gradient = uGradients[gl_GlobalInvocationID.x] / float(count) / LOSS_SCALE;
+	float gradient = uGradients[gl_GlobalInvocationID.x] / float(uBatchTrainCount) / LOSS_SCALE;
 	if (isnan(gradient) || isinf(gradient))
 		gradient = 0.0;
 
-	AdamInfo info = uAdamMVT[gl_GlobalInvocationID.x];
-	float moment1 = info.m, moment2 = info.v;
-	uint step = info.t + 1;
+	vec2 moment = uAdamEntries[gl_GlobalInvocationID.x];
+	moment = vec2(ADAM_BETA1, ADAM_BETA2) * moment +
+	         (1.0 - vec2(ADAM_BETA1, ADAM_BETA2)) * vec2(gradient, gradient * gradient);
+	uAdamEntries[gl_GlobalInvocationID.x] = moment;
 
-	moment1 = BETA1 * moment1 + (1.0 - BETA1) * gradient;
-	moment2 = BETA2 * moment2 + (1.0 - BETA2) * gradient * gradient;
-	float h_moment1 = moment1 / (1.0 - pow(BETA1, step));
-	float h_moment2 = moment2 / (1.0 - pow(BETA2, step));
+	float fp_weight = uFPWeights[gl_GlobalInvocationID.x];
+	vec2 h_moment = moment / (1.0 - vec2(uBeta1_T, uBeta2_T));
+	fp_weight -= LEARNING_RATE * h_moment.x / (sqrt(h_moment.y) + EPSILON);
+	uFPWeights[gl_GlobalInvocationID.x] = fp_weight;
 
-	float weight = uFPWeights[gl_GlobalInvocationID.x];
-	weight -= LEARNING_RATE * h_moment1 / (sqrt(h_moment2) + EPSILON);
-	uAdamMVT[gl_GlobalInvocationID.x] = AdamInfo(moment1, moment2, step);
-	uFPWeights[gl_GlobalInvocationID.x] = weight;
-	uWeights[gl_GlobalInvocationID.x] = float16_t(weight);
+	uWeights[gl_GlobalInvocationID.x] = float16_t(fp_weight);
 }

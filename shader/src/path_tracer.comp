@@ -8,7 +8,7 @@
 #extension GL_KHR_memory_scope_semantics : enable
 layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
 
-#define MAX_BOUNCE 5
+#define MAX_BOUNCE 8
 #define T_MIN 1e-6
 #define T_MAX 4.0
 #define C 0.01

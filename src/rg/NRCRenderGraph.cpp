@@ -56,21 +56,22 @@ NRCRenderGraph::NRCRenderGraph(const myvk::Ptr<myvk::FrameManager> &frame_manage
 
 	for (uint32_t b = 0; b < VkNRCState::GetTrainBatchCount(); ++b) {
 		myvk_rg::Buffer weights = nrc_resources.weights, fp_weights = nrc_resources.fp_weights,
-		                adam_tmv = nrc_resources.adam_tmv;
+		                adam_entries = nrc_resources.adam_entries, adam_state = nrc_resources.adam_state;
 		if (b) {
 			auto prev_train_pass = GetPass<NNTrain>({"nn_train_pass", b - 1});
 			weights = prev_train_pass->GetWeightOutput();
 			fp_weights = prev_train_pass->GetFPWeightOutput();
-			adam_tmv = prev_train_pass->GetAdamMVOutput();
+			adam_entries = prev_train_pass->GetAdamEntriesOutput();
+			adam_state = prev_train_pass->GetAdamStateOutput();
 		}
 		CreatePass<NNTrain>(
 		    {"nn_train_pass", b},
 		    NNTrain::Args{.weights = weights,
 		                  .fp_weights = fp_weights,
-		                  .adam_tmv = adam_tmv,
+		                  .adam_state = adam_state,
+		                  .adam_entries = adam_entries,
 		                  .scene_ptr = m_scene_ptr,
 		                  .scene_resources = scene_resources,
-		                  .nrc_state_ptr = m_nrc_state_ptr,
 		                  .batch_train_count = path_tracer_pass->GetBatchTrainCountOutput(b),
 		                  .batch_train_records = nn_inference_pass->Get()->GetBatchTrainRecordsOutput(b)});
 	}
@@ -88,7 +89,8 @@ NRCRenderGraph::NRCRenderGraph(const myvk::Ptr<myvk::FrameManager> &frame_manage
 
 	auto final_train_pass = GetPass<NNTrain>({"nn_train_pass", VkNRCState::GetTrainBatchCount() - 1});
 	AddResult({"weights"}, final_train_pass->GetWeightOutput());
-	AddResult({"adam_tmv"}, final_train_pass->GetAdamMVOutput());
+	AddResult({"adam_entries"}, final_train_pass->GetAdamEntriesOutput());
+	AddResult({"adam_state"}, final_train_pass->GetAdamStateOutput());
 }
 
 void NRCRenderGraph::PreExecute() const {
@@ -150,7 +152,10 @@ NRCResources NRCRenderGraph::create_nrc_resources() {
 	    .weights = CreateResource<myvk_rg::InputBuffer>({"weights"}, m_nrc_state_ptr->GetWeightBuffer())->Alias(),
 	    .fp_weights =
 	        CreateResource<myvk_rg::InputBuffer>({"fp_weights"}, m_nrc_state_ptr->GetFPWeightBuffer())->Alias(),
-	    .adam_tmv = CreateResource<myvk_rg::InputBuffer>({"adam_tmv"}, m_nrc_state_ptr->GetAdamMVBuffer())->Alias(),
+	    .adam_state =
+	        CreateResource<myvk_rg::InputBuffer>({"adam_state"}, m_nrc_state_ptr->GetAdamStateBuffer())->Alias(),
+	    .adam_entries =
+	        CreateResource<myvk_rg::InputBuffer>({"adam_entries"}, m_nrc_state_ptr->GetAdamEntryBuffer())->Alias(),
 	    .eval_records = eval_record_buffer->Alias(),
 	    .eval_count = eval_record_count_buffer->Alias(),
 	    .batch_train_records = std::move(batch_train_records),

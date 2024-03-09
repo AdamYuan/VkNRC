@@ -25,7 +25,7 @@ private:
 
 	myvk::Ptr<myvk::Queue> m_queue_ptr;
 	// fp := Full Precision
-	myvk::Ptr<myvk::Buffer> m_weights, m_fp_weights, m_adam_tmv;
+	myvk::Ptr<myvk::Buffer> m_weights, m_fp_weights, m_adam_state, m_adam_entries;
 	myvk::Ptr<myvk::ImageView> m_result_view;
 	VkExtent2D m_extent{};
 	uint32_t m_seed{};
@@ -50,7 +50,8 @@ public:
 	inline const auto &GetResultImageView() const { return m_result_view; }
 	inline const auto &GetWeightBuffer() const { return m_weights; }
 	inline const auto &GetFPWeightBuffer() const { return m_fp_weights; }
-	inline const auto &GetAdamMVBuffer() const { return m_adam_tmv; }
+	inline const auto &GetAdamEntryBuffer() const { return m_adam_entries; }
+	inline const auto &GetAdamStateBuffer() const { return m_adam_state; }
 
 	inline Method GetLeftMethod() const { return m_left_method; }
 	inline Method GetRightMethod() const { return m_right_method; }
@@ -81,7 +82,7 @@ public:
 	inline void Next() {
 		if (m_accumulate)
 			++m_accumulate_count;
-		m_seed = std::uniform_int_distribution<uint32_t>{0, 0xFFFFFFFFu}(m_rng);
+		m_seed = std::uniform_int_distribution<uint32_t>{0}(m_rng);
 	}
 
 	inline void SetExtent(VkExtent2D extent) {

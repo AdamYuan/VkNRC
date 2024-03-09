@@ -21,9 +21,12 @@ struct NRCTrainRecord {
 	float bias_r, bias_g, bias_b, factor_r, factor_g, factor_b;
 	PackedNRCInput packed_input;
 };
-struct AdamInfo {
-	float m, v;
+struct AdamState {
 	uint32_t t;
+	float beta1_t, beta2_t;
+};
+struct AdamEntry {
+	float m, v;
 };
 } // namespace nrc
 
@@ -66,12 +69,19 @@ void VkNRCState::create_weight_buffer() {
 	fence->Wait();
 }
 void VkNRCState::create_adam_buffer() {
-	m_adam_tmv = myvk::Buffer::Create(GetDevicePtr(), GetWeightCount() * sizeof(nrc::AdamInfo), 0,
-	                                  VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+	m_adam_entries = myvk::Buffer::Create(GetDevicePtr(), GetWeightCount() * sizeof(nrc::AdamEntry), 0,
+	                                 VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+	m_adam_state = myvk::Buffer::Create(GetDevicePtr(), sizeof(nrc::AdamState), 0,
+	                                    VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+	                                        VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+
+	nrc::AdamState state = {.t = 0, .beta1_t = 1.0f, .beta2_t = 1.0f};
+	auto state_staging = myvk::Buffer::CreateStaging(GetDevicePtr(), state);
 	// Zero Initialize
 	auto command_buffer = myvk::CommandBuffer::Create(myvk::CommandPool::Create(m_queue_ptr));
 	command_buffer->Begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
-	vkCmdFillBuffer(command_buffer->GetHandle(), m_adam_tmv->GetHandle(), 0, m_adam_tmv->GetSize(), 0);
+	vkCmdFillBuffer(command_buffer->GetHandle(), m_adam_entries->GetHandle(), 0, m_adam_entries->GetSize(), 0);
+	command_buffer->CmdCopy(state_staging, m_adam_state, {VkBufferCopy{.size = sizeof(nrc::AdamState)}});
 	command_buffer->End();
 
 	auto fence = myvk::Fence::Create(GetDevicePtr());

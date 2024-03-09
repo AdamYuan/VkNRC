@@ -8,10 +8,33 @@
 
 namespace rg {
 
-NNTrain::NNGradient::NNGradient(myvk_rg::Parent parent, const myvk_rg::Buffer &cmd, const myvk_rg::Buffer &gradients,
-                                const NNTrain::Args &args)
+NNTrain::NNPreparePass::NNPreparePass(myvk_rg::Parent parent, const Args &args) : myvk_rg::ComputePassBase(parent) {
+	auto indirect_cmd = CreateResource<myvk_rg::ManagedBuffer>({"indirect_cmd"}, sizeof(VkDispatchIndirectCommand));
+	AddDescriptorInput<myvk_rg::Usage::kStorageBufferRW, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>({0}, {"count"},
+	                                                                                             args.count);
+	AddDescriptorInput<myvk_rg::Usage::kStorageBufferW, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>({1}, {"indirect_cmd"},
+	                                                                                            indirect_cmd->Alias());
+	AddDescriptorInput<myvk_rg::Usage::kStorageBufferRW, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>({2}, {"adam_state"},
+	                                                                                             args.adam_state);
+}
+void NNTrain::NNPreparePass::CreatePipeline() {
+	auto &device = GetRenderGraphPtr()->GetDevicePtr();
+	auto pipeline_layout = myvk::PipelineLayout::Create(device, {GetVkDescriptorSetLayout()}, {});
+	constexpr uint32_t kCompSpv[] = {
+#include <shader/nrc_train_prepare.comp.u32>
+	};
+	auto shader_module = myvk::ShaderModule::Create(device, kCompSpv, sizeof(kCompSpv));
+	m_pipeline = myvk::ComputePipeline::Create(pipeline_layout, shader_module);
+}
+void NNTrain::NNPreparePass::CmdExecute(const myvk::Ptr<myvk::CommandBuffer> &command_buffer) const {
+	command_buffer->CmdBindPipeline(m_pipeline);
+	command_buffer->CmdBindDescriptorSets({GetVkDescriptorSet()}, m_pipeline);
+	command_buffer->CmdDispatch(1, 1, 1);
+}
+
+NNTrain::NNGradient::NNGradient(myvk_rg::Parent parent, const Args &args)
     : myvk_rg::ComputePassBase(parent), m_scene_ptr(args.scene_ptr) {
-	AddInput<myvk_rg::Usage::kDrawIndirectBuffer>({"cmd"}, cmd);
+	AddInput<myvk_rg::Usage::kDrawIndirectBuffer>({"cmd"}, args.cmd);
 	// Scene
 	AddDescriptorInput<myvk_rg::Usage::kStorageBufferR, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>(
 	    {0}, {"vertices"}, args.scene_resources.vertices);
@@ -34,13 +57,13 @@ NNTrain::NNGradient::NNGradient(myvk_rg::Parent parent, const myvk_rg::Buffer &c
 	}
 	// NRC
 	AddDescriptorInput<myvk_rg::Usage::kStorageBufferR, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>(
-	    {8}, {"batch_train_records"}, args.batch_train_records);
+	    {8}, {"batch_train_records"}, args.records);
 	AddDescriptorInput<myvk_rg::Usage::kUniformBuffer, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>(
-	    {9}, {"batch_train_count"}, args.batch_train_count);
+	    {9}, {"batch_train_count"}, args.count);
 	AddDescriptorInput<myvk_rg::Usage::kStorageBufferR, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>({10}, {"weights"},
 	                                                                                            args.weights);
 	AddDescriptorInput<myvk_rg::Usage::kStorageBufferRW, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>({11}, {"gradients"},
-	                                                                                             gradients);
+	                                                                                             args.gradients);
 }
 void NNTrain::NNGradient::CreatePipeline() {
 	auto &device = GetRenderGraphPtr()->GetDevicePtr();
@@ -63,18 +86,19 @@ void NNTrain::NNGradient::CmdExecute(const myvk::Ptr<myvk::CommandBuffer> &comma
 	command_buffer->CmdDispatchIndirect(GetInputBuffer({"cmd"})->GetBufferView().buffer);
 }
 
-NNTrain::NNAdam::NNAdam(myvk_rg::Parent parent, const myvk_rg::Buffer &gradients, const NNTrain::Args &args)
-    : myvk_rg::ComputePassBase(parent), m_nrc_state_ptr(args.nrc_state_ptr) {
+NNTrain::NNAdam::NNAdam(myvk_rg::Parent parent, const Args &args) : myvk_rg::ComputePassBase(parent) {
 	AddDescriptorInput<myvk_rg::Usage::kStorageBufferW, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>({0}, {"weights"},
 	                                                                                            args.weights);
 	AddDescriptorInput<myvk_rg::Usage::kStorageBufferRW, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>({1}, {"fp_weights"},
 	                                                                                             args.fp_weights);
 	AddDescriptorInput<myvk_rg::Usage::kStorageBufferR, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>({2}, {"gradients"},
-	                                                                                            gradients);
-	AddDescriptorInput<myvk_rg::Usage::kStorageBufferRW, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>({3}, {"adam_tmv"},
-	                                                                                             args.adam_tmv);
+	                                                                                            args.gradients);
+	AddDescriptorInput<myvk_rg::Usage::kStorageBufferRW, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>({3}, {"adam_entries"},
+	                                                                                             args.adam_entries);
 	AddDescriptorInput<myvk_rg::Usage::kUniformBuffer, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>(
-	    {4}, {"batch_train_count"}, args.batch_train_count);
+	    {4}, {"batch_train_count"}, args.count);
+	AddDescriptorInput<myvk_rg::Usage::kUniformBuffer, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>({5}, {"adam_state"},
+	                                                                                           args.adam_state);
 }
 void NNTrain::NNAdam::CreatePipeline() {
 	auto &device = GetRenderGraphPtr()->GetDevicePtr();

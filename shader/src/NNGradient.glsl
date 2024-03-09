@@ -23,9 +23,11 @@ void main() {
 	uvec4 inputs[8] = uvec4[8](uvec4(0), uvec4(0), uvec4(0), uvec4(0), uvec4(0), uvec4(0), uvec4(0), uvec4(0));
 	vec3 target = vec3(0);
 
-	NRCTrainRecord train_record = uBatchTrainRecords[gl_GlobalInvocationID.x];
-	NRCInputEncode(UnpackNRCInput(train_record.packed_input), inputs);
-	target = vec3(train_record.bias_r, train_record.bias_g, train_record.bias_b);
+	if (gl_GlobalInvocationID.x < uBatchTrainCount) {
+		NRCTrainRecord train_record = uBatchTrainRecords[gl_GlobalInvocationID.x];
+		NRCInputEncode(UnpackNRCInput(train_record.packed_input), inputs);
+		target = vec3(train_record.bias_r, train_record.bias_g, train_record.bias_b);
+	}
 
 	fcoopmatNV<16, gl_ScopeSubgroup, 16, 16> act_coopmats[6][COOPMAT_X][SUBGROUP_ACT_COOPMAT_Y],
 	    out_coopmats[SUBGROUP_ACT_COOPMAT_Y];

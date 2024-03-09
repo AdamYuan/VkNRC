@@ -7,4 +7,7 @@
 #define NRC_TRAIN_BATCH_SIZE 16384
 #define LOSS_SCALE 1.0
 
+#define ADAM_BETA1 0.9
+#define ADAM_BETA2 0.999
+
 #endif
