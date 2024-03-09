@@ -17,7 +17,10 @@ namespace rg {
 class NNTrain final : public myvk_rg::PassGroupBase {
 public:
 	struct Args {
-		const myvk_rg::Buffer &weights, &fp_weights, &adam_state, &adam_entries;
+		const myvk::Ptr<VkNRCState> &nrc_state_ptr;
+		const myvk_rg::Buffer &weights;
+		const std::optional<myvk_rg::Buffer> &opt_use_weights;
+		const myvk_rg::Buffer &optimizer_state, &optimizer_entries;
 
 		const myvk::Ptr<VkScene> &scene_ptr;
 		const SceneResources &scene_resources;
@@ -28,7 +31,7 @@ private:
 	class NNPreparePass final : public myvk_rg::ComputePassBase {
 	public:
 		struct Args {
-			const myvk_rg::Buffer &count, &adam_state;
+			const myvk_rg::Buffer &count, &optimizer_state;
 		};
 
 	private:
@@ -43,7 +46,7 @@ private:
 		void CmdExecute(const myvk::Ptr<myvk::CommandBuffer> &command_buffer) const final;
 		auto GetIndirectCmdOutput() const { return MakeBufferOutput({"indirect_cmd"}); }
 		auto GetCountOutput() const { return MakeBufferOutput({"count"}); }
-		auto GetAdamStateOutput() const { return MakeBufferOutput({"adam_state"}); }
+		auto GetOptimizerStateOutput() const { return MakeBufferOutput({"optimizer_state"}); }
 		inline ~NNPreparePass() final = default;
 	};
 
@@ -67,23 +70,28 @@ private:
 		inline auto GetGradientOutput() const { return MakeBufferOutput({"gradients"}); }
 	};
 
-	class NNAdam final : public myvk_rg::ComputePassBase {
+	class NNOptimizer final : public myvk_rg::ComputePassBase {
 	public:
 		struct Args {
-			const myvk_rg::Buffer &gradients, &count, &weights, &fp_weights, &adam_state, &adam_entries;
+			const myvk::Ptr<VkNRCState> &nrc_state_ptr;
+			const myvk_rg::Buffer &gradients, &count, &weights;
+			const std::optional<myvk_rg::Buffer> &opt_use_weights;
+			const myvk_rg::Buffer &optimizer_state, &optimizer_entries;
 		};
 
 	private:
+		myvk::Ptr<VkNRCState> m_nrc_state_ptr;
 		myvk::Ptr<myvk::ComputePipeline> m_pipeline;
+		bool m_write_use;
 
 	public:
-		NNAdam(myvk_rg::Parent parent, const Args &args);
-		inline ~NNAdam() final = default;
+		NNOptimizer(myvk_rg::Parent parent, const Args &args);
+		inline ~NNOptimizer() final = default;
 		void CreatePipeline() final;
 		void CmdExecute(const myvk::Ptr<myvk::CommandBuffer> &command_buffer) const final;
 		inline auto GetWeightOutput() const { return MakeBufferOutput({"weights"}); }
-		inline auto GetFPWeightOutput() const { return MakeBufferOutput({"fp_weights"}); }
-		inline auto GetAdamEntriesOutput() const { return MakeBufferOutput({"adam_entries"}); }
+		inline auto GetEMAWeightOutput() const { return MakeBufferOutput({"use_weights"}); }
+		inline auto GetOptimizerEntriesOutput() const { return MakeBufferOutput({"optimizer_entries"}); }
 	};
 
 public:
@@ -91,8 +99,9 @@ public:
 		auto gradients =
 		    CreateResource<myvk_rg::ManagedBuffer>({"gradients"}, VkNRCState::GetWeightCount() * sizeof(float));
 		auto clear_pass = CreatePass<myvk_rg::BufferFillPass>({"clear_pass"}, gradients->Alias(), 0);
-		auto prepare_pass = CreatePass<NNPreparePass>(
-		    {"prepare_pass"}, NNPreparePass::Args{.count = args.batch_train_count, .adam_state = args.adam_state});
+		auto prepare_pass =
+		    CreatePass<NNPreparePass>({"prepare_pass"}, NNPreparePass::Args{.count = args.batch_train_count,
+		                                                                    .optimizer_state = args.optimizer_state});
 		auto gradient_pass =
 		    CreatePass<NNGradient>({"gradient_pass"}, NNGradient::Args{.scene_ptr = args.scene_ptr,
 		                                                               .scene_resources = args.scene_resources,
@@ -101,18 +110,24 @@ public:
 		                                                               .count = prepare_pass->GetCountOutput(),
 		                                                               .records = args.batch_train_records,
 		                                                               .weights = args.weights});
-		CreatePass<NNAdam>({"adam_pass"}, NNAdam::Args{.gradients = gradient_pass->GetGradientOutput(),
-		                                               .count = prepare_pass->GetCountOutput(),
-		                                               .weights = args.weights,
-		                                               .fp_weights = args.fp_weights,
-		                                               .adam_state = prepare_pass->GetAdamStateOutput(),
-		                                               .adam_entries = args.adam_entries});
+		CreatePass<NNOptimizer>({"optimizer_pass"},
+		                        NNOptimizer::Args{.nrc_state_ptr = args.nrc_state_ptr,
+		                                          .gradients = gradient_pass->GetGradientOutput(),
+		                                          .count = prepare_pass->GetCountOutput(),
+		                                          .weights = args.weights,
+		                                          .opt_use_weights = args.opt_use_weights,
+		                                          .optimizer_state = prepare_pass->GetOptimizerStateOutput(),
+		                                          .optimizer_entries = args.optimizer_entries});
 	}
 	inline ~NNTrain() final = default;
-	inline auto GetWeightOutput() const { return GetPass<NNAdam>({"adam_pass"})->GetWeightOutput(); }
-	inline auto GetFPWeightOutput() const { return GetPass<NNAdam>({"adam_pass"})->GetFPWeightOutput(); }
-	inline auto GetAdamEntriesOutput() const { return GetPass<NNAdam>({"adam_pass"})->GetAdamEntriesOutput(); }
-	inline auto GetAdamStateOutput() const { return GetPass<NNPreparePass>({"prepare_pass"})->GetAdamStateOutput(); }
+	inline auto GetWeightOutput() const { return GetPass<NNOptimizer>({"optimizer_pass"})->GetWeightOutput(); }
+	inline auto GetEMAWeightOutput() const { return GetPass<NNOptimizer>({"optimizer_pass"})->GetEMAWeightOutput(); }
+	inline auto GetOptimizerEntriesOutput() const {
+		return GetPass<NNOptimizer>({"optimizer_pass"})->GetOptimizerEntriesOutput();
+	}
+	inline auto GetOptimizerStateOutput() const {
+		return GetPass<NNPreparePass>({"prepare_pass"})->GetOptimizerStateOutput();
+	}
 };
 
 } // namespace rg

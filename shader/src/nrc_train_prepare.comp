@@ -8,9 +8,9 @@ struct VkDispatchIndirectCommand {
 };
 layout(binding = 0) buffer uuCount { uint uCount; };
 layout(std430, binding = 1) writeonly buffer uuCommand { VkDispatchIndirectCommand uCommand; };
-layout(std430, binding = 2) buffer uuAdamState {
+layout(std430, binding = 2) buffer uuOptimizerState {
 	uint uStep;
-	float uBeta1_T, uBeta2_T;
+	float uBeta1_T, uBeta2_T, uAlpha_T, uAlpha_T_1;
 };
 
 void main() {
@@ -23,5 +23,7 @@ void main() {
 		++uStep;
 		uBeta1_T *= ADAM_BETA1;
 		uBeta2_T *= ADAM_BETA2;
+		uAlpha_T_1 = uAlpha_T;
+		uAlpha_T *= EMA_ALPHA;
 	}
 }

@@ -14,8 +14,8 @@ NNTrain::NNPreparePass::NNPreparePass(myvk_rg::Parent parent, const Args &args) 
 	                                                                                             args.count);
 	AddDescriptorInput<myvk_rg::Usage::kStorageBufferW, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>({1}, {"indirect_cmd"},
 	                                                                                            indirect_cmd->Alias());
-	AddDescriptorInput<myvk_rg::Usage::kStorageBufferRW, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>({2}, {"adam_state"},
-	                                                                                             args.adam_state);
+	AddDescriptorInput<myvk_rg::Usage::kStorageBufferRW, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>(
+	    {2}, {"optimizer_state"}, args.optimizer_state);
 }
 void NNTrain::NNPreparePass::CreatePipeline() {
 	auto &device = GetRenderGraphPtr()->GetDevicePtr();
@@ -86,32 +86,49 @@ void NNTrain::NNGradient::CmdExecute(const myvk::Ptr<myvk::CommandBuffer> &comma
 	command_buffer->CmdDispatchIndirect(GetInputBuffer({"cmd"})->GetBufferView().buffer);
 }
 
-NNTrain::NNAdam::NNAdam(myvk_rg::Parent parent, const Args &args) : myvk_rg::ComputePassBase(parent) {
+NNTrain::NNOptimizer::NNOptimizer(myvk_rg::Parent parent, const Args &args)
+    : myvk_rg::ComputePassBase(parent), m_write_use{args.opt_use_weights}, m_nrc_state_ptr{args.nrc_state_ptr} {
 	AddDescriptorInput<myvk_rg::Usage::kStorageBufferW, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>({0}, {"weights"},
 	                                                                                            args.weights);
-	AddDescriptorInput<myvk_rg::Usage::kStorageBufferRW, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>({1}, {"fp_weights"},
-	                                                                                             args.fp_weights);
+	if (args.opt_use_weights) {
+		AddDescriptorInput<myvk_rg::Usage::kStorageBufferW, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>(
+		    {1}, {"use_weights"}, *args.opt_use_weights);
+	}
 	AddDescriptorInput<myvk_rg::Usage::kStorageBufferR, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>({2}, {"gradients"},
 	                                                                                            args.gradients);
-	AddDescriptorInput<myvk_rg::Usage::kStorageBufferRW, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>({3}, {"adam_entries"},
-	                                                                                             args.adam_entries);
+	AddDescriptorInput<myvk_rg::Usage::kStorageBufferRW, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>(
+	    {3}, {"optimizer_entries"}, args.optimizer_entries);
 	AddDescriptorInput<myvk_rg::Usage::kUniformBuffer, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>(
 	    {4}, {"batch_train_count"}, args.count);
-	AddDescriptorInput<myvk_rg::Usage::kUniformBuffer, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>({5}, {"adam_state"},
-	                                                                                           args.adam_state);
+	AddDescriptorInput<myvk_rg::Usage::kUniformBuffer, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>({5}, {"optimizer_state"},
+	                                                                                           args.optimizer_state);
 }
-void NNTrain::NNAdam::CreatePipeline() {
+void NNTrain::NNOptimizer::CreatePipeline() {
 	auto &device = GetRenderGraphPtr()->GetDevicePtr();
-	auto pipeline_layout = myvk::PipelineLayout::Create(device, {GetVkDescriptorSetLayout()}, {});
-	constexpr uint32_t kCompSpv[] = {
-#include <shader/nrc_adam.comp.u32>
-	};
-	auto shader_module = myvk::ShaderModule::Create(device, kCompSpv, sizeof(kCompSpv));
+	auto pipeline_layout = myvk::PipelineLayout::Create(
+	    device, {GetVkDescriptorSetLayout()}, {{.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT, .size = sizeof(uint32_t)}});
+	myvk::Ptr<myvk::ShaderModule> shader_module;
+	if (m_write_use) {
+		constexpr uint32_t kCompSpv[] = {
+#include <shader/nrc_optimize_use.comp.u32>
+		};
+		shader_module = myvk::ShaderModule::Create(device, kCompSpv, sizeof(kCompSpv));
+	} else {
+		constexpr uint32_t kCompSpv[] = {
+#include <shader/nrc_optimize.comp.u32>
+		};
+		shader_module = myvk::ShaderModule::Create(device, kCompSpv, sizeof(kCompSpv));
+	}
 	m_pipeline = myvk::ComputePipeline::Create(pipeline_layout, shader_module);
 }
-void NNTrain::NNAdam::CmdExecute(const myvk::Ptr<myvk::CommandBuffer> &command_buffer) const {
+void NNTrain::NNOptimizer::CmdExecute(const myvk::Ptr<myvk::CommandBuffer> &command_buffer) const {
 	command_buffer->CmdBindPipeline(m_pipeline);
 	command_buffer->CmdBindDescriptorSets({GetVkDescriptorSet()}, m_pipeline);
+	if (m_write_use) {
+		uint32_t use_ema_weights = m_nrc_state_ptr->IsUseEMAWeights();
+		command_buffer->CmdPushConstants(m_pipeline->GetPipelineLayoutPtr(), VK_SHADER_STAGE_COMPUTE_BIT, 0,
+		                                 sizeof(use_ema_weights), &use_ema_weights);
+	}
 	command_buffer->CmdDispatch(VkNRCState::GetWeightCount() / 64, 1, 1);
 }
 

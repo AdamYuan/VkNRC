@@ -49,27 +49,30 @@ NRCRenderGraph::NRCRenderGraph(const myvk::Ptr<myvk::FrameManager> &frame_manage
 	                      .scene_resources = scene_resources,
 	                      .bias_factor_r = path_tracer_pass->GetBiasFactorROutput(),
 	                      .factor_gb = path_tracer_pass->GetFactorGBOutput(),
-	                      .weights = nrc_resources.weights,
+	                      .weights = nrc_resources.use_weights,
 	                      .eval_count = path_tracer_pass->GetEvalCountOutput(),
 	                      .eval_records = path_tracer_pass->GetEvalRecordsOutput(),
 	                      .batch_train_records = path_tracer_pass->GetBatchTrainRecordsOutputs()});
 
 	for (uint32_t b = 0; b < VkNRCState::GetTrainBatchCount(); ++b) {
-		myvk_rg::Buffer weights = nrc_resources.weights, fp_weights = nrc_resources.fp_weights,
-		                adam_entries = nrc_resources.adam_entries, adam_state = nrc_resources.adam_state;
-		if (b) {
+		myvk_rg::Buffer weights = nrc_resources.weights, optimizer_entries = nrc_resources.optimizer_entries,
+		                optimizer_state = nrc_resources.optimizer_state;
+		if (b != 0) {
 			auto prev_train_pass = GetPass<NNTrain>({"nn_train_pass", b - 1});
 			weights = prev_train_pass->GetWeightOutput();
-			fp_weights = prev_train_pass->GetFPWeightOutput();
-			adam_entries = prev_train_pass->GetAdamEntriesOutput();
-			adam_state = prev_train_pass->GetAdamStateOutput();
+			optimizer_entries = prev_train_pass->GetOptimizerEntriesOutput();
+			optimizer_state = prev_train_pass->GetOptimizerStateOutput();
 		}
+		std::optional<myvk_rg::Buffer> opt_use_weights = std::nullopt;
+		if (b == VkNRCState::GetTrainBatchCount() - 1)
+			opt_use_weights = nrc_resources.use_weights;
 		CreatePass<NNTrain>(
 		    {"nn_train_pass", b},
-		    NNTrain::Args{.weights = weights,
-		                  .fp_weights = fp_weights,
-		                  .adam_state = adam_state,
-		                  .adam_entries = adam_entries,
+		    NNTrain::Args{.nrc_state_ptr = m_nrc_state_ptr,
+		                  .weights = weights,
+		                  .opt_use_weights = opt_use_weights,
+		                  .optimizer_state = optimizer_state,
+		                  .optimizer_entries = optimizer_entries,
 		                  .scene_ptr = m_scene_ptr,
 		                  .scene_resources = scene_resources,
 		                  .batch_train_count = path_tracer_pass->GetBatchTrainCountOutput(b),
@@ -89,8 +92,9 @@ NRCRenderGraph::NRCRenderGraph(const myvk::Ptr<myvk::FrameManager> &frame_manage
 
 	auto final_train_pass = GetPass<NNTrain>({"nn_train_pass", VkNRCState::GetTrainBatchCount() - 1});
 	AddResult({"weights"}, final_train_pass->GetWeightOutput());
-	AddResult({"adam_entries"}, final_train_pass->GetAdamEntriesOutput());
-	AddResult({"adam_state"}, final_train_pass->GetAdamStateOutput());
+	AddResult({"use_weights"}, final_train_pass->GetEMAWeightOutput());
+	AddResult({"optimizer_entries"}, final_train_pass->GetOptimizerEntriesOutput());
+	AddResult({"optimizer_state"}, final_train_pass->GetOptimizerStateOutput());
 }
 
 void NRCRenderGraph::PreExecute() const {
@@ -150,12 +154,14 @@ NRCResources NRCRenderGraph::create_nrc_resources() {
 	    .accumulate =
 	        CreateResource<myvk_rg::InputImage>({"accumulate"}, m_nrc_state_ptr->GetResultImageView())->Alias(),
 	    .weights = CreateResource<myvk_rg::InputBuffer>({"weights"}, m_nrc_state_ptr->GetWeightBuffer())->Alias(),
-	    .fp_weights =
-	        CreateResource<myvk_rg::InputBuffer>({"fp_weights"}, m_nrc_state_ptr->GetFPWeightBuffer())->Alias(),
-	    .adam_state =
-	        CreateResource<myvk_rg::InputBuffer>({"adam_state"}, m_nrc_state_ptr->GetAdamStateBuffer())->Alias(),
-	    .adam_entries =
-	        CreateResource<myvk_rg::InputBuffer>({"adam_entries"}, m_nrc_state_ptr->GetAdamEntryBuffer())->Alias(),
+	    .use_weights =
+	        CreateResource<myvk_rg::InputBuffer>({"use_weights"}, m_nrc_state_ptr->GetUseWeightBuffer())->Alias(),
+	    .optimizer_state =
+	        CreateResource<myvk_rg::InputBuffer>({"optimizer_state"}, m_nrc_state_ptr->GetOptimizerStateBuffer())
+	            ->Alias(),
+	    .optimizer_entries =
+	        CreateResource<myvk_rg::InputBuffer>({"optimizer_entries"}, m_nrc_state_ptr->GetOptimizerEntryBuffer())
+	            ->Alias(),
 	    .eval_records = eval_record_buffer->Alias(),
 	    .eval_count = eval_record_count_buffer->Alias(),
 	    .batch_train_records = std::move(batch_train_records),

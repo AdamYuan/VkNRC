@@ -7,7 +7,9 @@
 #define NRC_TRAIN_BATCH_SIZE 16384
 #define LOSS_SCALE 1.0
 
+// Optimizer Options
 #define ADAM_BETA1 0.9
 #define ADAM_BETA2 0.999
+#define EMA_ALPHA 0.99
 
 #endif

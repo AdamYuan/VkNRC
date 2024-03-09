@@ -21,12 +21,12 @@ struct NRCTrainRecord {
 	float bias_r, bias_g, bias_b, factor_r, factor_g, factor_b;
 	PackedNRCInput packed_input;
 };
-struct AdamState {
+struct OptimizerState {
 	uint32_t t;
-	float beta1_t, beta2_t;
+	float beta1_t, beta2_t, alpha_t, alpha_t_1;
 };
-struct AdamEntry {
-	float m, v;
+struct OptimizerEntry {
+	float m, v, weight, ema_weight;
 };
 } // namespace nrc
 
@@ -42,46 +42,43 @@ void VkNRCState::initialize_weights(std::span<float, kNNWeighCount> weights) {
 		w = norm(m_rng);
 }
 
-void VkNRCState::create_weight_buffer() {
+void VkNRCState::create_mlp_buffer() {
+	std::array<float, GetWeightCount()> fp32_weights{};
+	initialize_weights(fp32_weights);
+	std::array<half_float::half, GetWeightCount()> fp16_weights{};
+	nrc::OptimizerState optimizer_state = {.t = 0, .beta1_t = 1.0f, .beta2_t = 1.0f, .alpha_t = 1.0f};
+	std::array<nrc::OptimizerEntry, GetWeightCount()> optimizer_entries{};
+	for (uint32_t i = 0; i < GetWeightCount(); ++i) {
+		fp16_weights[i] = fp32_weights[i];
+		optimizer_entries[i] = {
+		    .weight = fp32_weights[i],
+		    .ema_weight = fp32_weights[i],
+		};
+	}
+
 	m_weights = myvk::Buffer::Create(GetDevicePtr(), GetWeightCount() * sizeof(uint16_t), 0,
 	                                 VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-	m_fp_weights = myvk::Buffer::Create(GetDevicePtr(), GetWeightCount() * sizeof(float), 0,
-	                                    VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+	m_use_weights = myvk::Buffer::Create(GetDevicePtr(), GetWeightCount() * sizeof(uint16_t), 0,
+	                                     VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+	m_optimizer_state = myvk::Buffer::Create(GetDevicePtr(), sizeof(nrc::OptimizerState), 0,
+	                                         VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+	                                             VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+	m_optimizer_entries = myvk::Buffer::Create(GetDevicePtr(), GetWeightCount() * sizeof(nrc::OptimizerEntry), 0,
+	                                           VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 
-	std::array<float, GetWeightCount()> fp_initial_weights{};
-	initialize_weights(fp_initial_weights);
-	std::array<half_float::half, GetWeightCount()> initial_weights{};
-	for (uint32_t i = 0; i < GetWeightCount(); ++i)
-		initial_weights[i] = fp_initial_weights[i];
-
-	auto weights_staging = myvk::Buffer::CreateStaging(GetDevicePtr(), initial_weights.begin(), initial_weights.end());
-	auto fp_weights_staging =
-	    myvk::Buffer::CreateStaging(GetDevicePtr(), fp_initial_weights.begin(), fp_initial_weights.end());
+	auto weights_staging = myvk::Buffer::CreateStaging(GetDevicePtr(), fp16_weights.begin(), fp16_weights.end());
+	auto optimizer_state_staging = myvk::Buffer::CreateStaging(GetDevicePtr(), optimizer_state);
+	auto optimizer_entries_staging =
+	    myvk::Buffer::CreateStaging(GetDevicePtr(), optimizer_entries.begin(), optimizer_entries.end());
 
 	auto command_buffer = myvk::CommandBuffer::Create(myvk::CommandPool::Create(m_queue_ptr));
 	command_buffer->Begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
-	command_buffer->CmdCopy(weights_staging, m_weights, {VkBufferCopy{.size = m_weights->GetSize()}});
-	command_buffer->CmdCopy(fp_weights_staging, m_fp_weights, {VkBufferCopy{.size = m_fp_weights->GetSize()}});
-	command_buffer->End();
-
-	auto fence = myvk::Fence::Create(GetDevicePtr());
-	command_buffer->Submit(fence);
-	fence->Wait();
-}
-void VkNRCState::create_adam_buffer() {
-	m_adam_entries = myvk::Buffer::Create(GetDevicePtr(), GetWeightCount() * sizeof(nrc::AdamEntry), 0,
-	                                 VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-	m_adam_state = myvk::Buffer::Create(GetDevicePtr(), sizeof(nrc::AdamState), 0,
-	                                    VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
-	                                        VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
-
-	nrc::AdamState state = {.t = 0, .beta1_t = 1.0f, .beta2_t = 1.0f};
-	auto state_staging = myvk::Buffer::CreateStaging(GetDevicePtr(), state);
-	// Zero Initialize
-	auto command_buffer = myvk::CommandBuffer::Create(myvk::CommandPool::Create(m_queue_ptr));
-	command_buffer->Begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
-	vkCmdFillBuffer(command_buffer->GetHandle(), m_adam_entries->GetHandle(), 0, m_adam_entries->GetSize(), 0);
-	command_buffer->CmdCopy(state_staging, m_adam_state, {VkBufferCopy{.size = sizeof(nrc::AdamState)}});
+	command_buffer->CmdCopy(weights_staging, m_weights, {VkBufferCopy{.size = weights_staging->GetSize()}});
+	command_buffer->CmdCopy(weights_staging, m_use_weights, {VkBufferCopy{.size = weights_staging->GetSize()}});
+	command_buffer->CmdCopy(optimizer_state_staging, m_optimizer_state,
+	                        {VkBufferCopy{.size = optimizer_state_staging->GetSize()}});
+	command_buffer->CmdCopy(optimizer_entries_staging, m_optimizer_entries,
+	                        {VkBufferCopy{.size = optimizer_entries_staging->GetSize()}});
 	command_buffer->End();
 
 	auto fence = myvk::Fence::Create(GetDevicePtr());

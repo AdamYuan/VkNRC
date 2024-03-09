@@ -1,0 +1,3 @@
+#version 450
+#define WRITE_USE_WEIGHTS
+#include "NNOptimize.glsl"

@@ -24,39 +24,39 @@ private:
 	inline static constexpr uint32_t kNNWeighCount = kNNWidth * kNNWidth * kNNHiddenLayers + kNNWidth * kNNOutWidth;
 
 	myvk::Ptr<myvk::Queue> m_queue_ptr;
-	// fp := Full Precision
-	myvk::Ptr<myvk::Buffer> m_weights, m_fp_weights, m_adam_state, m_adam_entries;
+	// use_weights: weights used by actual renderer
+	myvk::Ptr<myvk::Buffer> m_weights, m_use_weights, m_optimizer_state, m_optimizer_entries;
 	myvk::Ptr<myvk::ImageView> m_result_view;
 	VkExtent2D m_extent{};
 	uint32_t m_seed{};
 	std::mt19937 m_rng{std::random_device{}()};
 	Method m_left_method{kNRC}, m_right_method{kNRC};
-	bool m_accumulate;
-	uint32_t m_accumulate_count;
+	bool m_accumulate{false};
+	uint32_t m_accumulate_count{0};
+	bool m_use_use_weights{false};
 
 	void initialize_weights(std::span<float, kNNWeighCount> weights);
 	void create_result_image();
-	void create_weight_buffer();
-	void create_adam_buffer();
+	void create_mlp_buffer();
 
 public:
 	inline VkNRCState(const myvk::Ptr<myvk::Queue> &queue_ptr, VkExtent2D extent) : m_queue_ptr(queue_ptr) {
 		SetExtent(extent);
-		create_weight_buffer();
-		create_adam_buffer();
+		create_mlp_buffer();
 	}
 	inline ~VkNRCState() final = default;
 
 	inline const auto &GetResultImageView() const { return m_result_view; }
 	inline const auto &GetWeightBuffer() const { return m_weights; }
-	inline const auto &GetFPWeightBuffer() const { return m_fp_weights; }
-	inline const auto &GetAdamEntryBuffer() const { return m_adam_entries; }
-	inline const auto &GetAdamStateBuffer() const { return m_adam_state; }
+	inline const auto &GetUseWeightBuffer() const { return m_use_weights; }
+	inline const auto &GetOptimizerEntryBuffer() const { return m_optimizer_entries; }
+	inline const auto &GetOptimizerStateBuffer() const { return m_optimizer_state; }
 
 	inline Method GetLeftMethod() const { return m_left_method; }
 	inline Method GetRightMethod() const { return m_right_method; }
 	inline bool IsAccumulate() const { return m_accumulate; }
 	inline uint32_t GetAccumulateCount() const { return m_accumulate_count; }
+	inline bool IsUseEMAWeights() const { return m_use_use_weights; }
 
 	inline void SetLeftMethod(Method method) {
 		if (method != m_left_method) {
@@ -76,6 +76,7 @@ public:
 			m_accumulate_count = 0;
 	}
 	inline void ResetAccumulate() { m_accumulate_count = 0; }
+	inline void SetUseEMAWeights(bool use_ema_weights) { m_use_use_weights = use_ema_weights; }
 
 	inline uint32_t GetSeed() const { return m_seed; }
 

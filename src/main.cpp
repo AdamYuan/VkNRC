@@ -77,7 +77,7 @@ int main(int argc, char **argv) {
 	for (auto &rg : render_graphs)
 		rg = myvk::MakePtr<rg::NRCRenderGraph>(frame_manager, vk_scene_tlas, vk_nrc_state, camera);
 
-	bool nrc_accumulate = vk_nrc_state->IsAccumulate();
+	bool nrc_accumulate = vk_nrc_state->IsAccumulate(), nrc_use_ema_weights = vk_nrc_state->IsUseEMAWeights();
 	int nrc_left_method = static_cast<int>(vk_nrc_state->GetLeftMethod());
 	int nrc_right_method = static_cast<int>(vk_nrc_state->GetRightMethod());
 
@@ -100,6 +100,8 @@ int main(int argc, char **argv) {
 			vk_nrc_state->SetLeftMethod(static_cast<VkNRCState::Method>(nrc_left_method));
 		if (ImGui::Combo("Right", &nrc_right_method, "None\0NRC\0Cache"))
 			vk_nrc_state->SetRightMethod(static_cast<VkNRCState::Method>(nrc_right_method));
+		if (ImGui::Checkbox("EMA Weights", &nrc_use_ema_weights))
+			vk_nrc_state->SetUseEMAWeights(nrc_use_ema_weights);
 		ImGui::End();
 		ImGui::Render();
 
