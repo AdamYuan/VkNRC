@@ -8,7 +8,7 @@ namespace rg {
 
 namespace screen_pass {
 struct PushConstant_Data {
-	uint32_t samples;
+	uint32_t accumulate_flag, accumulate_count;
 };
 } // namespace screen_pass
 using screen_pass::PushConstant_Data;
@@ -58,7 +58,8 @@ void ScreenPass::CreatePipeline() {
 }
 
 void ScreenPass::CmdExecute(const myvk::Ptr<myvk::CommandBuffer> &command_buffer) const {
-	PushConstant_Data pc_data{.samples = m_nrc_state_ptr->GetSampleCount()};
+	PushConstant_Data pc_data{.accumulate_flag = m_nrc_state_ptr->IsAccumulate(),
+	                          .accumulate_count = m_nrc_state_ptr->GetAccumulateCount()};
 	command_buffer->CmdBindPipeline(m_pipeline);
 	command_buffer->CmdBindDescriptorSets({GetVkDescriptorSet()}, m_pipeline);
 	command_buffer->CmdPushConstants(m_pipeline->GetPipelineLayoutPtr(), VK_SHADER_STAGE_FRAGMENT_BIT, 0,

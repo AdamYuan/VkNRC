@@ -77,6 +77,10 @@ int main(int argc, char **argv) {
 	for (auto &rg : render_graphs)
 		rg = myvk::MakePtr<rg::NRCRenderGraph>(frame_manager, vk_scene_tlas, vk_nrc_state, camera);
 
+	bool nrc_accumulate = vk_nrc_state->IsAccumulate();
+	int nrc_left_method = static_cast<int>(vk_nrc_state->GetLeftMethod());
+	int nrc_right_method = static_cast<int>(vk_nrc_state->GetRightMethod());
+
 	double prev_time = glfwGetTime();
 	while (!glfwWindowShouldClose(window)) {
 		double delta;
@@ -88,13 +92,19 @@ int main(int argc, char **argv) {
 		glfwPollEvents();
 
 		myvk::ImGuiNewFrame();
-		ImGui::Begin("Test");
-		ImGui::Text("%f", ImGui::GetIO().Framerate);
+		ImGui::Begin("Panel");
+		ImGui::Text("FPS %f", ImGui::GetIO().Framerate);
+		if (ImGui::Checkbox("Accumulate", &nrc_accumulate))
+			vk_nrc_state->SetAccumulate(nrc_accumulate);
+		if (ImGui::Combo("Left", &nrc_left_method, "None\0NRC\0Cache"))
+			vk_nrc_state->SetLeftMethod(static_cast<VkNRCState::Method>(nrc_left_method));
+		if (ImGui::Combo("Right", &nrc_right_method, "None\0NRC\0Cache"))
+			vk_nrc_state->SetRightMethod(static_cast<VkNRCState::Method>(nrc_right_method));
 		ImGui::End();
 		ImGui::Render();
 
 		if (camera->DragControl(window, &cam_control, delta))
-			vk_nrc_state->Reset();
+			vk_nrc_state->ResetAccumulate();
 
 		if (frame_manager->NewFrame()) {
 			const auto &command_buffer = frame_manager->GetCurrentCommandBuffer();

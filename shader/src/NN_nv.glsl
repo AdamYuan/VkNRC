@@ -236,6 +236,7 @@ void NNBackwardDA3_ReLU(
 		[[unroll]] for (uint y = 0; y < SUBGROUP_ACT_COOPMAT_Y; ++y) {
 			// MMA
 			dst_da_coopmats_t[x][y] = coopMatMulAddNV(src_da_coopmats_t[y], weight_coopmat, dst_da_coopmats_t[x][y]);
+			// Inv ReLU
 			for (uint k = 0; k < dst_da_coopmats_t[x][y].length(); ++k)
 				dst_da_coopmats_t[x][y][k] =
 				    isnan(dst_da_coopmats_t[x][y][k]) ? float16_t(0) : dst_da_coopmats_t[x][y][k];

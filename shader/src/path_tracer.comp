@@ -8,6 +8,11 @@
 #extension GL_KHR_memory_scope_semantics : enable
 layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
 
+#define MAX_BOUNCE 5
+#define T_MIN 1e-6
+#define T_MAX 4.0
+#define C 0.01
+
 #include "CookTorranceBRDF.glsl"
 #include "NRCRecord.glsl"
 
@@ -17,10 +22,15 @@ layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
 #define SCENE_BUFFERS_FIRST_BINDING 1
 #include "Scene.glsl"
 
+#define METHOD_NONE 0
+#define METHOD_NRC 1
+#define METHOD_CACHE 2
+
 layout(push_constant) uniform uuPushConstant {
 	vec3 uOrigin, uLook, uSide, uUp;
 	uint uSeed;
 	uvec2 uExtent;
+	uint uLeftMethod, uRightMethod;
 };
 
 // V-Buffer
@@ -180,10 +190,7 @@ struct PathTraceResult {
 	vec3 bias, factor;
 };
 
-#define T_MIN 1e-6
-#define T_MAX 4.0
-#define C 0.01
-PathTraceResult PathTrace(Hit hit, Ray ray) {
+PathTraceResult PathTrace(Hit hit, Ray ray, in const uint method) {
 	vec3 radiance = vec3(0), accumulate = vec3(1);
 
 	BRDFStepInfo info = BRDFStep(hit, ray);
@@ -191,39 +198,47 @@ PathTraceResult PathTrace(Hit hit, Ray ray) {
 	accumulate *= info.color;
 	ray = info.ray;
 
-	float a0 = info.dist2 / (4 * M_PI * info.cosine);
-	float sqrt_a_sum = 0.0;
-	for (uint bounce = 1; bounce < MAX_BOUNCE && sqrt_a_sum * sqrt_a_sum <= C * a0; ++bounce) {
-		rayQueryEXT ray_query;
-		rayQueryInitializeEXT(ray_query, uTLAS, gl_RayFlagsOpaqueEXT, 0xFF, ray.o, T_MIN, ray.d, T_MAX);
-		while (rayQueryProceedEXT(ray_query))
-			;
+	float inf32 = uintBitsToFloat(0x7F800000u);
 
-		if (rayQueryGetIntersectionTypeEXT(ray_query, true) == gl_RayQueryCommittedIntersectionTriangleEXT) {
-			hit = GetRayQueryHit(ray_query, ray);
-			info = BRDFStep(hit, ray);
-			radiance += accumulate * hit.emission;
-			accumulate *= info.color;
-			ray = info.ray;
-			sqrt_a_sum += sqrt(info.dist2 / (info.pdf * info.cosine));
-		} else {
-			radiance += accumulate * kConstLight;
-			return PathTraceResult(radiance, accumulate);
+	float c_a0 = subgroupAll(method == METHOD_NONE) ? inf32 : C * info.dist2 / (4 * M_PI * info.cosine);
+
+	float sqrt_a_sum = 0.0;
+	if (subgroupAll(method != METHOD_CACHE)) {
+		for (uint bounce = 1; bounce < MAX_BOUNCE && sqrt_a_sum * sqrt_a_sum <= c_a0; ++bounce) {
+			rayQueryEXT ray_query;
+			rayQueryInitializeEXT(ray_query, uTLAS, gl_RayFlagsOpaqueEXT, 0xFF, ray.o, T_MIN, ray.d, T_MAX);
+			while (rayQueryProceedEXT(ray_query))
+				;
+
+			if (rayQueryGetIntersectionTypeEXT(ray_query, true) == gl_RayQueryCommittedIntersectionTriangleEXT) {
+				hit = GetRayQueryHit(ray_query, ray);
+				info = BRDFStep(hit, ray);
+				radiance += accumulate * hit.emission;
+				accumulate *= info.color;
+				ray = info.ray;
+				sqrt_a_sum += sqrt(info.dist2 / (info.pdf * info.cosine));
+			} else {
+				radiance += accumulate * kConstLight;
+				return PathTraceResult(radiance, accumulate);
+			}
 		}
 	}
 
-	// Push a EvalRecord
-	uint eval_id = atomicAdd(uEvalCount, 1u, gl_ScopeQueueFamily, gl_StorageSemanticsBuffer, gl_SemanticsRelaxed);
-	NRCEvalRecord eval_record;
-	eval_record.screen_x16_y16 = gl_GlobalInvocationID.x | (gl_GlobalInvocationID.y << 16u);
-	eval_record.train_l14_r14_b4 = -1;
-	eval_record.packed_input = MakeNRCInput(hit, ray.d);
-	uEvalRecords[eval_id] = eval_record;
+	if (subgroupAll(method != METHOD_NONE)) {
+		// Push a EvalRecord
+		uint eval_id = atomicAdd(uEvalCount, 1u, gl_ScopeQueueFamily, gl_StorageSemanticsBuffer, gl_SemanticsRelaxed);
+		NRCEvalRecord eval_record;
+		eval_record.screen_x16_y16 = gl_GlobalInvocationID.x | (gl_GlobalInvocationID.y << 16u);
+		eval_record.train_l14_r14_b4 = -1;
+		eval_record.packed_input = MakeNRCInput(hit, ray.d);
+		uEvalRecords[eval_id] = eval_record;
+	}
 
 	return PathTraceResult(radiance, accumulate);
 }
 
-PathTraceResult ExtendedPathTrace(Hit hit, Ray ray) {
+PathTraceResult ExtendedPathTrace(Hit hit, Ray ray, in const uint method) {
+	// assert(method != METHOD_NONE)
 	vec3 lights[MAX_BOUNCE], colors[MAX_BOUNCE];
 	PackedNRCInput inputs[MAX_BOUNCE];
 
@@ -241,28 +256,30 @@ PathTraceResult ExtendedPathTrace(Hit hit, Ray ray) {
 
 	inputs[0] = MakeNRCInput(hit, ray.d);
 
-	float a0 = info.dist2 / (4 * M_PI * info.cosine);
+	float c_a0 = C * info.dist2 / (4 * M_PI * info.cosine);
 	float sqrt_a_sum = 0.0;
 	uint bounce = 1;
-	for (; bounce < MAX_BOUNCE && sqrt_a_sum * sqrt_a_sum <= C * a0; ++bounce) {
-		rayQueryEXT ray_query;
-		rayQueryInitializeEXT(ray_query, uTLAS, gl_RayFlagsOpaqueEXT, 0xFF, ray.o, T_MIN, ray.d, T_MAX);
-		while (rayQueryProceedEXT(ray_query))
-			;
+	if (subgroupAll(method != METHOD_CACHE)) {
+		for (; bounce < MAX_BOUNCE && sqrt_a_sum * sqrt_a_sum <= c_a0; ++bounce) {
+			rayQueryEXT ray_query;
+			rayQueryInitializeEXT(ray_query, uTLAS, gl_RayFlagsOpaqueEXT, 0xFF, ray.o, T_MIN, ray.d, T_MAX);
+			while (rayQueryProceedEXT(ray_query))
+				;
 
-		if (rayQueryGetIntersectionTypeEXT(ray_query, true) == gl_RayQueryCommittedIntersectionTriangleEXT) {
-			hit = GetRayQueryHit(ray_query, ray);
-			info = BRDFStep(hit, ray);
-			accumulate *= info.color;
-			ray = info.ray;
-			sqrt_a_sum += sqrt(info.dist2 / (info.pdf * info.cosine));
-			lights[bounce - 1] = hit.emission;
-			colors[bounce - 1] = info.color;
-			inputs[bounce] = MakeNRCInput(hit, ray.d);
-		} else {
-			radiance += accumulate * kConstLight;
-			lights[bounce - 1] = kConstLight;
-			break;
+			if (rayQueryGetIntersectionTypeEXT(ray_query, true) == gl_RayQueryCommittedIntersectionTriangleEXT) {
+				hit = GetRayQueryHit(ray_query, ray);
+				info = BRDFStep(hit, ray);
+				accumulate *= info.color;
+				ray = info.ray;
+				sqrt_a_sum += sqrt(info.dist2 / (info.pdf * info.cosine));
+				lights[bounce - 1] = hit.emission;
+				colors[bounce - 1] = info.color;
+				inputs[bounce] = MakeNRCInput(hit, ray.d);
+			} else {
+				radiance += accumulate * kConstLight;
+				lights[bounce - 1] = kConstLight;
+				break;
+			}
 		}
 	}
 
@@ -277,7 +294,7 @@ PathTraceResult ExtendedPathTrace(Hit hit, Ray ray) {
 	}
 
 	sqrt_a_sum = 0;
-	for (; bounce < MAX_BOUNCE && sqrt_a_sum * sqrt_a_sum <= C * a0; ++bounce) {
+	for (; bounce < MAX_BOUNCE && sqrt_a_sum * sqrt_a_sum <= c_a0; ++bounce) {
 		rayQueryEXT ray_query;
 		rayQueryInitializeEXT(ray_query, uTLAS, gl_RayFlagsOpaqueEXT, 0xFF, ray.o, T_MIN, ray.d, T_MAX);
 		while (rayQueryProceedEXT(ray_query))
@@ -342,10 +359,14 @@ void main() {
 	if (any(greaterThanEqual(coord, uExtent)))
 		return;
 
-	bool train;
-	if (subgroupElect())
-		train = RNGNext() <= 0.03;
-	train = subgroupBroadcastFirst(train);
+	uint method = subgroupAll(coord.x <= uExtent.x / 2) ? uLeftMethod : uRightMethod;
+
+	bool train = false;
+	if (subgroupAll(method != METHOD_NONE)) {
+		if (subgroupElect())
+			train = RNGNext() <= 0.03;
+		train = subgroupBroadcastFirst(train);
+	}
 
 	uvec2 primitive_id_instance_id = texelFetch(uPrimitiveID_InstanceID, ivec2(coord), 0).rg;
 	uint primitive_id = primitive_id_instance_id.x, instance_id = primitive_id_instance_id.y;
@@ -362,9 +383,9 @@ void main() {
 		}
 		Hit hit = GetVBufferHit(primitive_id, instance_id, ray);
 		if (subgroupAll(train))
-			result = ExtendedPathTrace(hit, ray);
+			result = ExtendedPathTrace(hit, ray, method);
 		else if (subgroupAll(!train))
-			result = PathTrace(hit, ray);
+			result = PathTrace(hit, ray, method);
 	}
 
 	result.bias = NormalizeRGB(result.bias);
