@@ -37,8 +37,7 @@ void main() {
 	entry.weight -= LEARNING_RATE * h_moment.x / (sqrt(h_moment.y) + EPSILON);
 
 	float eta_t = 1.0 - uAlpha_T, eta_t_1 = 1.0 - uAlpha_T_1;
-	entry.ema_weight =
-	    uStep == 1 ? entry.weight : (1.0 - EMA_ALPHA) / eta_t * entry.weight + EMA_ALPHA * eta_t_1 * entry.ema_weight;
+	entry.ema_weight = (1.0 - EMA_ALPHA) / eta_t * entry.weight + EMA_ALPHA * eta_t_1 * entry.ema_weight;
 
 	uOptimizerEntries[gl_GlobalInvocationID.x] = entry;
 	uWeights[gl_GlobalInvocationID.x] = float16_t(entry.weight);
