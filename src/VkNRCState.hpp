@@ -65,13 +65,13 @@ public:
 		if (!accumulate)
 			m_accumulate_count = 0;
 	}
-	inline void ResetAccumulate() { m_accumulate_count = 0; }
+	inline void ResetAccumulateCount() { m_accumulate_count = 0; }
 	inline void SetUseEMAWeights(bool use_ema_weights) { m_use_ema_weights = use_ema_weights; }
 	inline void SetTrainProbability(float train_probability) { m_train_probability = train_probability; }
 
 	inline uint32_t GetSeed() const { return m_seed; }
 
-	inline void Next() {
+	inline void NextFrame() {
 		if (m_accumulate)
 			++m_accumulate_count;
 		m_seed = std::uniform_int_distribution<uint32_t>{0}(m_rng);

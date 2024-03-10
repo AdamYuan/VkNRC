@@ -73,7 +73,7 @@ int main(int argc, char **argv) {
 	auto frame_manager = myvk::FrameManager::Create(generic_queue, present_queue, false, kFrameCount);
 	frame_manager->SetResizeFunc([&](VkExtent2D extent) {
 		vk_nrc_state->ResetAccumulateImage(extent);
-		vk_nrc_state->ResetAccumulate();
+		vk_nrc_state->ResetAccumulateCount();
 	});
 	std::array<myvk::Ptr<rg::NRCRenderGraph>, kFrameCount> render_graphs;
 	for (auto &rg : render_graphs)
@@ -98,35 +98,35 @@ int main(int argc, char **argv) {
 
 		myvk::ImGuiNewFrame();
 		ImGui::Begin("Panel");
-		ImGui::Text("FPS %f", 1.0 / delta);
+		ImGui::Text("FPS %f", ImGui::GetIO().Framerate);
 		if (ImGui::CollapsingHeader("View")) {
 			if (ImGui::Checkbox("Accumulate", &view_accumulate))
 				vk_nrc_state->SetAccumulate(view_accumulate);
 			if (ImGui::Combo("Left", &view_left_method, "None\0NRC\0Cache")) {
 				vk_nrc_state->SetLeftMethod(static_cast<VkNRCState::Method>(view_left_method));
-				vk_nrc_state->ResetAccumulate();
+				vk_nrc_state->ResetAccumulateCount();
 			}
 			if (ImGui::Combo("Right", &view_right_method, "None\0NRC\0Cache")) {
 				vk_nrc_state->SetRightMethod(static_cast<VkNRCState::Method>(view_right_method));
-				vk_nrc_state->ResetAccumulate();
+				vk_nrc_state->ResetAccumulateCount();
 			}
 		}
 		if (ImGui::CollapsingHeader("NRC")) {
 			if (ImGui::Checkbox("Use EMA", &nrc_use_ema)) {
 				vk_nrc_state->SetUseEMAWeights(nrc_use_ema);
-				vk_nrc_state->ResetAccumulate();
+				vk_nrc_state->ResetAccumulateCount();
 			}
 			if (ImGui::Checkbox("Lock", &nrc_lock))
-				vk_nrc_state->ResetAccumulate();
+				vk_nrc_state->ResetAccumulateCount();
 			if (nrc_lock) {
 				ImGui::SameLine();
 				if (ImGui::Button("Train 1-Frame")) {
-					vk_nrc_state->ResetAccumulate();
+					vk_nrc_state->ResetAccumulateCount();
 					nrc_train_one_frame = true;
 				}
 			}
 			if (ImGui::Button("Re-Train")) {
-				vk_nrc_state->ResetAccumulate();
+				vk_nrc_state->ResetAccumulateCount();
 				vk_nrc_state->ResetMLPBuffers();
 			}
 		}
@@ -134,7 +134,7 @@ int main(int argc, char **argv) {
 		ImGui::Render();
 
 		if (camera->DragControl(window, &cam_control, delta))
-			vk_nrc_state->ResetAccumulate();
+			vk_nrc_state->ResetAccumulateCount();
 
 		if (nrc_lock && !nrc_train_one_frame)
 			vk_nrc_state->SetTrainProbability(0.0f);
@@ -153,8 +153,7 @@ int main(int argc, char **argv) {
 			frame_manager->Render();
 		}
 
-		// Next Sample
-		vk_nrc_state->Next();
+		vk_nrc_state->NextFrame();
 	}
 
 	frame_manager->WaitIdle();
