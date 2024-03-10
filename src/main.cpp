@@ -79,7 +79,7 @@ int main(int argc, char **argv) {
 	bool view_accumulate = vk_nrc_state->IsAccumulate();
 	int view_left_method = static_cast<int>(vk_nrc_state->GetLeftMethod());
 	int view_right_method = static_cast<int>(vk_nrc_state->GetRightMethod());
-	bool nrc_use_ema_weights = vk_nrc_state->IsUseEMAWeights(), nrc_train_stopped = false, nrc_train_one_frame = false;
+	bool nrc_use_ema_weights = vk_nrc_state->IsUseEMAWeights(), nrc_lock_weights = false, nrc_train_one_frame = false;
 
 	double prev_time = glfwGetTime();
 	while (!glfwWindowShouldClose(window)) {
@@ -107,15 +107,11 @@ int main(int argc, char **argv) {
 		if (ImGui::CollapsingHeader("NRC")) {
 			if (ImGui::Checkbox("EMA Weights", &nrc_use_ema_weights))
 				vk_nrc_state->SetUseEMAWeights(nrc_use_ema_weights);
-			if (nrc_train_stopped) {
-				if (ImGui::Button("Resume Train"))
-					nrc_train_stopped = false;
+			ImGui::Checkbox("Lock Weights", &nrc_lock_weights);
+			if (nrc_lock_weights) {
 				ImGui::SameLine();
-				if (ImGui::Button("1-Frame Train"))
+				if (ImGui::Button("Train 1-Frame"))
 					nrc_train_one_frame = true;
-			} else {
-				if (ImGui::Button("Stop Train"))
-					nrc_train_stopped = true;
 			}
 			if (ImGui::Button("Re-Train"))
 				vk_nrc_state->ResetMLPBuffers();
@@ -126,7 +122,7 @@ int main(int argc, char **argv) {
 		if (camera->DragControl(window, &cam_control, delta))
 			vk_nrc_state->ResetAccumulate();
 
-		if (nrc_train_stopped && !nrc_train_one_frame)
+		if (nrc_lock_weights && !nrc_train_one_frame)
 			vk_nrc_state->SetTrainProbability(0.0f);
 		else
 			vk_nrc_state->SetTrainProbability(VkNRCState::GetDefaultTrainProbability());
