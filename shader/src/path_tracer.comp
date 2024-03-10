@@ -264,6 +264,7 @@ PathTraceResult ExtendedPathTrace(Hit hit, Ray ray, in const uint method) {
 	}
 
 	vec3 accumulate = vec3(1), radiance = vec3(0);
+	bool light_terminate = false;
 
 	BRDFStepInfo info = BRDFStep(hit, ray);
 	radiance += accumulate * hit.emission;
@@ -285,6 +286,7 @@ PathTraceResult ExtendedPathTrace(Hit hit, Ray ray, in const uint method) {
 			if (rayQueryGetIntersectionTypeEXT(ray_query, true) == gl_RayQueryCommittedIntersectionTriangleEXT) {
 				hit = GetRayQueryHit(ray_query, ray);
 				info = BRDFStep(hit, ray);
+				radiance += accumulate * hit.emission;
 				accumulate *= info.color;
 				ray = info.ray;
 				sqrt_a_sum += sqrt(info.dist2 / (info.pdf * info.cosine));
@@ -294,12 +296,13 @@ PathTraceResult ExtendedPathTrace(Hit hit, Ray ray, in const uint method) {
 			} else {
 				radiance += accumulate * kConstLight;
 				lights[bounce - 1] = kConstLight;
+				light_terminate = true;
 				break;
 			}
 		}
 	}
 
-	if (lights[bounce - 1] == vec3(0)) {
+	if (!light_terminate) {
 		uint eval_id = atomicAdd(uEvalCount, 1u, gl_ScopeQueueFamily, gl_StorageSemanticsBuffer, gl_SemanticsRelaxed);
 		NRCEvalRecord eval_record;
 		eval_record.screen_x16_y16 = gl_GlobalInvocationID.x | (gl_GlobalInvocationID.y << 16u);
@@ -311,6 +314,7 @@ PathTraceResult ExtendedPathTrace(Hit hit, Ray ray, in const uint method) {
 	PathTraceResult result = PathTraceResult(radiance, accumulate);
 
 	sqrt_a_sum = 0;
+	light_terminate = false;
 	for (; bounce < MAX_BOUNCE && sqrt_a_sum * sqrt_a_sum <= c_a0; ++bounce) {
 		rayQueryEXT ray_query;
 		rayQueryInitializeEXT(ray_query, uTLAS, gl_RayFlagsOpaqueEXT, 0xFF, ray.o, T_MIN, ray.d, T_MAX);
@@ -327,6 +331,7 @@ PathTraceResult ExtendedPathTrace(Hit hit, Ray ray, in const uint method) {
 			inputs[bounce] = MakeNRCInput(hit, ray.d);
 		} else {
 			lights[bounce - 1] = kConstLight;
+			light_terminate = true;
 			break;
 		}
 	}
@@ -352,7 +357,7 @@ PathTraceResult ExtendedPathTrace(Hit hit, Ray ray, in const uint method) {
 			uBatchTrainRecords[batch].records[train_id + i] = train_record;
 		}
 
-		if (lights[bounce - 1] == vec3(0)) {
+		if (!light_terminate) {
 			uint eval_id =
 			    atomicAdd(uEvalCount, 1u, gl_ScopeQueueFamily, gl_StorageSemanticsBuffer, gl_SemanticsRelaxed);
 			NRCEvalRecord eval_record;
