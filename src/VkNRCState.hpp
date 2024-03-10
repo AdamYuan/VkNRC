@@ -37,8 +37,6 @@ private:
 	float m_train_probability{kDefaultTrainProbability};
 
 	void initialize_weights(std::span<float, kNNWeighCount> weights);
-	void create_accumulate_image(VkExtent2D extent);
-	void create_mlp_buffer();
 
 public:
 	inline VkNRCState(const myvk::Ptr<myvk::Queue> &queue_ptr, VkExtent2D extent) : m_queue_ptr(queue_ptr) {
@@ -60,18 +58,8 @@ public:
 	inline bool IsUseEMAWeights() const { return m_use_ema_weights; }
 	inline float GetTrainProbability() const { return m_train_probability; }
 
-	inline void SetLeftMethod(Method method) {
-		if (method != m_left_method) {
-			m_left_method = method;
-			ResetAccumulate();
-		}
-	}
-	inline void SetRightMethod(Method method) {
-		if (method != m_right_method) {
-			m_right_method = method;
-			ResetAccumulate();
-		}
-	}
+	inline void SetLeftMethod(Method method) { m_left_method = method; }
+	inline void SetRightMethod(Method method) { m_right_method = method; }
 	inline void SetAccumulate(bool accumulate) {
 		m_accumulate = accumulate;
 		if (!accumulate)
@@ -79,12 +67,7 @@ public:
 	}
 	inline void ResetAccumulate() { m_accumulate_count = 0; }
 	inline void SetUseEMAWeights(bool use_ema_weights) { m_use_ema_weights = use_ema_weights; }
-	inline void SetTrainProbability(float train_probability) {
-		if (m_train_probability != train_probability) {
-			m_train_probability = train_probability;
-			ResetAccumulate();
-		}
-	}
+	inline void SetTrainProbability(float train_probability) { m_train_probability = train_probability; }
 
 	inline uint32_t GetSeed() const { return m_seed; }
 
@@ -94,14 +77,8 @@ public:
 		m_seed = std::uniform_int_distribution<uint32_t>{0}(m_rng);
 	}
 
-	inline void ResetAccumulateImage(VkExtent2D extent) {
-		create_accumulate_image(extent);
-		ResetAccumulate();
-	}
-	inline void ResetMLPBuffers() {
-		create_mlp_buffer();
-		ResetAccumulate();
-	}
+	void ResetAccumulateImage(VkExtent2D extent);
+	void ResetMLPBuffers();
 
 	inline const myvk::Ptr<myvk::Device> &GetDevicePtr() const { return m_queue_ptr->GetDevicePtr(); }
 	static VkDeviceSize GetEvalRecordBufferSize(VkExtent2D extent);

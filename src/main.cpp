@@ -71,7 +71,10 @@ int main(int argc, char **argv) {
 	auto vk_nrc_state = myvk::MakePtr<VkNRCState>(generic_queue, VkExtent2D{kWidth, kHeight});
 
 	auto frame_manager = myvk::FrameManager::Create(generic_queue, present_queue, false, kFrameCount);
-	frame_manager->SetResizeFunc([&](VkExtent2D extent) { vk_nrc_state->ResetAccumulateImage(extent); });
+	frame_manager->SetResizeFunc([&](VkExtent2D extent) {
+		vk_nrc_state->ResetAccumulateImage(extent);
+		vk_nrc_state->ResetAccumulate();
+	});
 	std::array<myvk::Ptr<rg::NRCRenderGraph>, kFrameCount> render_graphs;
 	for (auto &rg : render_graphs)
 		rg = myvk::MakePtr<rg::NRCRenderGraph>(frame_manager, vk_scene_tlas, vk_nrc_state, camera);
@@ -99,22 +102,33 @@ int main(int argc, char **argv) {
 		if (ImGui::CollapsingHeader("View")) {
 			if (ImGui::Checkbox("Accumulate", &view_accumulate))
 				vk_nrc_state->SetAccumulate(view_accumulate);
-			if (ImGui::Combo("Left", &view_left_method, "None\0NRC\0Cache"))
+			if (ImGui::Combo("Left", &view_left_method, "None\0NRC\0Cache")) {
 				vk_nrc_state->SetLeftMethod(static_cast<VkNRCState::Method>(view_left_method));
-			if (ImGui::Combo("Right", &view_right_method, "None\0NRC\0Cache"))
+				vk_nrc_state->ResetAccumulate();
+			}
+			if (ImGui::Combo("Right", &view_right_method, "None\0NRC\0Cache")) {
 				vk_nrc_state->SetRightMethod(static_cast<VkNRCState::Method>(view_right_method));
+				vk_nrc_state->ResetAccumulate();
+			}
 		}
 		if (ImGui::CollapsingHeader("NRC")) {
-			if (ImGui::Checkbox("Use EMA", &nrc_use_ema))
+			if (ImGui::Checkbox("Use EMA", &nrc_use_ema)) {
 				vk_nrc_state->SetUseEMAWeights(nrc_use_ema);
-			ImGui::Checkbox("Lock", &nrc_lock);
+				vk_nrc_state->ResetAccumulate();
+			}
+			if (ImGui::Checkbox("Lock", &nrc_lock))
+				vk_nrc_state->ResetAccumulate();
 			if (nrc_lock) {
 				ImGui::SameLine();
-				if (ImGui::Button("Train 1-Frame"))
+				if (ImGui::Button("Train 1-Frame")) {
+					vk_nrc_state->ResetAccumulate();
 					nrc_train_one_frame = true;
+				}
 			}
-			if (ImGui::Button("Re-Train"))
+			if (ImGui::Button("Re-Train")) {
+				vk_nrc_state->ResetAccumulate();
 				vk_nrc_state->ResetMLPBuffers();
+			}
 		}
 		ImGui::End();
 		ImGui::Render();

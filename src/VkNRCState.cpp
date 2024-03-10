@@ -42,7 +42,7 @@ void VkNRCState::initialize_weights(std::span<float, kNNWeighCount> weights) {
 		w = norm(m_rng);
 }
 
-void VkNRCState::create_mlp_buffer() {
+void VkNRCState::ResetMLPBuffers() {
 	std::array<float, GetWeightCount()> fp32_weights{};
 	initialize_weights(fp32_weights);
 	std::array<half_float::half, GetWeightCount()> fp16_weights{};
@@ -86,7 +86,7 @@ void VkNRCState::create_mlp_buffer() {
 	fence->Wait();
 }
 
-void VkNRCState::create_accumulate_image(VkExtent2D extent) {
+void VkNRCState::ResetAccumulateImage(VkExtent2D extent) {
 	auto image = myvk::Image::CreateTexture2D(GetDevicePtr(), extent, 1, VK_FORMAT_R32G32B32A32_SFLOAT,
 	                                          VK_IMAGE_USAGE_STORAGE_BIT);
 	m_accumulate_view = myvk::ImageView::Create(image, VK_IMAGE_VIEW_TYPE_2D);
