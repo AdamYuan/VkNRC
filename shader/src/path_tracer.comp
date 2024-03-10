@@ -31,6 +31,7 @@ layout(push_constant) uniform uuPushConstant {
 	uint uSeed;
 	uvec2 uExtent;
 	uint uLeftMethod, uRightMethod;
+	float uTrainProbability;
 };
 
 // V-Buffer
@@ -384,7 +385,7 @@ void main() {
 	bool train = false;
 	if (subgroupAll(method != METHOD_NONE)) {
 		if (subgroupElect())
-			train = RNGNext() <= 0.03;
+			train = RNGNext() < uTrainProbability;
 		train = subgroupBroadcastFirst(train);
 	}
 

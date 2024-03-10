@@ -76,9 +76,10 @@ int main(int argc, char **argv) {
 	for (auto &rg : render_graphs)
 		rg = myvk::MakePtr<rg::NRCRenderGraph>(frame_manager, vk_scene_tlas, vk_nrc_state, camera);
 
-	bool nrc_accumulate = vk_nrc_state->IsAccumulate(), nrc_use_ema_weights = vk_nrc_state->IsUseEMAWeights();
-	int nrc_left_method = static_cast<int>(vk_nrc_state->GetLeftMethod());
-	int nrc_right_method = static_cast<int>(vk_nrc_state->GetRightMethod());
+	bool view_accumulate = vk_nrc_state->IsAccumulate();
+	int view_left_method = static_cast<int>(vk_nrc_state->GetLeftMethod());
+	int view_right_method = static_cast<int>(vk_nrc_state->GetRightMethod());
+	bool nrc_use_ema_weights = vk_nrc_state->IsUseEMAWeights(), nrc_train_stopped = false, nrc_train_one_frame = false;
 
 	double prev_time = glfwGetTime();
 	while (!glfwWindowShouldClose(window)) {
@@ -90,25 +91,45 @@ int main(int argc, char **argv) {
 		}
 		glfwPollEvents();
 
+		nrc_train_one_frame = false;
+
 		myvk::ImGuiNewFrame();
 		ImGui::Begin("Panel");
-		ImGui::Text("FPS %f", ImGui::GetIO().Framerate);
-		if (ImGui::Checkbox("Accumulate", &nrc_accumulate))
-			vk_nrc_state->SetAccumulate(nrc_accumulate);
-		if (ImGui::Combo("Left", &nrc_left_method, "None\0NRC\0Cache"))
-			vk_nrc_state->SetLeftMethod(static_cast<VkNRCState::Method>(nrc_left_method));
-		if (ImGui::Combo("Right", &nrc_right_method, "None\0NRC\0Cache"))
-			vk_nrc_state->SetRightMethod(static_cast<VkNRCState::Method>(nrc_right_method));
-		if (ImGui::Checkbox("EMA Weights", &nrc_use_ema_weights))
-			vk_nrc_state->SetUseEMAWeights(nrc_use_ema_weights);
-		if (ImGui::Button("Re-Train")) {
-			vk_nrc_state->ResetMLPBuffers();
+		ImGui::Text("FPS %f", 1.0 / delta);
+		if (ImGui::CollapsingHeader("View")) {
+			if (ImGui::Checkbox("Accumulate", &view_accumulate))
+				vk_nrc_state->SetAccumulate(view_accumulate);
+			if (ImGui::Combo("Left", &view_left_method, "None\0NRC\0Cache"))
+				vk_nrc_state->SetLeftMethod(static_cast<VkNRCState::Method>(view_left_method));
+			if (ImGui::Combo("Right", &view_right_method, "None\0NRC\0Cache"))
+				vk_nrc_state->SetRightMethod(static_cast<VkNRCState::Method>(view_right_method));
+		}
+		if (ImGui::CollapsingHeader("NRC")) {
+			if (ImGui::Checkbox("EMA Weights", &nrc_use_ema_weights))
+				vk_nrc_state->SetUseEMAWeights(nrc_use_ema_weights);
+			if (nrc_train_stopped) {
+				if (ImGui::Button("Resume Train"))
+					nrc_train_stopped = false;
+				ImGui::SameLine();
+				if (ImGui::Button("1-Frame Train"))
+					nrc_train_one_frame = true;
+			} else {
+				if (ImGui::Button("Stop Train"))
+					nrc_train_stopped = true;
+			}
+			if (ImGui::Button("Re-Train"))
+				vk_nrc_state->ResetMLPBuffers();
 		}
 		ImGui::End();
 		ImGui::Render();
 
 		if (camera->DragControl(window, &cam_control, delta))
 			vk_nrc_state->ResetAccumulate();
+
+		if (nrc_train_stopped && !nrc_train_one_frame)
+			vk_nrc_state->SetTrainProbability(0.0f);
+		else
+			vk_nrc_state->SetTrainProbability(VkNRCState::GetDefaultTrainProbability());
 
 		if (frame_manager->NewFrame()) {
 			const auto &command_buffer = frame_manager->GetCurrentCommandBuffer();

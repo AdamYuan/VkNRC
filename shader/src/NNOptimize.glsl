@@ -1,4 +1,6 @@
 #extension GL_EXT_shader_explicit_arithmetic_types_float16 : enable
+#extension GL_KHR_shader_subgroup_basic : enable
+#extension GL_KHR_shader_subgroup_vote : enable
 layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
 
 #include "Constant.glsl"
@@ -26,6 +28,9 @@ layout(binding = 5) uniform uuOptimizerState {
 layout(push_constant) uniform uuPushConstant { uint uUseEMAWeights; };
 
 void main() {
+	if (subgroupAll(uBatchTrainCount == 0))
+		return;
+
 	float gradient = uGradients[gl_GlobalInvocationID.x] / float(uBatchTrainCount) / LOSS_SCALE;
 	if (isnan(gradient) || isinf(gradient))
 		gradient = 0.0;

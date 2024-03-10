@@ -17,6 +17,7 @@ struct PushConstant_Data {
 	uint32_t seed;
 	alignas(sizeof(VkExtent2D)) VkExtent2D extent;
 	uint32_t left_method, right_method;
+	float train_probability;
 };
 } // namespace path_tracer_pass
 using path_tracer_pass::PushConstant_Data;
@@ -86,14 +87,17 @@ void PathTracerPass::CmdExecute(const myvk::Ptr<myvk::CommandBuffer> &command_bu
 	PushConstant_Data pc_data{};
 	{
 		auto look_side_up = m_camera_ptr->GetVkLookSideUp(GetRenderGraphPtr()->GetCanvasAspectRatio());
-		pc_data = {.position = m_camera_ptr->position,
-		           .look = look_side_up.look,
-		           .side = look_side_up.side,
-		           .up = look_side_up.up,
-		           .seed = m_nrc_state_ptr->GetSeed(),
-		           .extent = extent,
-		           .left_method = static_cast<uint32_t>(m_nrc_state_ptr->GetLeftMethod()),
-		           .right_method = static_cast<uint32_t>(m_nrc_state_ptr->GetRightMethod())};
+		pc_data = {
+		    .position = m_camera_ptr->position,
+		    .look = look_side_up.look,
+		    .side = look_side_up.side,
+		    .up = look_side_up.up,
+		    .seed = m_nrc_state_ptr->GetSeed(),
+		    .extent = extent,
+		    .left_method = static_cast<uint32_t>(m_nrc_state_ptr->GetLeftMethod()),
+		    .right_method = static_cast<uint32_t>(m_nrc_state_ptr->GetRightMethod()),
+		    .train_probability = m_nrc_state_ptr->GetTrainProbability(),
+		};
 	}
 	command_buffer->CmdBindPipeline(m_pipeline);
 	command_buffer->CmdBindDescriptorSets({GetVkDescriptorSet()}, m_pipeline);

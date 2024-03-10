@@ -19,6 +19,7 @@ public:
 	enum Method { kNone, kNRC, kCache };
 
 private:
+	inline static constexpr float kDefaultTrainProbability = 0.03f;
 	inline static constexpr uint32_t kNNHiddenLayers = 5, kNNWidth = 64, kNNOutWidth = 3, kTrainBatchSize = 16384,
 	                                 kTrainBatchCount = 4;
 	inline static constexpr uint32_t kNNWeighCount = kNNWidth * kNNWidth * kNNHiddenLayers + kNNWidth * kNNOutWidth;
@@ -33,6 +34,7 @@ private:
 	bool m_accumulate{false};
 	uint32_t m_accumulate_count{0};
 	bool m_use_ema_weights{false};
+	float m_train_probability{kDefaultTrainProbability};
 
 	void initialize_weights(std::span<float, kNNWeighCount> weights);
 	void create_accumulate_image(VkExtent2D extent);
@@ -56,6 +58,7 @@ public:
 	inline bool IsAccumulate() const { return m_accumulate; }
 	inline uint32_t GetAccumulateCount() const { return m_accumulate_count; }
 	inline bool IsUseEMAWeights() const { return m_use_ema_weights; }
+	inline float GetTrainProbability() const { return m_train_probability; }
 
 	inline void SetLeftMethod(Method method) {
 		if (method != m_left_method) {
@@ -76,6 +79,12 @@ public:
 	}
 	inline void ResetAccumulate() { m_accumulate_count = 0; }
 	inline void SetUseEMAWeights(bool use_ema_weights) { m_use_ema_weights = use_ema_weights; }
+	inline void SetTrainProbability(float train_probability) {
+		if (m_train_probability != train_probability) {
+			m_train_probability = train_probability;
+			ResetAccumulate();
+		}
+	}
 
 	inline uint32_t GetSeed() const { return m_seed; }
 
@@ -100,6 +109,7 @@ public:
 	static constexpr uint32_t GetTrainBatchCount() { return kTrainBatchCount; }
 	static constexpr uint32_t GetTrainBatchSize() { return kTrainBatchSize; }
 	static constexpr uint32_t GetWeightCount() { return kNNWeighCount; }
+	static constexpr float GetDefaultTrainProbability() { return kDefaultTrainProbability; }
 };
 
 #endif // VKNRC_VKNRCSTATE_HPP
