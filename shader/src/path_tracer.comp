@@ -173,7 +173,6 @@ BRDFStepInfo BRDFStep(in const Hit hit, in const Ray ray) {
 		dir = sample_dir_pdf.xyz;
 		pdf = sample_dir_pdf.w;
 	}
-	pdf = max(pdf, 1e-6);
 	vec3 brdf = CookTorranceBRDF(brdf_args, dir, -ray.d, hit.normal); // sample_dir is incidence dir
 	float cosine = abs(dot(hit.normal, dir));
 	vec3 color = NormalizeRGB(brdf * cosine / pdf);
@@ -189,7 +188,6 @@ BRDFStepInfo BRDFStep(in const Hit hit, in const Ray ray) {
 BRDFStepInfo BRDFQuery(in const Hit hit, in const Ray ray, in const vec3 dir) {
 	CookTorranceBRDFArgs brdf_args = GetHitBRDFArgs(hit);
 	float pdf = CookTorrancePDF(brdf_args, dir, -ray.d, hit.normal);
-	pdf = max(pdf, 1e-6);
 	vec3 brdf = CookTorranceBRDF(brdf_args, dir, -ray.d, hit.normal);
 	float cosine = abs(dot(hit.normal, dir));
 	vec3 color = NormalizeRGB(brdf * cosine / pdf);
