@@ -26,8 +26,7 @@ private:
 	myvk::Ptr<myvk::Queue> m_queue_ptr;
 	// use_weights: weights used by actual renderer
 	myvk::Ptr<myvk::Buffer> m_weights, m_use_weights, m_optimizer_state, m_optimizer_entries;
-	myvk::Ptr<myvk::ImageView> m_result_view;
-	VkExtent2D m_extent{};
+	myvk::Ptr<myvk::ImageView> m_accumulate_view;
 	uint32_t m_seed{};
 	std::mt19937 m_rng{std::random_device{}()};
 	Method m_left_method{kNRC}, m_right_method{kNRC};
@@ -36,17 +35,17 @@ private:
 	bool m_use_ema_weights{false};
 
 	void initialize_weights(std::span<float, kNNWeighCount> weights);
-	void create_result_image();
+	void create_accumulate_image(VkExtent2D extent);
 	void create_mlp_buffer();
 
 public:
 	inline VkNRCState(const myvk::Ptr<myvk::Queue> &queue_ptr, VkExtent2D extent) : m_queue_ptr(queue_ptr) {
-		SetExtent(extent);
-		create_mlp_buffer();
+		ResetAccumulateImage(extent);
+		ResetMLPBuffers();
 	}
 	inline ~VkNRCState() final = default;
 
-	inline const auto &GetResultImageView() const { return m_result_view; }
+	inline const auto &GetAccumulateImageView() const { return m_accumulate_view; }
 	inline const auto &GetWeightBuffer() const { return m_weights; }
 	inline const auto &GetUseWeightBuffer() const { return m_use_weights; }
 	inline const auto &GetOptimizerEntryBuffer() const { return m_optimizer_entries; }
@@ -86,13 +85,15 @@ public:
 		m_seed = std::uniform_int_distribution<uint32_t>{0}(m_rng);
 	}
 
-	inline void SetExtent(VkExtent2D extent) {
-		if (std::tie(m_extent.width, m_extent.height) != std::tie(extent.width, extent.height)) {
-			m_extent = extent;
-			create_result_image();
-			ResetAccumulate();
-		}
+	inline void ResetAccumulateImage(VkExtent2D extent) {
+		create_accumulate_image(extent);
+		ResetAccumulate();
 	}
+	inline void ResetMLPBuffers() {
+		create_mlp_buffer();
+		ResetAccumulate();
+	}
+
 	inline const myvk::Ptr<myvk::Device> &GetDevicePtr() const { return m_queue_ptr->GetDevicePtr(); }
 	static VkDeviceSize GetEvalRecordBufferSize(VkExtent2D extent);
 	static VkDeviceSize GetBatchTrainRecordBufferSize();

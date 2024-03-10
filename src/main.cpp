@@ -6,8 +6,6 @@
 
 #include "rg/NRCRenderGraph.hpp"
 
-#include "Sobol.hpp"
-
 constexpr uint32_t kFrameCount = 3, kWidth = 1280, kHeight = 720;
 
 int main(int argc, char **argv) {
@@ -73,6 +71,7 @@ int main(int argc, char **argv) {
 	auto vk_nrc_state = myvk::MakePtr<VkNRCState>(generic_queue, VkExtent2D{kWidth, kHeight});
 
 	auto frame_manager = myvk::FrameManager::Create(generic_queue, present_queue, false, kFrameCount);
+	frame_manager->SetResizeFunc([&](VkExtent2D extent) { vk_nrc_state->ResetAccumulateImage(extent); });
 	std::array<myvk::Ptr<rg::NRCRenderGraph>, kFrameCount> render_graphs;
 	for (auto &rg : render_graphs)
 		rg = myvk::MakePtr<rg::NRCRenderGraph>(frame_manager, vk_scene_tlas, vk_nrc_state, camera);
@@ -102,6 +101,9 @@ int main(int argc, char **argv) {
 			vk_nrc_state->SetRightMethod(static_cast<VkNRCState::Method>(nrc_right_method));
 		if (ImGui::Checkbox("EMA Weights", &nrc_use_ema_weights))
 			vk_nrc_state->SetUseEMAWeights(nrc_use_ema_weights);
+		if (ImGui::Button("Re-Train")) {
+			vk_nrc_state->ResetMLPBuffers();
+		}
 		ImGui::End();
 		ImGui::Render();
 
@@ -111,8 +113,6 @@ int main(int argc, char **argv) {
 		if (frame_manager->NewFrame()) {
 			const auto &command_buffer = frame_manager->GetCurrentCommandBuffer();
 			auto &render_graph = render_graphs[frame_manager->GetCurrentFrame()];
-
-			vk_nrc_state->SetExtent(frame_manager->GetExtent());
 
 			command_buffer->Begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 			render_graph->SetCanvasSize(frame_manager->GetExtent());

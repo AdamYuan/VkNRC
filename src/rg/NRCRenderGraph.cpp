@@ -100,7 +100,11 @@ NRCRenderGraph::NRCRenderGraph(const myvk::Ptr<myvk::FrameManager> &frame_manage
 void NRCRenderGraph::PreExecute() const {
 	// Update Externals
 	GetResource<myvk_rg::AccelerationStructure>({"tlas"})->SetAS(m_scene_tlas_ptr->GetTLAS());
-	GetResource<myvk_rg::InputImage>({"accumulate"})->SetVkImageView(m_nrc_state_ptr->GetResultImageView());
+	GetResource<myvk_rg::InputImage>({"accumulate"})->SetVkImageView(m_nrc_state_ptr->GetAccumulateImageView());
+	GetResource<myvk_rg::InputBuffer>({"weights"})->SetBufferView(m_nrc_state_ptr->GetWeightBuffer());
+	GetResource<myvk_rg::InputBuffer>({"use_weights"})->SetBufferView(m_nrc_state_ptr->GetUseWeightBuffer());
+	GetResource<myvk_rg::InputBuffer>({"optimizer_state"})->SetBufferView(m_nrc_state_ptr->GetOptimizerStateBuffer());
+	GetResource<myvk_rg::InputBuffer>({"optimizer_entries"})->SetBufferView(m_nrc_state_ptr->GetOptimizerEntryBuffer());
 	// Update Mapped Internals
 	m_scene_ptr->UpdateTransformBuffer(GetResource<myvk_rg::ManagedBuffer>({"transforms"})->GetMappedData());
 	*GetResource<myvk_rg::ManagedBuffer>({"eval_count"})->GetMappedData<uint32_t>() = 0u;
@@ -152,7 +156,7 @@ NRCResources NRCRenderGraph::create_nrc_resources() {
 
 	NRCResources nr = {
 	    .accumulate =
-	        CreateResource<myvk_rg::InputImage>({"accumulate"}, m_nrc_state_ptr->GetResultImageView())->Alias(),
+	        CreateResource<myvk_rg::InputImage>({"accumulate"}, m_nrc_state_ptr->GetAccumulateImageView())->Alias(),
 	    .weights = CreateResource<myvk_rg::InputBuffer>({"weights"}, m_nrc_state_ptr->GetWeightBuffer())->Alias(),
 	    .use_weights =
 	        CreateResource<myvk_rg::InputBuffer>({"use_weights"}, m_nrc_state_ptr->GetUseWeightBuffer())->Alias(),
