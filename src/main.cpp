@@ -98,10 +98,14 @@ int main(int argc, char **argv) {
 
 		myvk::ImGuiNewFrame();
 		ImGui::Begin("Panel");
-		ImGui::Text("FPS %f", ImGui::GetIO().Framerate);
+		ImGui::Text("FPS %.1f", ImGui::GetIO().Framerate);
 		if (ImGui::CollapsingHeader("View")) {
 			if (ImGui::Checkbox("Accumulate", &view_accumulate))
 				vk_nrc_state->SetAccumulate(view_accumulate);
+			if (vk_nrc_state->IsAccumulate()) {
+				ImGui::SameLine();
+				ImGui::Text("SPP %d", vk_nrc_state->GetAccumulateCount());
+			}
 			if (ImGui::Combo("Left", &view_left_method, "None\0NRC\0Cache")) {
 				vk_nrc_state->SetLeftMethod(static_cast<VkNRCState::Method>(view_left_method));
 				vk_nrc_state->ResetAccumulateCount();

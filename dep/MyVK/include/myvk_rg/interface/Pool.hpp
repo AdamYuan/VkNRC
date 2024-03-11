@@ -19,7 +19,7 @@ template <typename Type> class Value {
 private:
 	inline constexpr static bool kUPtr = !std::is_final_v<Type>;
 
-	std::conditional_t<kUPtr, std::unique_ptr<Type>, std::optional<Type>> m_value;
+	mutable std::conditional_t<kUPtr, std::unique_ptr<Type>, std::optional<Type>> m_value;
 
 public:
 	template <typename TypeToCons>
@@ -45,11 +45,11 @@ public:
 	}
 	template <typename TypeToGet = Type, typename = std::enable_if_t<kCanGet<TypeToGet>>>
 	inline TypeToGet *Get() const {
-		Type *ptr = (Type *)std::addressof(*m_value);
+		Type *ptr = std::addressof(*m_value);
 		if constexpr (std::is_same_v<Type, TypeToGet>)
-			return (TypeToGet *)ptr;
+			return ptr;
 		else
-			return (TypeToGet *)dynamic_cast<const TypeToGet *>(ptr);
+			return dynamic_cast<TypeToGet *>(ptr);
 	}
 };
 

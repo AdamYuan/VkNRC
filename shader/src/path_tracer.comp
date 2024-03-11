@@ -270,34 +270,34 @@ PathTraceResult ExtendedPathTrace(Hit hit, Ray ray, in const uint method) {
 	accumulate *= info.color;
 	ray = info.ray;
 
+	PathTraceResult result = PathTraceResult(radiance, accumulate);
+
 	inputs[0] = MakeNRCInput(hit, ray.d);
 
 	float c_a0 = C * info.dist2 / (4 * M_PI * info.cosine);
 	float sqrt_a_sum = 0.0;
 	uint bounce = 1;
-	if (subgroupAll(method != METHOD_CACHE)) {
-		for (; bounce < MAX_BOUNCE && sqrt_a_sum * sqrt_a_sum <= c_a0; ++bounce) {
-			rayQueryEXT ray_query;
-			rayQueryInitializeEXT(ray_query, uTLAS, gl_RayFlagsOpaqueEXT, 0xFF, ray.o, T_MIN, ray.d, T_MAX);
-			while (rayQueryProceedEXT(ray_query))
-				;
+	for (; bounce < MAX_BOUNCE && sqrt_a_sum * sqrt_a_sum <= c_a0; ++bounce) {
+		rayQueryEXT ray_query;
+		rayQueryInitializeEXT(ray_query, uTLAS, gl_RayFlagsOpaqueEXT, 0xFF, ray.o, T_MIN, ray.d, T_MAX);
+		while (rayQueryProceedEXT(ray_query))
+			;
 
-			if (rayQueryGetIntersectionTypeEXT(ray_query, true) == gl_RayQueryCommittedIntersectionTriangleEXT) {
-				hit = GetRayQueryHit(ray_query, ray);
-				info = BRDFStep(hit, ray);
-				radiance += accumulate * hit.emission;
-				accumulate *= info.color;
-				ray = info.ray;
-				sqrt_a_sum += sqrt(info.dist2 / (info.pdf * info.cosine));
-				lights[bounce - 1] = hit.emission;
-				colors[bounce - 1] = info.color;
-				inputs[bounce] = MakeNRCInput(hit, ray.d);
-			} else {
-				radiance += accumulate * kConstLight;
-				lights[bounce - 1] = kConstLight;
-				light_terminate = true;
-				break;
-			}
+		if (rayQueryGetIntersectionTypeEXT(ray_query, true) == gl_RayQueryCommittedIntersectionTriangleEXT) {
+			hit = GetRayQueryHit(ray_query, ray);
+			info = BRDFStep(hit, ray);
+			radiance += accumulate * hit.emission;
+			accumulate *= info.color;
+			ray = info.ray;
+			sqrt_a_sum += sqrt(info.dist2 / (info.pdf * info.cosine));
+			lights[bounce - 1] = hit.emission;
+			colors[bounce - 1] = info.color;
+			inputs[bounce] = MakeNRCInput(hit, ray.d);
+		} else {
+			radiance += accumulate * kConstLight;
+			lights[bounce - 1] = kConstLight;
+			light_terminate = true;
+			break;
 		}
 	}
 
@@ -306,11 +306,11 @@ PathTraceResult ExtendedPathTrace(Hit hit, Ray ray, in const uint method) {
 		NRCEvalRecord eval_record;
 		eval_record.screen_x16_y16 = gl_GlobalInvocationID.x | (gl_GlobalInvocationID.y << 16u);
 		eval_record.train_l14_r14_b4 = -1;
-		eval_record.packed_input = inputs[bounce - 1];
+		eval_record.packed_input = subgroupAll(method == METHOD_CACHE) ? inputs[0] : inputs[bounce - 1];
 		uEvalRecords[eval_id] = eval_record;
 	}
-
-	PathTraceResult result = PathTraceResult(radiance, accumulate);
+	if (subgroupAll(method != METHOD_CACHE))
+		result = PathTraceResult(radiance, accumulate);
 
 	sqrt_a_sum = 0;
 	light_terminate = false;
