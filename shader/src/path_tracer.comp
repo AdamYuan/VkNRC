@@ -300,17 +300,25 @@ PathTraceResult ExtendedPathTrace(Hit hit, Ray ray, in const uint method) {
 			break;
 		}
 	}
-
-	if (!light_terminate) {
+	if (subgroupAll(method == METHOD_CACHE)) {
 		uint eval_id = atomicAdd(uEvalCount, 1u, gl_ScopeQueueFamily, gl_StorageSemanticsBuffer, gl_SemanticsRelaxed);
 		NRCEvalRecord eval_record;
 		eval_record.screen_x16_y16 = gl_GlobalInvocationID.x | (gl_GlobalInvocationID.y << 16u);
 		eval_record.train_l14_r14_b4 = -1;
-		eval_record.packed_input = subgroupAll(method == METHOD_CACHE) ? inputs[0] : inputs[bounce - 1];
+		eval_record.packed_input = inputs[0];
 		uEvalRecords[eval_id] = eval_record;
-	}
-	if (subgroupAll(method != METHOD_CACHE))
+	} else {
 		result = PathTraceResult(radiance, accumulate);
+		if (!light_terminate) {
+			uint eval_id =
+			    atomicAdd(uEvalCount, 1u, gl_ScopeQueueFamily, gl_StorageSemanticsBuffer, gl_SemanticsRelaxed);
+			NRCEvalRecord eval_record;
+			eval_record.screen_x16_y16 = gl_GlobalInvocationID.x | (gl_GlobalInvocationID.y << 16u);
+			eval_record.train_l14_r14_b4 = -1;
+			eval_record.packed_input = inputs[bounce - 1];
+			uEvalRecords[eval_id] = eval_record;
+		}
+	}
 
 	sqrt_a_sum = 0;
 	light_terminate = false;
