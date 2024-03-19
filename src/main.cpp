@@ -106,11 +106,12 @@ int main(int argc, char **argv) {
 				ImGui::SameLine();
 				ImGui::Text("SPP %d", vk_nrc_state->GetAccumulateCount());
 			}
-			if (ImGui::Combo("Left", &view_left_method, "None\0NRC\0Cache")) {
+			constexpr const char *kViewTypeComboStr = "None\0NRC\0Cache\0";
+			if (ImGui::Combo("Left", &view_left_method, kViewTypeComboStr)) {
 				vk_nrc_state->SetLeftMethod(static_cast<VkNRCState::Method>(view_left_method));
 				vk_nrc_state->ResetAccumulateCount();
 			}
-			if (ImGui::Combo("Right", &view_right_method, "None\0NRC\0Cache")) {
+			if (ImGui::Combo("Right", &view_right_method, kViewTypeComboStr)) {
 				vk_nrc_state->SetRightMethod(static_cast<VkNRCState::Method>(view_right_method));
 				vk_nrc_state->ResetAccumulateCount();
 			}
