@@ -24,14 +24,13 @@ layout(std430, binding = 13) buffer uuBatchTrainRecords { NRCTrainRecord records
 uBatchTrainRecords[NRC_TRAIN_BATCH_COUNT];
 
 void main() {
-	uint screen_x16_y16 = -1u, train_l14_r14_b4 = -1u;
+	uint dst = NRC_EVAL_INVALID_DST;
 	uvec4 inputs[8];
 
 	if (gl_GlobalInvocationID.x < uEvalCount) {
 		NRCEvalRecord eval_record = uEvalRecords[gl_GlobalInvocationID.x];
 		NRCInputEncode(UnpackNRCInput(eval_record.packed_input), inputs);
-		screen_x16_y16 = eval_record.screen_x16_y16;
-		train_l14_r14_b4 = eval_record.train_l14_r14_b4;
+		dst = eval_record.dst;
 	}
 
 	fcoopmatNV<16, gl_ScopeSubgroup, 16, 16> act_coopmats[2][COOPMAT_X][SUBGROUP_ACT_COOPMAT_Y];
@@ -44,17 +43,20 @@ void main() {
 	NNForward3(5, act_coopmats[1], act_coopmats[0][0]);
 	vec3 predict = max(NNOutput3(act_coopmats[0][0]), vec3(0));
 
-	// Write to Screen
-	if (screen_x16_y16 != -1u) {
-		ivec2 coord = ivec2(screen_x16_y16 & 0xFFFF, screen_x16_y16 >> 16);
+	if (dst == NRC_EVAL_INVALID_DST)
+		return;
+
+	if (GetNRCEvalDstType(dst) == NRC_EVAL_DST_SCREEN) {
+		// Write to Screen
+		ivec2 coord = ivec2(DecodeNRCEvalDstScreen(dst));
 		vec4 bias_factor_r = imageLoad(uBias_FactorR, coord);
 		vec2 factor_gb = imageLoad(uFactorGB, coord).rg;
 		vec3 color = bias_factor_r.rgb + vec3(bias_factor_r.a, factor_gb) * predict;
 		imageStore(uBias_FactorR, coord, vec4(color, 0));
-	}
-	// Write to Train Records
-	if (train_l14_r14_b4 != -1u) {
-		uint b = train_l14_r14_b4 >> 28u, l = train_l14_r14_b4 & 0x3FFFu, r = (train_l14_r14_b4 >> 14u) & 0x3FFFu;
+	} else {
+		// Write to Train Records
+		uint b, l, r;
+		DecodeNRCEvalDstTrain(dst, b, l, r);
 		[[unroll]] for (uint i = l; i <= r; ++i) {
 			NRCTrainRecord train_record = uBatchTrainRecords[b].records[i];
 			vec3 bias = vec3(train_record.bias_r, train_record.bias_g, train_record.bias_b);

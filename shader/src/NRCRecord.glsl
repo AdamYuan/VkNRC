@@ -10,9 +10,27 @@ struct PackedNRCInput {
 };
 
 struct NRCEvalRecord {
-	uint screen_x16_y16, train_l14_r14_b4;
+#define NRC_EVAL_INVALID_DST (-1u)
+#define NRC_EVAL_DST_SCREEN 0u
+#define NRC_EVAL_DST_TRAIN 1u
+	uint dst;
 	PackedNRCInput packed_input;
 };
+uint EncodeNRCEvalDstScreen(in const uvec2 xy15) { return (xy15.x | (xy15.y << 15u)) << 1u; }
+uint EncodeNRCEvalDstTrain(in const uint b2, in const uint l14, in const uint r14) {
+	return (b2 | (l14 << 2u) | (r14 << 16u)) << 1u | 1u;
+}
+uint GetNRCEvalDstType(in const uint e) { return e & 1u; }
+uvec2 DecodeNRCEvalDstScreen(uint e) {
+	e >>= 1u;
+	return uvec2(e & 0x7FFFu, e >> 15u);
+}
+void DecodeNRCEvalDstTrain(uint e, out uint b2, out uint l14, out uint r14) {
+	e >>= 1u;
+	b2 = e & 3u;
+	l14 = (e >> 2u) & 0x3FFFu;
+	r14 = e >> 16u;
+}
 
 struct NRCTrainRecord {
 	float bias_r, bias_g, bias_b, factor_r, factor_g, factor_b;

@@ -243,8 +243,7 @@ PathTraceResult PathTrace(Hit hit, Ray ray, in const uint method) {
 		// Push a EvalRecord
 		uint eval_id = atomicAdd(uEvalCount, 1u, gl_ScopeQueueFamily, gl_StorageSemanticsBuffer, gl_SemanticsRelaxed);
 		NRCEvalRecord eval_record;
-		eval_record.screen_x16_y16 = gl_GlobalInvocationID.x | (gl_GlobalInvocationID.y << 16u);
-		eval_record.train_l14_r14_b4 = -1;
+		eval_record.dst = EncodeNRCEvalDstScreen(gl_GlobalInvocationID.xy);
 		eval_record.packed_input = MakeNRCInput(hit, ray.d);
 		uEvalRecords[eval_id] = eval_record;
 	}
@@ -303,8 +302,7 @@ PathTraceResult ExtendedPathTrace(Hit hit, Ray ray, in const uint method) {
 	if (subgroupAll(method == METHOD_CACHE)) {
 		uint eval_id = atomicAdd(uEvalCount, 1u, gl_ScopeQueueFamily, gl_StorageSemanticsBuffer, gl_SemanticsRelaxed);
 		NRCEvalRecord eval_record;
-		eval_record.screen_x16_y16 = gl_GlobalInvocationID.x | (gl_GlobalInvocationID.y << 16u);
-		eval_record.train_l14_r14_b4 = -1;
+		eval_record.dst = EncodeNRCEvalDstScreen(gl_GlobalInvocationID.xy);
 		eval_record.packed_input = inputs[0];
 		uEvalRecords[eval_id] = eval_record;
 	} else {
@@ -313,8 +311,7 @@ PathTraceResult ExtendedPathTrace(Hit hit, Ray ray, in const uint method) {
 			uint eval_id =
 			    atomicAdd(uEvalCount, 1u, gl_ScopeQueueFamily, gl_StorageSemanticsBuffer, gl_SemanticsRelaxed);
 			NRCEvalRecord eval_record;
-			eval_record.screen_x16_y16 = gl_GlobalInvocationID.x | (gl_GlobalInvocationID.y << 16u);
-			eval_record.train_l14_r14_b4 = -1;
+			eval_record.dst = EncodeNRCEvalDstScreen(gl_GlobalInvocationID.xy);
 			eval_record.packed_input = inputs[bounce - 1];
 			uEvalRecords[eval_id] = eval_record;
 		}
@@ -368,8 +365,7 @@ PathTraceResult ExtendedPathTrace(Hit hit, Ray ray, in const uint method) {
 			uint eval_id =
 			    atomicAdd(uEvalCount, 1u, gl_ScopeQueueFamily, gl_StorageSemanticsBuffer, gl_SemanticsRelaxed);
 			NRCEvalRecord eval_record;
-			eval_record.screen_x16_y16 = -1;
-			eval_record.train_l14_r14_b4 = train_id | ((train_id + train_count - 1) << 14u) | (batch << 28u);
+			eval_record.dst = EncodeNRCEvalDstTrain(batch, train_id, train_id + train_count - 1);
 			eval_record.packed_input = inputs[bounce - 1];
 			uEvalRecords[eval_id] = eval_record;
 		}

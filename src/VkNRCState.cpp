@@ -14,7 +14,7 @@ struct PackedNRCInput {
 	uint32_t scattered_dir_2x16U;
 };
 struct NRCEvalRecord {
-	uint32_t screen_x16_y16, train_b4_l14_r14;
+	uint32_t opt1_screen_x15_y15_or_train_b2_l14_r14;
 	PackedNRCInput packed_input;
 };
 struct NRCTrainRecord {
