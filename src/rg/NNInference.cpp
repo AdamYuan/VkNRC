@@ -48,7 +48,7 @@ NNInference::NNInference(myvk_rg::Parent parent, const myvk_rg::Buffer &cmd, con
 	}
 }
 
-void NNInference::CreatePipeline() {
+myvk::Ptr<myvk::ComputePipeline> NNInference::CreatePipeline() const {
 	auto &device = GetRenderGraphPtr()->GetDevicePtr();
 	auto pipeline_layout = myvk::PipelineLayout::Create(device, {GetVkDescriptorSetLayout()}, {});
 	auto [shader_module, required_subgroup_info] = NNInferenceShader::Create(device);
@@ -61,12 +61,12 @@ void NNInference::CreatePipeline() {
 	    .sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
 	    .stage = shader_stage,
 	};
-	m_pipeline = myvk::ComputePipeline::Create(pipeline_layout, create_info);
+	return myvk::ComputePipeline::Create(pipeline_layout, create_info);
 }
 
 void NNInference::CmdExecute(const myvk::Ptr<myvk::CommandBuffer> &command_buffer) const {
-	command_buffer->CmdBindPipeline(m_pipeline);
-	command_buffer->CmdBindDescriptorSets({GetVkDescriptorSet()}, m_pipeline);
+	command_buffer->CmdBindPipeline(GetVkPipeline());
+	command_buffer->CmdBindDescriptorSets({GetVkDescriptorSet()}, GetVkPipeline());
 	command_buffer->CmdDispatchIndirect(GetInputBuffer({"cmd"})->GetBufferView().buffer);
 }
 

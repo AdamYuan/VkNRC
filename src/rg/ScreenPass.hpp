@@ -20,12 +20,11 @@ public:
 
 private:
 	myvk::Ptr<VkNRCState> m_nrc_state_ptr;
-	myvk::Ptr<myvk::GraphicsPipeline> m_pipeline;
 
 public:
 	ScreenPass(myvk_rg::Parent parent, const Args &args);
 	inline ~ScreenPass() final = default;
-	void CreatePipeline() final;
+	myvk::Ptr<myvk::GraphicsPipeline> CreatePipeline() const final;
 	void CmdExecute(const myvk::Ptr<myvk::CommandBuffer> &command_buffer) const final;
 	inline auto GetScreenOutput() const { return MakeImageOutput({"screen"}); }
 };

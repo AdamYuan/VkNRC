@@ -35,7 +35,6 @@ public:
 	inline PassType GetType() const { return m_type; }
 
 	template <typename Visitor> inline std::invoke_result_t<Visitor, GraphicsPassBase *> Visit(Visitor &&visitor) const;
-	template <typename Visitor> inline std::invoke_result_t<Visitor, GraphicsPassBase *> Visit(Visitor &&visitor);
 
 	virtual void CmdExecute(const myvk::Ptr<myvk::CommandBuffer> &command_buffer) const = 0;
 };
@@ -115,8 +114,9 @@ public:
 		return std::nullopt;
 	}
 
-	virtual void CreatePipeline() = 0;
 	inline void UpdatePipeline() { EmitEvent(Event::kUpdatePipeline); }
+	virtual myvk::Ptr<myvk::GraphicsPipeline> CreatePipeline() const = 0;
+	const myvk::Ptr<myvk::PipelineBase> &GetVkPipeline() const;
 };
 
 class ComputePassBase : public PassBase,
@@ -129,8 +129,9 @@ public:
 	inline ComputePassBase(Parent parent) : PassBase(parent, PassType::kCompute) {}
 	inline ~ComputePassBase() override = default;
 
-	virtual void CreatePipeline() = 0;
+	virtual myvk::Ptr<myvk::ComputePipeline> CreatePipeline() const = 0;
 	inline void UpdatePipeline() { EmitEvent(Event::kUpdatePipeline); }
+	const myvk::Ptr<myvk::PipelineBase> &GetVkPipeline() const;
 
 	const ImageBase *GetInputImage(const PoolKey &input_key) const;
 	const BufferBase *GetInputBuffer(const PoolKey &input_key) const;
@@ -174,21 +175,6 @@ template <typename Visitor> std::invoke_result_t<Visitor, GraphicsPassBase *> Pa
 		assert(false);
 	}
 	return visitor(static_cast<const GraphicsPassBase *>(nullptr));
-}
-template <typename Visitor> std::invoke_result_t<Visitor, GraphicsPassBase *> PassBase::Visit(Visitor &&visitor) {
-	switch (GetType()) {
-	case PassType::kGraphics:
-		return visitor(static_cast<GraphicsPassBase *>(this));
-	case PassType::kCompute:
-		return visitor(static_cast<ComputePassBase *>(this));
-	case PassType::kTransfer:
-		return visitor(static_cast<TransferPassBase *>(this));
-	case PassType::kGroup:
-		return visitor(static_cast<PassGroupBase *>(this));
-	default:
-		assert(false);
-	}
-	return visitor(static_cast<GraphicsPassBase *>(nullptr));
 }
 
 template <typename T>

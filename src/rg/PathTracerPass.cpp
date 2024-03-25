@@ -70,7 +70,7 @@ PathTracerPass::PathTracerPass(myvk_rg::Parent parent, const PathTracerPass::Arg
 	    {17}, {"factor_gb"}, CreateResource<myvk_rg::ManagedImage>({"factor_gb"}, VK_FORMAT_R32G32_SFLOAT)->Alias());
 }
 
-void PathTracerPass::CreatePipeline() {
+myvk::Ptr<myvk::ComputePipeline> PathTracerPass::CreatePipeline() const {
 	auto &device = GetRenderGraphPtr()->GetDevicePtr();
 	auto pipeline_layout = myvk::PipelineLayout::Create(device, {GetVkDescriptorSetLayout()},
 	                                                    {{VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(PushConstant_Data)}});
@@ -79,7 +79,7 @@ void PathTracerPass::CreatePipeline() {
 	};
 	auto shader_module = myvk::ShaderModule::Create(device, kCompSpv, sizeof(kCompSpv));
 	shader_module->AddSpecialization(0, (uint32_t)m_scene_ptr->GetTextures().size());
-	m_pipeline = myvk::ComputePipeline::Create(pipeline_layout, shader_module);
+	return myvk::ComputePipeline::Create(pipeline_layout, shader_module);
 }
 
 void PathTracerPass::CmdExecute(const myvk::Ptr<myvk::CommandBuffer> &command_buffer) const {
@@ -99,9 +99,9 @@ void PathTracerPass::CmdExecute(const myvk::Ptr<myvk::CommandBuffer> &command_bu
 		    .train_probability = m_nrc_state_ptr->GetTrainProbability(),
 		};
 	}
-	command_buffer->CmdBindPipeline(m_pipeline);
-	command_buffer->CmdBindDescriptorSets({GetVkDescriptorSet()}, m_pipeline);
-	command_buffer->CmdPushConstants(m_pipeline->GetPipelineLayoutPtr(), VK_SHADER_STAGE_COMPUTE_BIT, 0,
+	command_buffer->CmdBindPipeline(GetVkPipeline());
+	command_buffer->CmdBindDescriptorSets({GetVkDescriptorSet()}, GetVkPipeline());
+	command_buffer->CmdPushConstants(GetVkPipeline()->GetPipelineLayoutPtr(), VK_SHADER_STAGE_COMPUTE_BIT, 0,
 	                                 sizeof(pc_data), &pc_data);
 	command_buffer->CmdDispatch((extent.width + 7) / 8, (extent.height + 7) / 8, 1);
 }

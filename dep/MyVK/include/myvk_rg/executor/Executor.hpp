@@ -37,6 +37,7 @@ public:
 	static const myvk::Ptr<myvk::DescriptorSet> &GetVkDescriptorSet(const interface::PassBase *p_pass);
 	static const interface::ImageBase *GetInputImage(const interface::InputBase *p_input);
 	static const interface::BufferBase *GetInputBuffer(const interface::InputBase *p_input);
+	static const myvk::Ptr<myvk::PipelineBase> &GetVkPipeline(const interface::PassBase *p_pass);
 };
 
 } // namespace myvk_rg::executor

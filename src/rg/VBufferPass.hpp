@@ -15,7 +15,6 @@ namespace rg {
 
 class VBufferPass final : public myvk_rg::GraphicsPassBase {
 private:
-	myvk::Ptr<myvk::GraphicsPipeline> m_pipeline;
 	myvk::Ptr<VkScene> m_scene_ptr;
 	myvk::Ptr<Camera> m_camera_ptr;
 
@@ -27,7 +26,7 @@ public:
 	};
 	VBufferPass(myvk_rg::Parent parent, const Args &args);
 	inline ~VBufferPass() final = default;
-	void CreatePipeline() final;
+	myvk::Ptr<myvk::GraphicsPipeline> CreatePipeline() const final;
 	void CmdExecute(const myvk::Ptr<myvk::CommandBuffer> &command_buffer) const final;
 	auto GetVBufferOutput() const { return MakeImageOutput({"v_buffer_in"}); }
 	auto GetDepthOutput() const { return MakeImageOutput({"depth_in"}); }

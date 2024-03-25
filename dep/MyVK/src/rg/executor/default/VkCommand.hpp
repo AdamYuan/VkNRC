@@ -45,10 +45,15 @@ public:
 	static void CreatePipeline(const PassBase *p_pass) {
 		if (GetPassInfo(p_pass).vk_command.update_pipeline) {
 			GetPassInfo(p_pass).vk_command.update_pipeline = false;
-			((PassBase *)p_pass)
-			    ->Visit(overloaded([](PassWithPipeline auto *p_pipeline_pass) { p_pipeline_pass->CreatePipeline(); },
-			                       [](auto &&) {}));
+			GetPassInfo(p_pass).vk_command.vk_pipeline = p_pass->Visit(overloaded(
+			    [](PassWithPipeline auto *p_pipeline_pass) -> myvk::Ptr<myvk::PipelineBase> {
+				    return p_pipeline_pass->CreatePipeline();
+			    },
+			    [](auto &&) -> myvk::Ptr<myvk::PipelineBase> { return nullptr; }));
 		}
+	}
+	static const myvk::Ptr<myvk::PipelineBase> &GetVkPipeline(const PassBase *p_pass) {
+		return GetPassInfo(p_pass).vk_command.vk_pipeline;
 	}
 	static void UpdatePipeline(const PassBase *p_pass) { GetPassInfo(p_pass).vk_command.update_pipeline = true; }
 };

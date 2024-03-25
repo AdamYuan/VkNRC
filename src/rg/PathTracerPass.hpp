@@ -27,7 +27,6 @@ public:
 	};
 
 private:
-	myvk::Ptr<myvk::ComputePipeline> m_pipeline;
 	myvk::Ptr<VkScene> m_scene_ptr;
 	myvk::Ptr<VkNRCState> m_nrc_state_ptr;
 	myvk::Ptr<Camera> m_camera_ptr;
@@ -35,7 +34,7 @@ private:
 public:
 	PathTracerPass(myvk_rg::Parent parent, const Args &args);
 	inline ~PathTracerPass() final = default;
-	void CreatePipeline() final;
+	myvk::Ptr<myvk::ComputePipeline> CreatePipeline() const final;
 	void CmdExecute(const myvk::Ptr<myvk::CommandBuffer> &command_buffer) const final;
 	inline auto GetBiasFactorROutput() const { return MakeImageOutput({"bias_factor_r"}); }
 	inline auto GetFactorGBOutput() const { return MakeImageOutput({"factor_gb"}); }

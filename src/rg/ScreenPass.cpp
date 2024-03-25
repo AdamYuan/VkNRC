@@ -21,7 +21,7 @@ ScreenPass::ScreenPass(myvk_rg::Parent parent, const Args &args)
 	                                                                                             args.accumulate_image);
 }
 
-void ScreenPass::CreatePipeline() {
+myvk::Ptr<myvk::GraphicsPipeline> ScreenPass::CreatePipeline() const {
 	auto &device = GetRenderGraphPtr()->GetDevicePtr();
 
 	auto pipeline_layout = myvk::PipelineLayout::Create(device, {GetVkDescriptorSetLayout()},
@@ -53,16 +53,16 @@ void ScreenPass::CreatePipeline() {
 	pipeline_state.m_multisample_state.Enable(VK_SAMPLE_COUNT_1_BIT);
 	pipeline_state.m_color_blend_state.Enable(1, VK_FALSE);
 
-	m_pipeline =
-	    myvk::GraphicsPipeline::Create(pipeline_layout, GetVkRenderPass(), shader_stages, pipeline_state, GetSubpass());
+	return myvk::GraphicsPipeline::Create(pipeline_layout, GetVkRenderPass(), shader_stages, pipeline_state,
+	                                      GetSubpass());
 }
 
 void ScreenPass::CmdExecute(const myvk::Ptr<myvk::CommandBuffer> &command_buffer) const {
 	PushConstant_Data pc_data{.accumulate_flag = m_nrc_state_ptr->IsAccumulate(),
 	                          .accumulate_count = m_nrc_state_ptr->GetAccumulateCount()};
-	command_buffer->CmdBindPipeline(m_pipeline);
-	command_buffer->CmdBindDescriptorSets({GetVkDescriptorSet()}, m_pipeline);
-	command_buffer->CmdPushConstants(m_pipeline->GetPipelineLayoutPtr(), VK_SHADER_STAGE_FRAGMENT_BIT, 0,
+	command_buffer->CmdBindPipeline(GetVkPipeline());
+	command_buffer->CmdBindDescriptorSets({GetVkDescriptorSet()}, GetVkPipeline());
+	command_buffer->CmdPushConstants(GetVkPipeline()->GetPipelineLayoutPtr(), VK_SHADER_STAGE_FRAGMENT_BIT, 0,
 	                                 sizeof(pc_data), &pc_data);
 	command_buffer->CmdDraw(3, 1, 0, 0);
 }

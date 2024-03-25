@@ -35,14 +35,13 @@ private:
 		};
 
 	private:
-		myvk::Ptr<myvk::ComputePipeline> m_pipeline;
 		struct VkDispatchIndirectCommand {
 			uint32_t x, y, z;
 		};
 
 	public:
 		NNPreparePass(myvk_rg::Parent parent, const Args &args);
-		void CreatePipeline() final;
+		myvk::Ptr<myvk::ComputePipeline> CreatePipeline() const final;
 		void CmdExecute(const myvk::Ptr<myvk::CommandBuffer> &command_buffer) const final;
 		auto GetIndirectCmdOutput() const { return MakeBufferOutput({"indirect_cmd"}); }
 		auto GetCountOutput() const { return MakeBufferOutput({"count"}); }
@@ -59,13 +58,12 @@ private:
 		};
 
 	private:
-		myvk::Ptr<myvk::ComputePipeline> m_pipeline;
 		myvk::Ptr<VkScene> m_scene_ptr;
 
 	public:
 		NNGradient(myvk_rg::Parent parent, const Args &args);
 		inline ~NNGradient() final = default;
-		void CreatePipeline() final;
+		myvk::Ptr<myvk::ComputePipeline> CreatePipeline() const final;
 		void CmdExecute(const myvk::Ptr<myvk::CommandBuffer> &command_buffer) const final;
 		inline auto GetGradientOutput() const { return MakeBufferOutput({"gradients"}); }
 	};
@@ -81,13 +79,12 @@ private:
 
 	private:
 		myvk::Ptr<VkNRCState> m_nrc_state_ptr;
-		myvk::Ptr<myvk::ComputePipeline> m_pipeline;
 		bool m_write_use;
 
 	public:
 		NNOptimizer(myvk_rg::Parent parent, const Args &args);
 		inline ~NNOptimizer() final = default;
-		void CreatePipeline() final;
+		myvk::Ptr<myvk::ComputePipeline> CreatePipeline() const final;
 		void CmdExecute(const myvk::Ptr<myvk::CommandBuffer> &command_buffer) const final;
 		inline auto GetWeightOutput() const { return MakeBufferOutput({"weights"}); }
 		inline auto GetEMAWeightOutput() const { return MakeBufferOutput({"use_weights"}); }

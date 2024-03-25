@@ -32,7 +32,7 @@ VBufferPass::VBufferPass(myvk_rg::Parent parent, const Args &args)
 	AddDepthAttachmentInput<myvk_rg::Usage::kDepthAttachmentRW>({"depth_in"}, depth->Alias());
 }
 
-void VBufferPass::CreatePipeline() {
+myvk::Ptr<myvk::GraphicsPipeline> VBufferPass::CreatePipeline() const {
 	auto &device = GetRenderGraphPtr()->GetDevicePtr();
 
 	auto pipeline_layout = myvk::PipelineLayout::Create(
@@ -72,8 +72,8 @@ void VBufferPass::CreatePipeline() {
 	    std::vector<VkViewport>{{0, 0, (float)extent.width, (float)extent.height, 0.0f, 1.0f}},
 	    std::vector<VkRect2D>{{{0, 0}, extent}});
 
-	m_pipeline =
-	    myvk::GraphicsPipeline::Create(pipeline_layout, GetVkRenderPass(), shader_stages, pipeline_state, GetSubpass());
+	return myvk::GraphicsPipeline::Create(pipeline_layout, GetVkRenderPass(), shader_stages, pipeline_state,
+	                                      GetSubpass());
 }
 
 void VBufferPass::CmdExecute(const myvk::Ptr<myvk::CommandBuffer> &command_buffer) const {
@@ -83,8 +83,8 @@ void VBufferPass::CmdExecute(const myvk::Ptr<myvk::CommandBuffer> &command_buffe
 	                                          GetInputBuffer({"transforms"})->GetBufferView().buffer->GetHandle()};
 	std::array<VkDeviceSize, 2> vertex_buffer_offsets = {};
 
-	command_buffer->CmdBindPipeline(m_pipeline);
-	command_buffer->CmdPushConstants(m_pipeline->GetPipelineLayoutPtr(),
+	command_buffer->CmdBindPipeline(GetVkPipeline());
+	command_buffer->CmdPushConstants(GetVkPipeline()->GetPipelineLayoutPtr(),
 	                                 VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0,
 	                                 sizeof(pc_data.view_proj), &pc_data.view_proj);
 	vkCmdBindVertexBuffers(command_buffer->GetHandle(), 0, 2, vertex_buffers.data(), vertex_buffer_offsets.data());
@@ -94,7 +94,7 @@ void VBufferPass::CmdExecute(const myvk::Ptr<myvk::CommandBuffer> &command_buffe
 		auto instance = m_scene_ptr->GetInstance(instance_id);
 		pc_data.primitive_base = instance.first_index / 3;
 		command_buffer->CmdPushConstants(
-		    m_pipeline->GetPipelineLayoutPtr(), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+		    GetVkPipeline()->GetPipelineLayoutPtr(), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
 		    offsetof(PushConstant_Data, primitive_base), sizeof(pc_data.primitive_base), &pc_data.primitive_base);
 		command_buffer->CmdDrawIndexed(instance.index_count, 1, instance.first_index, 0, instance_id);
 	}

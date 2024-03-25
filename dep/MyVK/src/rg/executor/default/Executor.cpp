@@ -207,5 +207,8 @@ void *Executor::GetMappedData(const interface::ManagedBuffer *p_managed_buffer) 
 void *Executor::GetMappedData(const interface::CombinedBuffer *p_combined_buffer) {
 	return VkAllocation::GetMappedData(p_combined_buffer);
 }
+const myvk::Ptr<myvk::PipelineBase> &Executor::GetVkPipeline(const interface::PassBase *p_pass) {
+	return VkCommand::GetVkPipeline(p_pass);
+}
 
 } // namespace myvk_rg::executor

@@ -9,7 +9,7 @@ namespace myvk_rg {
 
 class ImGuiPass final : public GraphicsPassBase {
 private:
-	myvk::Ptr<myvk::ImGuiRenderer> m_imgui_renderer;
+	mutable myvk::Ptr<myvk::ImGuiRenderer> m_imgui_renderer;
 
 public:
 	inline ImGuiPass(Parent parent, const Image &image) : GraphicsPassBase(parent) {
@@ -17,8 +17,9 @@ public:
 	}
 	inline ~ImGuiPass() final = default;
 
-	inline void CreatePipeline() final {
+	inline myvk::Ptr<myvk::GraphicsPipeline> CreatePipeline() const final {
 		m_imgui_renderer = myvk::ImGuiRenderer::Create(GetVkRenderPass(), GetSubpass(), 1);
+		return nullptr;
 	}
 	inline void CmdExecute(const myvk::Ptr<myvk::CommandBuffer> &command_buffer) const final {
 		m_imgui_renderer->CmdDrawPipeline(command_buffer, 0);

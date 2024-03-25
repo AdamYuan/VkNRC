@@ -40,4 +40,11 @@ const BufferBase *TransferPassBase::GetInputBuffer(const PoolKey &input_key) con
 	return executor::Executor::GetInputBuffer(GetInput(input_key));
 }
 
+const myvk::Ptr<myvk::PipelineBase> &GraphicsPassBase::GetVkPipeline() const {
+	return executor::Executor::GetVkPipeline(this);
+}
+const myvk::Ptr<myvk::PipelineBase> &ComputePassBase::GetVkPipeline() const {
+	return executor::Executor::GetVkPipeline(this);
+}
+
 } // namespace myvk_rg::interface

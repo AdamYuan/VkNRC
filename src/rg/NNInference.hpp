@@ -24,13 +24,12 @@ public:
 	};
 
 private:
-	myvk::Ptr<myvk::ComputePipeline> m_pipeline;
 	myvk::Ptr<VkScene> m_scene_ptr;
 
 public:
 	NNInference(myvk_rg::Parent parent, const myvk_rg::Buffer &cmd, const Args &args);
 	inline ~NNInference() final = default;
-	void CreatePipeline() final;
+	myvk::Ptr<myvk::ComputePipeline> CreatePipeline() const final;
 	void CmdExecute(const myvk::Ptr<myvk::CommandBuffer> &command_buffer) const final;
 	inline auto GetColorOutput() const { return MakeImageOutput({"base_extra_r"}); }
 	inline auto GetBatchTrainRecordsOutput(uint32_t batch_index) const {

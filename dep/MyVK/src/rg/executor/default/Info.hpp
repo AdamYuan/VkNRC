@@ -71,6 +71,7 @@ struct PassInfo {
 
 	private:
 		bool update_pipeline{true};
+		myvk::Ptr<myvk::PipelineBase> vk_pipeline;
 	} vk_command{};
 };
 
