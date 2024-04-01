@@ -10,7 +10,7 @@
 namespace myvk {
 constexpr const char *kValidationLayers[] = {"VK_LAYER_KHRONOS_validation"};
 
-class Instance : public Base {
+class Instance final : public Base {
 private:
 	VkInstance m_instance{VK_NULL_HANDLE};
 	VkDebugUtilsMessengerEXT m_debug_messenger{VK_NULL_HANDLE};

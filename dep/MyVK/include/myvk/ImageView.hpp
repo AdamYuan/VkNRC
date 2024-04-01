@@ -8,7 +8,7 @@
 #include <memory>
 
 namespace myvk {
-class ImageView : public DeviceObjectBase {
+class ImageView final : public DeviceObjectBase {
 private:
 	Ptr<ImageBase> m_image_ptr;
 

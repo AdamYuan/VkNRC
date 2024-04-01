@@ -10,7 +10,7 @@
 
 namespace myvk {
 
-class UniqueQueue : public DeviceObjectBase {
+class UniqueQueue final : public DeviceObjectBase {
 private:
 	Ptr<Device> m_device_ptr;
 	VkQueue m_queue{VK_NULL_HANDLE};
@@ -48,7 +48,7 @@ public:
 
 class Surface;
 
-class PresentQueue : public Queue { // only can be created with device creation
+class PresentQueue final : public Queue { // only can be created with device creation
 private:
 	Ptr<Surface> m_surface_ptr;
 

@@ -9,10 +9,6 @@ set(SHADER_HEADER
         CookTorranceBRDF.glsl
         NRCRecord.glsl
         Scene.glsl
-        NNInference.glsl
-        NNGradient.glsl
-        NNOptimize.glsl
-        NN_nv.glsl
 )
 
 set(SHADER_SRC
@@ -21,16 +17,6 @@ set(SHADER_SRC
         path_tracer.comp
         screen.frag
         screen.vert
-        nrc_indirect.comp
-        nrc_inference_16.comp
-        nrc_inference_32.comp
-        nrc_inference_64.comp
-        nrc_train_prepare.comp
-        nrc_gradient_16.comp
-        nrc_gradient_32.comp
-        nrc_gradient_64.comp
-        nrc_optimize.comp
-        nrc_optimize_use.comp
 )
 
 set(SHADER_SOURCE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/src)

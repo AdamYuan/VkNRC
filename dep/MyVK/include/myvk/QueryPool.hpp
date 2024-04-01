@@ -4,7 +4,7 @@
 #include "DeviceObjectBase.hpp"
 
 namespace myvk {
-class QueryPool : public DeviceObjectBase {
+class QueryPool final : public DeviceObjectBase {
 private:
 	Ptr<Device> m_device_ptr;
 

@@ -7,7 +7,7 @@
 #include "volk.h"
 
 namespace myvk {
-class Buffer : public BufferBase {
+class Buffer final : public BufferBase {
 private:
 	Ptr<Device> m_device_ptr;
 

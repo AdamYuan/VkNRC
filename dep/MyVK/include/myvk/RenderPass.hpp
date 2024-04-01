@@ -11,7 +11,7 @@
 namespace myvk {
 
 class RenderPassState;
-class RenderPass : public DeviceObjectBase {
+class RenderPass final : public DeviceObjectBase {
 private:
 	Ptr<Device> m_device_ptr;
 	VkRenderPass m_render_pass{VK_NULL_HANDLE};

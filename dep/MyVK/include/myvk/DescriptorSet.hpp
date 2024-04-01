@@ -11,7 +11,7 @@
 #include <memory>
 
 namespace myvk {
-class DescriptorSet : public DeviceObjectBase {
+class DescriptorSet final : public DeviceObjectBase {
 private:
 	Ptr<DescriptorPool> m_descriptor_pool_ptr;
 	Ptr<DescriptorSetLayout> m_descriptor_set_layout_ptr;

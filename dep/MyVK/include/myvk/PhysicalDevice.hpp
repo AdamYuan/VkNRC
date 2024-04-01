@@ -8,9 +8,9 @@
 #include "volk.h"
 #include <map>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
-#include <vulkan/vulkan.h>
 
 namespace myvk {
 class Surface;
@@ -60,7 +60,7 @@ struct PhysicalDeviceFeatures {
 		return *this;
 	}
 };
-class PhysicalDevice : public Base {
+class PhysicalDevice final : public Base {
 private:
 	Ptr<Instance> m_instance_ptr;
 
@@ -88,6 +88,7 @@ public:
 	bool GetExtensionSupport(const std::string &extension_name, uint32_t *p_version = nullptr) const;
 	bool GetQueueSupport(const QueueSelectorFunc &queue_selector_func) const;
 	PhysicalDeviceFeatures GetDefaultFeatures() const;
+	std::optional<uint32_t> FindMemoryType(uint32_t filter_type_bits, VkMemoryPropertyFlags properties) const;
 #ifdef MYVK_ENABLE_GLFW
 	bool GetQueueSurfaceSupport(uint32_t queue_family_index, const Ptr<Surface> &surface) const;
 #endif

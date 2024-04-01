@@ -7,7 +7,7 @@
 
 namespace myvk {
 
-class Allocator : public DeviceObjectBase {
+class Allocator final : public DeviceObjectBase {
 protected:
 	Ptr<Device> m_device_ptr;
 	VmaAllocator m_allocator{VK_NULL_HANDLE};

@@ -12,7 +12,7 @@
 #include <vector>
 
 namespace myvk {
-class SwapchainImage : public ImageBase {
+class SwapchainImage final : public ImageBase {
 private:
 	Ptr<Swapchain> m_swapchain_ptr;
 

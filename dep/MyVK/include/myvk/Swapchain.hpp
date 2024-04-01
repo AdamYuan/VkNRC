@@ -15,7 +15,7 @@
 #include <vector>
 
 namespace myvk {
-class Swapchain : public DeviceObjectBase {
+class Swapchain final : public DeviceObjectBase {
 private:
 	Ptr<Queue> m_graphics_queue_ptr;
 	Ptr<PresentQueue> m_present_queue_ptr;

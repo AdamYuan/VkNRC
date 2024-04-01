@@ -10,7 +10,7 @@
 namespace myvk {
 
 struct GraphicsPipelineState;
-class GraphicsPipeline : public PipelineBase {
+class GraphicsPipeline final : public PipelineBase {
 private:
 	Ptr<RenderPass> m_render_pass_ptr;
 

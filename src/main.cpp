@@ -4,6 +4,7 @@
 
 #include <spdlog/spdlog.h>
 
+#include "CuNRCState.hpp"
 #include "rg/NRCRenderGraph.hpp"
 
 constexpr uint32_t kFrameCount = 3, kWidth = 1280, kHeight = 720;
@@ -36,18 +37,8 @@ int main(int argc, char **argv) {
 	features.vk12.vulkanMemoryModelDeviceScope = VK_TRUE;
 	features.vk13.computeFullSubgroups = VK_TRUE;
 	features.vk13.subgroupSizeControl = VK_TRUE;
-	VkPhysicalDeviceShaderAtomicFloatFeaturesEXT atomic_float_features = {
-	    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_ATOMIC_FLOAT_FEATURES_EXT,
-	    .shaderBufferFloat32AtomicAdd = VK_TRUE};
-	VkPhysicalDeviceCooperativeMatrixFeaturesNV cooperative_matrix_features = {
-	    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_COOPERATIVE_MATRIX_FEATURES_NV,
-	    .pNext = &atomic_float_features,
-	    .cooperativeMatrix = VK_TRUE,
-	    .cooperativeMatrixRobustBufferAccess = VK_FALSE};
 	VkPhysicalDeviceRayQueryFeaturesKHR ray_query_features = {
-	    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR,
-	    .pNext = &cooperative_matrix_features,
-	    .rayQuery = VK_TRUE};
+	    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR, .pNext = nullptr, .rayQuery = VK_TRUE};
 	VkPhysicalDeviceAccelerationStructureFeaturesKHR accel_features = {
 	    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR,
 	    .pNext = &ray_query_features,
@@ -59,7 +50,7 @@ int main(int argc, char **argv) {
 	    features,
 	    {VK_KHR_SWAPCHAIN_EXTENSION_NAME, VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME,
 	     VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME, VK_KHR_RAY_QUERY_EXTENSION_NAME,
-	     VK_NV_COOPERATIVE_MATRIX_EXTENSION_NAME, VK_EXT_SHADER_ATOMIC_FLOAT_EXTENSION_NAME});
+	     VK_KHR_EXTERNAL_MEMORY_EXTENSION_NAME});
 	myvk::ImGuiInit(window, myvk::CommandPool::Create(generic_queue));
 
 	auto camera = myvk::MakePtr<Camera>();
@@ -69,6 +60,7 @@ int main(int argc, char **argv) {
 	auto vk_scene_blas = myvk::MakePtr<VkSceneBLAS>(vk_scene);
 	auto vk_scene_tlas = myvk::MakePtr<VkSceneTLAS>(vk_scene_blas);
 	auto vk_nrc_state = myvk::MakePtr<VkNRCState>(generic_queue, VkExtent2D{kWidth, kHeight});
+	auto cu_nrc_state = std::make_unique<CuNRCState>();
 
 	auto frame_manager = myvk::FrameManager::Create(generic_queue, present_queue, false, kFrameCount);
 	frame_manager->SetResizeFunc([&](VkExtent2D extent) {

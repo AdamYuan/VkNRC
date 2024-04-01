@@ -7,7 +7,7 @@
 #include <vector>
 
 namespace myvk {
-class Semaphore : public DeviceObjectBase {
+class Semaphore final : public DeviceObjectBase {
 private:
 	Ptr<Device> m_device_ptr;
 

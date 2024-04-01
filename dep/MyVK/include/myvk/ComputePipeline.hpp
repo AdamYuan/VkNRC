@@ -5,7 +5,7 @@
 #include "ShaderModule.hpp"
 
 namespace myvk {
-class ComputePipeline : public PipelineBase {
+class ComputePipeline final : public PipelineBase {
 public:
 	static Ptr<ComputePipeline> Create(const Ptr<PipelineLayout> &pipeline_layout,
 	                                   const VkComputePipelineCreateInfo &create_info);

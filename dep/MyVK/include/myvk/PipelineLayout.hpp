@@ -10,7 +10,7 @@
 #include <vector>
 
 namespace myvk {
-class PipelineLayout : public DeviceObjectBase {
+class PipelineLayout final : public DeviceObjectBase {
 private:
 	Ptr<Device> m_device_ptr;
 	std::vector<Ptr<DescriptorSetLayout>> m_descriptor_layout_ptrs;

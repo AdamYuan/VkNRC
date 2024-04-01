@@ -12,7 +12,7 @@
 
 namespace myvk {
 
-class Device : public Base {
+class Device final : public Base {
 private:
 	Ptr<PhysicalDevice> m_physical_device_ptr;
 

@@ -8,7 +8,7 @@
 #include <vector>
 
 namespace myvk {
-class Framebuffer : public FramebufferBase {
+class Framebuffer final : public FramebufferBase {
 private:
 	std::vector<Ptr<ImageView>> m_image_view_ptrs;
 

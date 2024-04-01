@@ -8,7 +8,7 @@
 #include <vector>
 
 namespace myvk {
-class Fence : public DeviceObjectBase {
+class Fence final : public DeviceObjectBase {
 private:
 	Ptr<Device> m_device_ptr;
 	VkFence m_fence{VK_NULL_HANDLE};

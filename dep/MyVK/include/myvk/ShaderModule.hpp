@@ -6,7 +6,7 @@
 #include <memory>
 
 namespace myvk {
-class ShaderModule : public DeviceObjectBase {
+class ShaderModule final : public DeviceObjectBase {
 private:
 	Ptr<Device> m_device_ptr;
 	VkShaderModule m_shader_module{VK_NULL_HANDLE};

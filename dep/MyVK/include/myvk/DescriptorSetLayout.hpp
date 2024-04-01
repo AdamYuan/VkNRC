@@ -9,7 +9,7 @@
 namespace myvk {
 
 class DescriptorBindingFlagGroup;
-class DescriptorSetLayout : public DeviceObjectBase {
+class DescriptorSetLayout final : public DeviceObjectBase {
 private:
 	Ptr<Device> m_device_ptr;
 	VkDescriptorSetLayout m_descriptor_set_layout{VK_NULL_HANDLE};

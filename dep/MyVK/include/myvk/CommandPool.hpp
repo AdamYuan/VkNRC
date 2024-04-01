@@ -8,7 +8,7 @@
 #include <memory>
 
 namespace myvk {
-class CommandPool : public DeviceObjectBase {
+class CommandPool final : public DeviceObjectBase {
 private:
 	Ptr<Queue> m_queue_ptr;
 

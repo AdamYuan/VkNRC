@@ -5,7 +5,7 @@
 #include "Queue.hpp"
 
 namespace myvk {
-class Image : public ImageBase {
+class Image final : public ImageBase {
 private:
 	Ptr<Device> m_device_ptr;
 

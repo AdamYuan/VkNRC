@@ -19,7 +19,7 @@
 #include <vector>
 
 namespace myvk {
-class CommandBuffer : public DeviceObjectBase {
+class CommandBuffer final : public DeviceObjectBase {
 private:
 	Ptr<CommandPool> m_command_pool_ptr;
 

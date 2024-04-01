@@ -6,7 +6,7 @@
 #include <memory>
 
 namespace myvk {
-class DescriptorPool : public DeviceObjectBase {
+class DescriptorPool final : public DeviceObjectBase {
 private:
 	Ptr<Device> m_device_ptr;
 	VkDescriptorPool m_descriptor_pool{VK_NULL_HANDLE};

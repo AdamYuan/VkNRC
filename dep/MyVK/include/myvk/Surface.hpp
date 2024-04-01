@@ -12,7 +12,7 @@
 #include <memory>
 
 namespace myvk {
-class Surface : public Base {
+class Surface final : public Base {
 private:
 	Ptr<Instance> m_instance_ptr;
 	GLFWwindow *m_window{nullptr};

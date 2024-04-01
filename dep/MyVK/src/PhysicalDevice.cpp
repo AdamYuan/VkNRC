@@ -63,4 +63,13 @@ bool PhysicalDevice::GetQueueSupport(const QueueSelectorFunc &queue_selector_fun
 	return !queue_selector_func(GetSelfPtr<PhysicalDevice>()).empty();
 }
 
+std::optional<uint32_t> PhysicalDevice::FindMemoryType(uint32_t filter_type_bits,
+                                                       VkMemoryPropertyFlags properties) const {
+	for (uint32_t i = 0; i < m_memory_properties.memoryTypeCount; ++i)
+		if (filter_type_bits & (1u << i) &&
+		    (m_memory_properties.memoryTypes[i].propertyFlags & properties) == properties)
+			return i;
+	return std::nullopt;
+}
+
 } // namespace myvk

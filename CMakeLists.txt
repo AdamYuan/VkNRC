@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_VISIBILITY_PRESET hidden)
 
 enable_language(CUDA)
-set(CMAKE_CUDA_STANDARD 14)
+set(CMAKE_CUDA_STANDARD 17)
 set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 
 if (CMAKE_SYSTEM_NAME STREQUAL Windows)
@@ -79,24 +79,15 @@ add_subdirectory(dep)
 add_subdirectory(shader)
 # add_subdirectory(test)
 
-add_library(VkNRC_cuda STATIC src/CuNRCState.cu)
-target_link_libraries(VkNRC_cuda PRIVATE dep_cuda)
-set_target_properties(VkNRC_cuda PROPERTIES
-        C_VISIBILITY_PRESET hidden
-        CXX_VISIBILITY_PRESET hidden
-        VISIBILITY_INLINES_HIDDEN ON
-)
-
 add_executable(VkNRC
         src/main.cpp
         src/Camera.cpp
         src/Scene.cpp
-        # src/Sobol.cpp
-        # src/BlueNoise.cpp
         src/VkScene.cpp
         src/VkSceneBLAS.cpp
         src/VkSceneTLAS.cpp
         src/VkNRCState.cpp
+        src/CuNRCState.cu
 
         src/rg/NRCRenderGraph.cpp
         src/rg/PathTracerPass.cpp
@@ -107,7 +98,7 @@ add_executable(VkNRC
         src/rg/NNTrain.cpp
         src/rg/NNGradientShader.cpp
 )
-target_link_libraries(VkNRC PRIVATE dep shader VkNRC_cuda)
+target_link_libraries(VkNRC PRIVATE dep shader)
 set_target_properties(VkNRC PROPERTIES
         C_VISIBILITY_PRESET hidden
         CXX_VISIBILITY_PRESET hidden

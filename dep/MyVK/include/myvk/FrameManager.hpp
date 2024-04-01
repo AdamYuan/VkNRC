@@ -13,7 +13,7 @@
 #include <functional>
 
 namespace myvk {
-class FrameManager : public DeviceObjectBase {
+class FrameManager final : public DeviceObjectBase {
 public:
 	using ResizeFunc = std::function<void(const VkExtent2D &)>;
 

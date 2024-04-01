@@ -4,7 +4,7 @@
 #include "DeviceObjectBase.hpp"
 
 namespace myvk {
-class Sampler : public DeviceObjectBase {
+class Sampler final : public DeviceObjectBase {
 private:
 	Ptr<Device> m_device_ptr;
 
@@ -15,7 +15,8 @@ public:
 
 	static Ptr<Sampler> Create(const Ptr<Device> &device, VkFilter filter, VkSamplerAddressMode address_mode,
 	                           VkSamplerMipmapMode mipmap_mode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
-	                           float max_lod = VK_LOD_CLAMP_NONE, bool request_anisotropy = false, float max_anisotropy = 1.0f);
+	                           float max_lod = VK_LOD_CLAMP_NONE, bool request_anisotropy = false,
+	                           float max_anisotropy = 1.0f);
 
 	static Ptr<Sampler> CreateClampToBorder(const Ptr<Device> &device, VkFilter filter, VkBorderColor border_color,
 	                                        VkSamplerMipmapMode mipmap_mode = VK_SAMPLER_MIPMAP_MODE_LINEAR,

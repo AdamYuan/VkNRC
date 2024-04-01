@@ -5,7 +5,7 @@
 #include "ImageView.hpp"
 
 namespace myvk {
-class ImagelessFramebuffer : public FramebufferBase {
+class ImagelessFramebuffer final : public FramebufferBase {
 private:
 public:
 	static Ptr<ImagelessFramebuffer> Create(const Ptr<RenderPass> &render_pass,
