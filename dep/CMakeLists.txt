@@ -17,5 +17,9 @@ target_link_libraries(dep INTERFACE
         tinyobjloader
         spdlog::spdlog
         half::half
+)
+
+add_library(dep_cuda INTERFACE)
+target_link_libraries(dep_cuda INTERFACE
         tiny-cuda-nn
 )
