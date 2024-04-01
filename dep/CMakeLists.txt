@@ -7,6 +7,7 @@ add_subdirectory(stb_image)
 add_subdirectory(tinyobjloader)
 add_subdirectory(spdlog)
 add_subdirectory(half)
+add_subdirectory(tiny-cuda-nn)
 
 add_library(dep INTERFACE)
 target_link_libraries(dep INTERFACE
@@ -16,4 +17,5 @@ target_link_libraries(dep INTERFACE
         tinyobjloader
         spdlog::spdlog
         half::half
+        tiny-cuda-nn
 )
