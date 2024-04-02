@@ -8,28 +8,30 @@
 
 #include "../Camera.hpp"
 #include "../NRCState.hpp"
+#include "../VkNRCResource.hpp"
 #include "../VkSceneTLAS.hpp"
-#include "NRCResources.hpp"
 #include "SceneResources.hpp"
 
 #include <myvk_rg/RenderGraph.hpp>
 
 namespace rg {
 
-class NRCRenderGraph final : public myvk_rg::RenderGraphBase {
+class PTRenderGraph final : public myvk_rg::RenderGraphBase {
 private:
 	myvk::Ptr<VkSceneTLAS> m_scene_tlas_ptr;
 	myvk::Ptr<VkScene> m_scene_ptr;
 	myvk::Ptr<NRCState> m_nrc_state_ptr;
+	myvk::Ptr<VkNRCResource> m_nrc_resource_ptr;
+	uint32_t m_frame_index;
 
 	SceneResources create_scene_resources();
-	NRCResources create_nrc_resources();
 
 public:
-	explicit NRCRenderGraph(const myvk::Ptr<myvk::FrameManager> &frame_manager,
-	                        const myvk::Ptr<VkSceneTLAS> &scene_tlas_ptr, const myvk::Ptr<NRCState> &nrc_state_ptr,
-	                        const myvk::Ptr<Camera> &camera_ptr);
-	~NRCRenderGraph() final = default;
+	explicit PTRenderGraph(
+	                       const myvk::Ptr<VkSceneTLAS> &scene_tlas_ptr, const myvk::Ptr<Camera> &camera_ptr,
+	                       const myvk::Ptr<NRCState> &nrc_state_ptr, const myvk::Ptr<VkNRCResource> &nrc_resource_ptr,
+	                       uint32_t frame_index);
+	~PTRenderGraph() final = default;
 	void PreExecute() const final;
 };
 

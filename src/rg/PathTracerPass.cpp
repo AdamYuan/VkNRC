@@ -55,19 +55,24 @@ PathTracerPass::PathTracerPass(myvk_rg::Parent parent, const PathTracerPass::Arg
 	// NRC
 	AddDescriptorInput<myvk_rg::Usage::kStorageBufferRW, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>({12}, {"eval_count"},
 	                                                                                             args.eval_count);
-	AddDescriptorInput<myvk_rg::Usage::kStorageBufferW, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>({13}, {"eval_records"},
-	                                                                                            args.eval_records);
+	AddDescriptorInput<myvk_rg::Usage::kStorageBufferW, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>({13}, {"eval_inputs"},
+	                                                                                            args.eval_inputs);
+	AddDescriptorInput<myvk_rg::Usage::kStorageBufferW, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>({14}, {"eval_dests"},
+	                                                                                            args.eval_dests);
 	for (uint32_t b = 0; b < NRCState::GetTrainBatchCount(); ++b) {
 		AddDescriptorInput<myvk_rg::Usage::kStorageBufferRW, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>(
-		    {14, b}, {"batch_train_count", b}, args.batch_train_counts[b]);
+		    {15, b}, {"batch_train_count", b}, args.batch_train_count[b]);
 		AddDescriptorInput<myvk_rg::Usage::kStorageBufferW, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>(
-		    {15, b}, {"batch_train_records", b}, args.batch_train_records[b]);
+		    {16, b}, {"batch_train_inputs", b}, args.batch_train_inputs[b]);
+		AddDescriptorInput<myvk_rg::Usage::kStorageBufferW, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>(
+		    {17, b}, {"batch_train_biases", b}, args.batch_train_biases[b]);
+		AddDescriptorInput<myvk_rg::Usage::kStorageBufferW, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>(
+		    {18, b}, {"batch_train_factors", b}, args.batch_train_factors[b]);
 	}
-	AddDescriptorInput<myvk_rg::Usage::kStorageImageW, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>(
-	    {16}, {"bias_factor_r"},
-	    CreateResource<myvk_rg::ManagedImage>({"bias_factor_r"}, VK_FORMAT_R32G32B32A32_SFLOAT)->Alias());
-	AddDescriptorInput<myvk_rg::Usage::kStorageImageW, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>(
-	    {17}, {"factor_gb"}, CreateResource<myvk_rg::ManagedImage>({"factor_gb"}, VK_FORMAT_R32G32_SFLOAT)->Alias());
+	AddDescriptorInput<myvk_rg::Usage::kStorageImageW, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>({19}, {"bias_factor_r"},
+	                                                                                           args.bias_factor_r);
+	AddDescriptorInput<myvk_rg::Usage::kStorageImageW, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT>({20}, {"factor_gb"},
+	                                                                                           args.factor_gb);
 }
 
 myvk::Ptr<myvk::ComputePipeline> PathTracerPass::CreatePipeline() const {

@@ -21,9 +21,11 @@ public:
 		const myvk::Ptr<VkScene> &scene_ptr;
 		const SceneResources &scene_resources;
 		const myvk::Ptr<NRCState> &nrc_state_ptr;
-		const myvk_rg::Buffer &eval_count, &eval_records;
-		std::span<const myvk_rg::Buffer, NRCState::GetTrainBatchCount()> batch_train_records, batch_train_counts;
 		const myvk::Ptr<Camera> &camera_ptr;
+		const myvk_rg::Buffer &eval_count, &eval_inputs, &eval_dests;
+		std::span<const myvk_rg::Buffer, NRCState::GetTrainBatchCount()> batch_train_count, batch_train_inputs,
+		    batch_train_biases, batch_train_factors;
+		const myvk_rg::Image &bias_factor_r, &factor_gb;
 	};
 
 private:
@@ -39,18 +41,19 @@ public:
 	inline auto GetBiasFactorROutput() const { return MakeImageOutput({"bias_factor_r"}); }
 	inline auto GetFactorGBOutput() const { return MakeImageOutput({"factor_gb"}); }
 	inline auto GetEvalCountOutput() const { return MakeBufferOutput({"eval_count"}); }
-	inline auto GetEvalRecordsOutput() const { return MakeBufferOutput({"eval_records"}); }
+	inline auto GetEvalInputsOutput() const { return MakeBufferOutput({"eval_inputs"}); }
+	inline auto GetEvalOutputsOutput() const { return MakeBufferOutput({"eval_outputs"}); }
 	inline auto GetBatchTrainCountOutput(uint32_t batch_index) const {
 		return MakeBufferOutput({"batch_train_count", batch_index});
 	}
-	/* inline auto GetBatchTrainRecordsOutput(uint32_t batch_index) const {
-	    return MakeBufferOutput({"batch_train_records", batch_index});
-	} */
-	inline std::array<myvk_rg::Buffer, NRCState::GetTrainBatchCount()> GetBatchTrainRecordsOutputs() const {
-		std::array<myvk_rg::Buffer, NRCState::GetTrainBatchCount()> ret;
-		for (uint32_t b = 0; b < NRCState::GetTrainBatchCount(); ++b)
-			ret[b] = MakeBufferOutput({"batch_train_records", b});
-		return ret;
+	inline auto GetBatchTrainInputsOutput(uint32_t batch_index) const {
+		return MakeBufferOutput({"batch_train_inputs", batch_index});
+	}
+	inline auto GetBatchTrainBiasesOutput(uint32_t batch_index) const {
+		return MakeBufferOutput({"batch_train_biases", batch_index});
+	}
+	inline auto GetBatchTrainFactorsOutput(uint32_t batch_index) const {
+		return MakeBufferOutput({"batch_train_factors", batch_index});
 	}
 };
 

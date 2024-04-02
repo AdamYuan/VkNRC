@@ -55,12 +55,28 @@ CuNRCNetwork::CuNRCNetwork() {
 	};
 }
 
+void CuNRCNetwork::Reset() {
+	m_p_cuda_impl->trainer->initialize_params();
+
+	/* tcnn::default_rng_t rng{std::random_device{}()};
+	uint32_t count = kTCNNBlockCount;
+	tcnn::GPUMatrix<float> inputs(kCuNRCInputDims, count);
+	tcnn::generate_random_uniform<float>(m_p_cuda_impl->stream, rng, kCuNRCInputDims * count, inputs.data());
+	tcnn::GPUMatrix<float> targets(kCuNRCOutputDims, count);
+	tcnn::generate_random_uniform<float>(m_p_cuda_impl->stream, rng, kCuNRCOutputDims * count, targets.data());
+	m_p_cuda_impl->trainer->training_step(m_p_cuda_impl->stream, inputs, targets); */
+}
+
 void CuNRCNetwork::Inference(const CuVkBuffer &inputs, const CuVkBuffer &outputs, uint32_t count) const {
+	count = (count + kTCNNBlockCount - 1u) / kTCNNBlockCount * kTCNNBlockCount;
 	tcnn::GPUMatrix<float> input_mat{inputs.GetMappedPtr<float>(), kCuNRCInputDims, count};
 	tcnn::GPUMatrix<float> output_mat{outputs.GetMappedPtr<float>(), kCuNRCOutputDims, count};
 	m_p_cuda_impl->network->inference(m_p_cuda_impl->stream, input_mat, output_mat);
 }
 void CuNRCNetwork::Train(const CuVkBuffer &inputs, const CuVkBuffer &targets, uint32_t count) {
+	count = count / kTCNNBlockCount * kTCNNBlockCount;
+	if (count == 0)
+		return;
 	tcnn::GPUMatrix<float> input_mat{inputs.GetMappedPtr<float>(), kCuNRCInputDims, count};
 	tcnn::GPUMatrix<float> target_mat{targets.GetMappedPtr<float>(), kCuNRCOutputDims, count};
 	m_p_cuda_impl->trainer->training_step(m_p_cuda_impl->stream, input_mat, target_mat);

@@ -1,6 +1,6 @@
 #version 450
 
-layout(input_attachment_index = 0, binding = 0) uniform subpassInput uColor;
+layout(binding = 0, rgba32f) readonly uniform image2D uColor;
 layout(binding = 1, rgba32f) uniform image2D uAccumulate;
 
 layout(location = 0) out vec4 oScreen;
@@ -15,9 +15,8 @@ vec3 ToneMapFilmic_Hejl2015(in const vec3 hdr, in const float white_pt) {
 }
 
 void main() {
-	vec3 color = subpassLoad(uColor).rgb;
-
 	ivec2 coord = ivec2(gl_FragCoord.xy);
+	vec3 color = imageLoad(uColor, coord).rgb;
 	if (uIsAccumulate != 0) {
 		if (uAccumulateCount != 0) {
 			color += imageLoad(uAccumulate, coord).rgb * float(uAccumulateCount);

@@ -42,6 +42,10 @@ public:
 
 	void Resize(VkExtent2D extent);
 
+	void ResetCounts(uint32_t frame_index);
+	uint32_t GetInferenceCount(uint32_t frame_index) const;
+	uint32_t GetBatchTrainCount(uint32_t frame_index, uint32_t batch) const;
+
 	inline const auto &GetAccumulateImageView() const { return m_accumulate_view; }
 	inline const auto &GetInferenceInputBuffer() const { return m_inference_inputs; }
 	inline const auto &GetInferenceOutputBuffer() const { return m_inference_outputs; }

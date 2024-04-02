@@ -91,8 +91,11 @@ add_executable(VkNRC
         src/CuVkBuffer.cu
         src/CuNRCNetwork.cu
 
-        src/rg/NRCRenderGraph.cpp
+        src/rg/PTRenderGraph.cpp
+        src/rg/ReconstructRenderGraph.cpp
+        src/rg/ScreenRenderGraph.cpp
         src/rg/PathTracerPass.cpp
+        src/rg/ReconstructPass.cpp
         src/rg/VBufferPass.cpp
         src/rg/ScreenPass.cpp
 )

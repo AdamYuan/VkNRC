@@ -41,17 +41,17 @@ layout(binding = 12) buffer uuEvalCount { uint uEvalCount; };
 layout(std430, binding = 13) writeonly buffer uuEvalInputs { NRCInput uEvalInputs[]; };
 layout(std430, binding = 14) writeonly buffer uuEvalDests { uint uEvalDests[]; };
 
-layout(binding = 14) buffer uuBatchTrainCounts { uint count; }
+layout(binding = 15) buffer uuBatchTrainCounts { uint count; }
 uBatchTrainCounts[NRC_TRAIN_BATCH_COUNT];
-layout(std430, binding = 15) writeonly buffer uuBatchTrainInputs { NRCInput inputs[]; }
+layout(std430, binding = 16) writeonly buffer uuBatchTrainInputs { NRCInput inputs[]; }
 uBatchTrainInputs[NRC_TRAIN_BATCH_COUNT];
-layout(std430, binding = 16) writeonly buffer uuBatchTrainTargetBiases { NRCOutput biases[]; }
+layout(std430, binding = 17) writeonly buffer uuBatchTrainTargetBiases { NRCOutput biases[]; }
 uBatchTrainTargetBiases[NRC_TRAIN_BATCH_COUNT];
-layout(std430, binding = 17) writeonly buffer uuBatchTrainTargetFactors { NRCOutput factors[]; }
+layout(std430, binding = 18) writeonly buffer uuBatchTrainTargetFactors { NRCOutput factors[]; }
 uBatchTrainTargetFactors[NRC_TRAIN_BATCH_COUNT];
 
-layout(binding = 18, rgba32f) writeonly uniform image2D uBias_FactorR;
-layout(binding = 19, rg32f) writeonly uniform image2D uFactorGB;
+layout(binding = 19, rgba32f) writeonly uniform image2D uBias_FactorR;
+layout(binding = 20, rg32f) writeonly uniform image2D uFactorGB;
 
 struct Ray {
 	vec3 o, d;

@@ -57,8 +57,11 @@ public:
 		m_seed = std::uniform_int_distribution<uint32_t>{0}(m_rng);
 	}
 
-	static constexpr uint32_t GetInferenceCount(VkExtent2D extent) {
-		return extent.width * extent.height + kTrainBatchSize * kTrainBatchCount;
+	static constexpr uint32_t GetInferenceCount(VkExtent2D extent, uint32_t block_count) {
+		uint32_t count = extent.width * extent.height + kTrainBatchSize * kTrainBatchCount;
+		count = (count + block_count - 1u) / block_count;
+		count *= block_count;
+		return count;
 	}
 	static constexpr uint32_t GetTrainBatchCount() { return kTrainBatchCount; }
 	static constexpr uint32_t GetTrainBatchSize() { return kTrainBatchSize; }

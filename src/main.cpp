@@ -5,8 +5,9 @@
 #include <spdlog/spdlog.h>
 
 #include "CuNRCNetwork.hpp"
-#include "VkNRCResource.hpp"
-#include "rg/NRCRenderGraph.hpp"
+#include "rg/PTRenderGraph.hpp"
+#include "rg/ReconstructRenderGraph.hpp"
+#include "rg/ScreenRenderGraph.hpp"
 
 constexpr uint32_t kFrameCount = 3, kWidth = 1280, kHeight = 720;
 
@@ -66,19 +67,36 @@ int main(int argc, char **argv) {
 	auto vk_scene_blas = myvk::MakePtr<VkSceneBLAS>(vk_scene);
 	auto vk_scene_tlas = myvk::MakePtr<VkSceneTLAS>(vk_scene_blas);
 	auto nrc_state = std::make_shared<NRCState>();
-	auto vk_nrc_resource = myvk::MakePtr<VkNRCResource>(generic_queue, VkExtent2D{kWidth, kHeight}, kFrameCount);
 	auto cu_nrc_network = std::make_unique<CuNRCNetwork>();
 
+	cu_nrc_network->Reset();
+	cu_nrc_network->Synchronize();
+
 	auto frame_manager = myvk::FrameManager::Create(generic_queue, present_queue, false, kFrameCount);
-	frame_manager->SetResizeFunc([&](VkExtent2D extent) { vk_nrc_resource->Resize(extent); });
-	std::array<myvk::Ptr<rg::NRCRenderGraph>, kFrameCount> render_graphs;
-	for (auto &rg : render_graphs)
-		rg = myvk::MakePtr<rg::NRCRenderGraph>(frame_manager, vk_scene_tlas, nrc_state, camera);
+	auto vk_nrc_resource = myvk::MakePtr<VkNRCResource>(generic_queue, frame_manager->GetExtent(), kFrameCount);
+	frame_manager->SetResizeFunc([&](VkExtent2D extent) {
+		cu_nrc_network->Synchronize();
+		vk_nrc_resource->Resize(extent);
+		cu_nrc_network->Synchronize();
+	});
+
+	std::array<myvk::Ptr<myvk::CommandBuffer>, kFrameCount> inter_command_buffers;
+	std::array<myvk::Ptr<rg::PTRenderGraph>, kFrameCount> pt_render_graphs;
+	std::array<myvk::Ptr<rg::ReconstructRenderGraph>, kFrameCount> recon_render_graphs;
+	std::array<myvk::Ptr<rg::ScreenRenderGraph>, kFrameCount> screen_render_graphs;
+	for (uint32_t i = 0; i < kFrameCount; ++i) {
+		inter_command_buffers[i] = myvk::CommandBuffer::Create(myvk::CommandPool::Create(generic_queue));
+		pt_render_graphs[i] = myvk::MakePtr<rg::PTRenderGraph>(vk_scene_tlas, camera, nrc_state, vk_nrc_resource, i);
+		recon_render_graphs[i] = myvk::MakePtr<rg::ReconstructRenderGraph>(vk_nrc_resource, i);
+		screen_render_graphs[i] = myvk::MakePtr<rg::ScreenRenderGraph>(frame_manager, nrc_state, vk_nrc_resource, i);
+	}
 
 	bool view_accumulate = nrc_state->IsAccumulate();
 	int view_left_method = static_cast<int>(nrc_state->GetLeftMethod());
 	int view_right_method = static_cast<int>(nrc_state->GetRightMethod());
 	bool nrc_lock = false, nrc_train_one_frame = false;
+
+	auto fence = myvk::Fence::Create(device);
 
 	double prev_time = glfwGetTime();
 	while (!glfwWindowShouldClose(window)) {
@@ -124,7 +142,9 @@ int main(int argc, char **argv) {
 			}
 			if (ImGui::Button("Re-Train")) {
 				nrc_state->ResetAccumulateCount();
-				// nrc_state->ResetMLPBuffers();
+				cu_nrc_network->Synchronize();
+				cu_nrc_network->Reset();
+				cu_nrc_network->Synchronize();
 			}
 		}
 		ImGui::End();
@@ -139,12 +159,47 @@ int main(int argc, char **argv) {
 			nrc_state->SetTrainProbability(NRCState::GetDefaultTrainProbability());
 
 		if (frame_manager->NewFrame()) {
-			const auto &command_buffer = frame_manager->GetCurrentCommandBuffer();
-			auto &render_graph = render_graphs[frame_manager->GetCurrentFrame()];
+			uint32_t frame_index = frame_manager->GetCurrentFrame();
+			auto &pt_render_graph = pt_render_graphs[frame_index];
+			auto &recon_render_graph = recon_render_graphs[frame_index];
+			auto &screen_render_graph = screen_render_graphs[frame_index];
 
+			const auto &inter_command_buffer = inter_command_buffers[frame_index];
+
+			inter_command_buffer->GetCommandPoolPtr()->Reset();
+			inter_command_buffer->Begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+			pt_render_graph->SetCanvasSize(frame_manager->GetExtent());
+			pt_render_graph->CmdExecute(inter_command_buffer);
+			inter_command_buffer->End();
+			fence->Reset();
+			inter_command_buffer->Submit(fence);
+			fence->Wait();
+
+			uint32_t inference_count = vk_nrc_resource->GetInferenceCount(frame_index);
+			cu_nrc_network->Inference(*vk_nrc_resource->GetInferenceInputBuffer(),
+			                          *vk_nrc_resource->GetInferenceOutputBuffer(), inference_count);
+			cu_nrc_network->Synchronize();
+
+			inter_command_buffer->GetCommandPoolPtr()->Reset();
+			inter_command_buffer->Begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+			recon_render_graph->SetCanvasSize(frame_manager->GetExtent());
+			recon_render_graph->SetInferenceCount(inference_count);
+			recon_render_graph->CmdExecute(inter_command_buffer);
+			inter_command_buffer->End();
+			fence->Reset();
+			inter_command_buffer->Submit(fence);
+			fence->Wait();
+
+			for (uint32_t batch = 0; batch < NRCState::GetTrainBatchCount(); ++batch) {
+				uint32_t train_count = vk_nrc_resource->GetBatchTrainCount(frame_index, batch);
+				cu_nrc_network->Train(*vk_nrc_resource->GetBatchTrainInputBufferArray()[batch],
+				                      *vk_nrc_resource->GetBatchTrainTargetBufferArray()[batch], train_count);
+			}
+
+			const auto &command_buffer = frame_manager->GetCurrentCommandBuffer();
 			command_buffer->Begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
-			render_graph->SetCanvasSize(frame_manager->GetExtent());
-			render_graph->CmdExecute(command_buffer);
+			screen_render_graph->SetCanvasSize(frame_manager->GetExtent());
+			screen_render_graph->CmdExecute(command_buffer);
 			command_buffer->End();
 
 			frame_manager->Render();

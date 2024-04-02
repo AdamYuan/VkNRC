@@ -10,8 +10,7 @@
 void VkNRCResource::create_fixed() {
 	auto create_count_buffer = [this]() {
 		return myvk::Buffer::Create(GetDevicePtr(), sizeof(uint32_t),
-		                            VMA_ALLOCATION_CREATE_MAPPED_BIT |
-		                                VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT,
+		                            VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT,
 		                            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 	};
 	for (auto &train_inputs : m_batch_train_inputs)
@@ -38,12 +37,14 @@ void VkNRCResource::Resize(VkExtent2D extent) {
 	auto command_buffer = myvk::CommandBuffer::Create(myvk::CommandPool::Create(m_queue_ptr));
 	command_buffer->Begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 
-	m_inference_inputs = std::make_unique<CuVkBuffer>(myvk::ExportBuffer::Create(
-	    GetDevicePtr(), NRCState::GetInferenceCount(extent) * kCuNRCInputDims * sizeof(float),
-	    VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT));
-	m_inference_outputs = std::make_unique<CuVkBuffer>(myvk::ExportBuffer::Create(
-	    GetDevicePtr(), NRCState::GetInferenceCount(extent) * kCuNRCOutputDims * sizeof(float),
-	    VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT));
+	uint32_t inference_count = NRCState::GetInferenceCount(extent, kTCNNBlockCount);
+
+	m_inference_inputs = std::make_unique<CuVkBuffer>(
+	    myvk::ExportBuffer::Create(GetDevicePtr(), inference_count * kCuNRCInputDims * sizeof(float),
+	                               VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT));
+	m_inference_outputs = std::make_unique<CuVkBuffer>(
+	    myvk::ExportBuffer::Create(GetDevicePtr(), inference_count * kCuNRCOutputDims * sizeof(float),
+	                               VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT));
 
 	for (auto &frame : m_frames) {
 		auto bias_factor_r_image = myvk::Image::CreateTexture2D(
@@ -59,9 +60,8 @@ void VkNRCResource::Resize(VkExtent2D extent) {
 		                                                    VK_IMAGE_USAGE_STORAGE_BIT);
 		frame.factor_gb = myvk::ImageView::Create(factor_gb_image, VK_IMAGE_VIEW_TYPE_2D);
 
-		frame.inference_dst =
-		    myvk::Buffer::Create(GetDevicePtr(), NRCState::GetInferenceCount(extent) * sizeof(uint32_t), 0,
-		                         VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+		frame.inference_dst = myvk::Buffer::Create(GetDevicePtr(), inference_count * sizeof(uint32_t), 0,
+		                                           VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 
 		command_buffer->CmdPipelineBarrier(
 		    VK_PIPELINE_STAGE_NONE, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, {}, {},
@@ -81,4 +81,20 @@ void VkNRCResource::Resize(VkExtent2D extent) {
 	auto fence = myvk::Fence::Create(GetDevicePtr());
 	command_buffer->Submit(fence);
 	fence->Wait();
+}
+
+void VkNRCResource::ResetCounts(uint32_t frame_index) {
+	auto &frame = m_frames[frame_index];
+	*static_cast<uint32_t *>(frame.inference_count->GetMappedData()) = 0u;
+	for (auto &train_count : frame.batch_train_counts)
+		*static_cast<uint32_t *>(train_count->GetMappedData()) = 0u;
+}
+uint32_t VkNRCResource::GetInferenceCount(uint32_t frame_index) const {
+	auto &frame = m_frames[frame_index];
+	return *static_cast<uint32_t *>(frame.inference_count->GetMappedData());
+}
+uint32_t VkNRCResource::GetBatchTrainCount(uint32_t frame_index, uint32_t batch) const {
+	auto &frame = m_frames[frame_index];
+	return std::min(*static_cast<uint32_t *>(frame.batch_train_counts[batch]->GetMappedData()),
+	                NRCState::GetTrainBatchSize());
 }

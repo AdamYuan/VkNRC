@@ -16,7 +16,8 @@ using screen_pass::PushConstant_Data;
 ScreenPass::ScreenPass(myvk_rg::Parent parent, const Args &args)
     : myvk_rg::GraphicsPassBase(parent), m_nrc_state_ptr(args.nrc_state_ptr) {
 	AddColorAttachmentInput<myvk_rg::Usage::kColorAttachmentW>(0, {"screen"}, args.screen_image);
-	AddInputAttachmentInput(0, {0}, {"color"}, args.color_image);
+	AddDescriptorInput<myvk_rg::Usage::kStorageImageR, VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT>({0}, {"color"},
+	                                                                                            args.color_image);
 	AddDescriptorInput<myvk_rg::Usage::kStorageImageRW, VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT>({1}, {"accumulate"},
 	                                                                                             args.accumulate_image);
 }
