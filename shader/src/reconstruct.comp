@@ -1,0 +1,48 @@
+#version 460
+#extension GL_EXT_control_flow_attributes : enable
+
+layout(local_size_x = 128, local_size_y = 1, local_size_z = 1) in;
+
+#include "Constant.glsl"
+#include "NRCRecord.glsl"
+
+layout(push_constant) uniform uuPushConstant { uint uCount; };
+
+layout(std430, binding = 0) readonly buffer uuEvalDests { uint uEvalDests[]; };
+layout(std430, binding = 1) readonly buffer uuEvalOutputs { NRCOutput uEvalOutputs[]; };
+
+layout(binding = 2, rgba32f) uniform image2D uBias_FactorR;
+layout(binding = 3, rg32f) readonly uniform image2D uFactorGB;
+
+layout(std430, binding = 4) buffer uuBatchTrainTargetBiases { NRCOutput biases[]; }
+uBatchTrainTargetBiases[NRC_TRAIN_BATCH_COUNT];
+layout(std430, binding = 5) readonly buffer uuBatchTrainTargetFactors { NRCOutput factors[]; }
+uBatchTrainTargetFactors[NRC_TRAIN_BATCH_COUNT];
+
+void main() {
+	if (gl_GlobalInvocationID.x >= uCount)
+		return;
+
+	float predict[3] = uEvalOutputs[gl_GlobalInvocationID.x].rgb;
+	uint dst = uEvalDests[gl_GlobalInvocationID.x];
+	if (GetNRCEvalDstType(dst) == NRC_EVAL_DST_SCREEN) {
+		// Write to Screen
+		ivec2 coord = ivec2(DecodeNRCEvalDstScreen(dst));
+		vec4 bias_factor_r = imageLoad(uBias_FactorR, coord);
+		vec2 factor_gb = imageLoad(uFactorGB, coord).rg;
+		vec3 color = bias_factor_r.rgb + vec3(bias_factor_r.a, factor_gb) * vec3(predict[0], predict[1], predict[2]);
+		imageStore(uBias_FactorR, coord, vec4(color, 0));
+	} else {
+		// Write to Train Records
+		uint b, l, r;
+		DecodeNRCEvalDstTrain(dst, b, l, r);
+		[[unroll]] for (uint i = l; i <= r; ++i) {
+			float bias[3] = uBatchTrainTargetBiases[b].biases[i].rgb,
+			      factor[3] = uBatchTrainTargetFactors[b].factors[i].rgb;
+			bias[0] += factor[0] * predict[0];
+			bias[1] += factor[1] * predict[1];
+			bias[2] += factor[2] * predict[2];
+			uBatchTrainTargetBiases[b].biases[i].rgb = bias;
+		}
+	}
+}

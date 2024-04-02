@@ -2,12 +2,12 @@
 // Created by adamyuan on 4/1/24.
 //
 
-#include "CuNRCState.hpp"
+#include "CuNRCNetwork.hpp"
 
 #include <tiny-cuda-nn/common.h>
 #include <tiny-cuda-nn/config.h>
 
-struct CuNRCState::TCNNImpl {
+struct CuNRCNetwork::CudaImpl {
 	std::shared_ptr<tcnn::Loss<tcnn::network_precision_t>> loss;
 	std::shared_ptr<tcnn::Optimizer<tcnn::network_precision_t>> optimizer;
 	std::shared_ptr<tcnn::NetworkWithInputEncoding<tcnn::network_precision_t>> network;
@@ -19,12 +19,12 @@ template <uint32_t Dims> tcnn::GPUMatrix<float> to_tcnn_gpu_matrix(const CuNRCDa
 	return tcnn::GPUMatrix<float>(data.p_data, Dims, data.count, data.stride);
 }
 
-CuNRCState::~CuNRCState() {
-	cudaStreamDestroy(m_p_tcnn_impl->stream);
-	delete m_p_tcnn_impl;
+CuNRCNetwork::~CuNRCNetwork() {
+	cudaStreamDestroy(m_p_cuda_impl->stream);
+	delete m_p_cuda_impl;
 }
 
-CuNRCState::CuNRCState() {
+CuNRCNetwork::CuNRCNetwork() {
 	tcnn::json config = {
 	    {"loss", {{"otype", "RelativeL2Luminance"}}},
 	    {"optimizer",
@@ -50,7 +50,7 @@ CuNRCState::CuNRCState() {
 	cudaStream_t stream;
 	CUDA_CHECK_THROW(cudaStreamCreate(&stream));
 
-	m_p_tcnn_impl = new TCNNImpl{
+	m_p_cuda_impl = new CudaImpl{
 	    .loss = std::move(model.loss),
 	    .optimizer = std::move(model.optimizer),
 	    .network = std::move(model.network),
@@ -59,14 +59,14 @@ CuNRCState::CuNRCState() {
 	};
 }
 
-void CuNRCState::Inference(const CuNRCInput &inputs, const CuNRCOutput &outputs) const {
+void CuNRCNetwork::Inference(const CuNRCInput &inputs, const CuNRCOutput &outputs) const {
 	auto output_gpu_matrix = to_tcnn_gpu_matrix(outputs);
-	m_p_tcnn_impl->network->inference(m_p_tcnn_impl->stream, to_tcnn_gpu_matrix(inputs), output_gpu_matrix);
+	m_p_cuda_impl->network->inference(m_p_cuda_impl->stream, to_tcnn_gpu_matrix(inputs), output_gpu_matrix);
 }
 
-void CuNRCState::Train(const CuNRCInput &inputs, const CuNRCOutput &targets) {
-	m_p_tcnn_impl->trainer->training_step(m_p_tcnn_impl->stream, to_tcnn_gpu_matrix(inputs),
+void CuNRCNetwork::Train(const CuNRCInput &inputs, const CuNRCOutput &targets) {
+	m_p_cuda_impl->trainer->training_step(m_p_cuda_impl->stream, to_tcnn_gpu_matrix(inputs),
 	                                      to_tcnn_gpu_matrix(targets));
 }
 
-void CuNRCState::Synchronize() const { cudaStreamSynchronize(m_p_tcnn_impl->stream); }
+void CuNRCNetwork::Synchronize() const { cudaStreamSynchronize(m_p_cuda_impl->stream); }

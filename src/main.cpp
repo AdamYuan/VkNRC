@@ -4,7 +4,7 @@
 
 #include <spdlog/spdlog.h>
 
-#include "CuNRCState.hpp"
+#include "CuNRCNetwork.hpp"
 #include "rg/NRCRenderGraph.hpp"
 
 constexpr uint32_t kFrameCount = 3, kWidth = 1280, kHeight = 720;
@@ -48,9 +48,14 @@ int main(int argc, char **argv) {
 	    physical_device,
 	    myvk::GenericPresentQueueSelector{&generic_queue, myvk::Surface::Create(instance, window), &present_queue},
 	    features,
-	    {VK_KHR_SWAPCHAIN_EXTENSION_NAME, VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME,
-	     VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME, VK_KHR_RAY_QUERY_EXTENSION_NAME,
-	     VK_KHR_EXTERNAL_MEMORY_EXTENSION_NAME});
+	    {
+	        VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+	        VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME,
+	        VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME,
+	        VK_KHR_RAY_QUERY_EXTENSION_NAME,
+	        VK_KHR_EXTERNAL_MEMORY_EXTENSION_NAME,
+	        myvk::ExportBuffer::GetExternalMemoryExtensionName(),
+	    });
 	myvk::ImGuiInit(window, myvk::CommandPool::Create(generic_queue));
 
 	auto camera = myvk::MakePtr<Camera>();
@@ -59,8 +64,8 @@ int main(int argc, char **argv) {
 	auto vk_scene = myvk::MakePtr<VkScene>(generic_queue, scene);
 	auto vk_scene_blas = myvk::MakePtr<VkSceneBLAS>(vk_scene);
 	auto vk_scene_tlas = myvk::MakePtr<VkSceneTLAS>(vk_scene_blas);
-	auto vk_nrc_state = myvk::MakePtr<VkNRCState>(generic_queue, VkExtent2D{kWidth, kHeight});
-	auto cu_nrc_state = std::make_unique<CuNRCState>();
+	auto vk_nrc_state = myvk::MakePtr<NRCState>(generic_queue, VkExtent2D{kWidth, kHeight});
+	auto cu_nrc_state = std::make_unique<CuNRCNetwork>();
 
 	auto frame_manager = myvk::FrameManager::Create(generic_queue, present_queue, false, kFrameCount);
 	frame_manager->SetResizeFunc([&](VkExtent2D extent) {
@@ -100,11 +105,11 @@ int main(int argc, char **argv) {
 			}
 			constexpr const char *kViewTypeComboStr = "None\0NRC\0Cache\0";
 			if (ImGui::Combo("Left", &view_left_method, kViewTypeComboStr)) {
-				vk_nrc_state->SetLeftMethod(static_cast<VkNRCState::Method>(view_left_method));
+				vk_nrc_state->SetLeftMethod(static_cast<NRCState::Method>(view_left_method));
 				vk_nrc_state->ResetAccumulateCount();
 			}
 			if (ImGui::Combo("Right", &view_right_method, kViewTypeComboStr)) {
-				vk_nrc_state->SetRightMethod(static_cast<VkNRCState::Method>(view_right_method));
+				vk_nrc_state->SetRightMethod(static_cast<NRCState::Method>(view_right_method));
 				vk_nrc_state->ResetAccumulateCount();
 			}
 		}
@@ -136,7 +141,7 @@ int main(int argc, char **argv) {
 		if (nrc_lock && !nrc_train_one_frame)
 			vk_nrc_state->SetTrainProbability(0.0f);
 		else
-			vk_nrc_state->SetTrainProbability(VkNRCState::GetDefaultTrainProbability());
+			vk_nrc_state->SetTrainProbability(NRCState::GetDefaultTrainProbability());
 
 		if (frame_manager->NewFrame()) {
 			const auto &command_buffer = frame_manager->GetCurrentCommandBuffer();

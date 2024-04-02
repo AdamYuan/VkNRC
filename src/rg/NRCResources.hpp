@@ -14,7 +14,7 @@ struct NRCResources {
 	myvk_rg::Image accumulate;
 	myvk_rg::Buffer weights, use_weights, optimizer_state, optimizer_entries;
 	myvk_rg::Buffer eval_records, eval_count;
-	std::array<myvk_rg::Buffer, VkNRCState::GetTrainBatchCount()> batch_train_records, batch_train_counts;
+	std::array<myvk_rg::Buffer, NRCState::GetTrainBatchCount()> batch_train_records, batch_train_counts;
 };
 
 } // namespace rg

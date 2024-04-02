@@ -6,7 +6,7 @@
 #ifndef VKNRC_RG_SCREENPASS_HPP
 #define VKNRC_RG_SCREENPASS_HPP
 
-#include "../VkNRCState.hpp"
+#include "../NRCState.hpp"
 #include <myvk_rg/RenderGraph.hpp>
 
 namespace rg {
@@ -14,12 +14,12 @@ namespace rg {
 class ScreenPass final : public myvk_rg::GraphicsPassBase {
 public:
 	struct Args {
-		const myvk::Ptr<VkNRCState> &nrc_state_ptr;
+		const myvk::Ptr<NRCState> &nrc_state_ptr;
 		const myvk_rg::Image &accumulate_image, &color_image, &screen_image;
 	};
 
 private:
-	myvk::Ptr<VkNRCState> m_nrc_state_ptr;
+	myvk::Ptr<NRCState> m_nrc_state_ptr;
 
 public:
 	ScreenPass(myvk_rg::Parent parent, const Args &args);

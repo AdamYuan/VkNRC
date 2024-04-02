@@ -129,7 +129,7 @@ void NNTrain::NNOptimizer::CmdExecute(const myvk::Ptr<myvk::CommandBuffer> &comm
 		command_buffer->CmdPushConstants(GetVkPipeline()->GetPipelineLayoutPtr(), VK_SHADER_STAGE_COMPUTE_BIT, 0,
 		                                 sizeof(use_ema_weights), &use_ema_weights);
 	}
-	command_buffer->CmdDispatch(VkNRCState::GetWeightCount() / 64, 1, 1);
+	command_buffer->CmdDispatch(NRCState::GetWeightCount() / 64, 1, 1);
 }
 
 } // namespace rg

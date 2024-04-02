@@ -7,7 +7,7 @@
 #define VKNRC_PATHTRACERPASS_HPP
 
 #include "../Camera.hpp"
-#include "../VkNRCState.hpp"
+#include "../NRCState.hpp"
 #include "../VkScene.hpp"
 #include "SceneResources.hpp"
 #include <myvk_rg/RenderGraph.hpp>
@@ -20,15 +20,15 @@ public:
 		const myvk_rg::Image &vbuffer_image;
 		const myvk::Ptr<VkScene> &scene_ptr;
 		const SceneResources &scene_resources;
-		const myvk::Ptr<VkNRCState> &nrc_state_ptr;
+		const myvk::Ptr<NRCState> &nrc_state_ptr;
 		const myvk_rg::Buffer &eval_count, &eval_records;
-		std::span<const myvk_rg::Buffer, VkNRCState::GetTrainBatchCount()> batch_train_records, batch_train_counts;
+		std::span<const myvk_rg::Buffer, NRCState::GetTrainBatchCount()> batch_train_records, batch_train_counts;
 		const myvk::Ptr<Camera> &camera_ptr;
 	};
 
 private:
 	myvk::Ptr<VkScene> m_scene_ptr;
-	myvk::Ptr<VkNRCState> m_nrc_state_ptr;
+	myvk::Ptr<NRCState> m_nrc_state_ptr;
 	myvk::Ptr<Camera> m_camera_ptr;
 
 public:
@@ -46,9 +46,9 @@ public:
 	/* inline auto GetBatchTrainRecordsOutput(uint32_t batch_index) const {
 	    return MakeBufferOutput({"batch_train_records", batch_index});
 	} */
-	inline std::array<myvk_rg::Buffer, VkNRCState::GetTrainBatchCount()> GetBatchTrainRecordsOutputs() const {
-		std::array<myvk_rg::Buffer, VkNRCState::GetTrainBatchCount()> ret;
-		for (uint32_t b = 0; b < VkNRCState::GetTrainBatchCount(); ++b)
+	inline std::array<myvk_rg::Buffer, NRCState::GetTrainBatchCount()> GetBatchTrainRecordsOutputs() const {
+		std::array<myvk_rg::Buffer, NRCState::GetTrainBatchCount()> ret;
+		for (uint32_t b = 0; b < NRCState::GetTrainBatchCount(); ++b)
 			ret[b] = MakeBufferOutput({"batch_train_records", b});
 		return ret;
 	}

@@ -86,8 +86,9 @@ add_executable(VkNRC
         src/VkScene.cpp
         src/VkSceneBLAS.cpp
         src/VkSceneTLAS.cpp
-        src/VkNRCState.cpp
-        src/CuNRCState.cu
+        src/NRCState.cpp
+        src/VkNRCResource.cpp
+        src/CuNRCNetwork.cu
 
         src/rg/NRCRenderGraph.cpp
         src/rg/PathTracerPass.cpp

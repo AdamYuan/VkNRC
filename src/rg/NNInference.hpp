@@ -6,7 +6,7 @@
 #ifndef VKNRC_RG_NNINFERENCE_HPP
 #define VKNRC_RG_NNINFERENCE_HPP
 
-#include "../VkNRCState.hpp"
+#include "../NRCState.hpp"
 #include "../VkScene.hpp"
 #include "SceneResources.hpp"
 #include <myvk_rg/RenderGraph.hpp>
@@ -20,7 +20,7 @@ public:
 		const SceneResources &scene_resources;
 		const myvk_rg::Image &bias_factor_r, &factor_gb;
 		const myvk_rg::Buffer &weights, &eval_count, &eval_records;
-		std::span<const myvk_rg::Buffer, VkNRCState::GetTrainBatchCount()> batch_train_records;
+		std::span<const myvk_rg::Buffer, NRCState::GetTrainBatchCount()> batch_train_records;
 	};
 
 private:

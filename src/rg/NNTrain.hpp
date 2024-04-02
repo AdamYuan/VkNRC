@@ -6,7 +6,7 @@
 #ifndef VKNRC_NNTRAIN_HPP
 #define VKNRC_NNTRAIN_HPP
 
-#include "../VkNRCState.hpp"
+#include "../NRCState.hpp"
 #include "../VkScene.hpp"
 #include "SceneResources.hpp"
 #include <myvk_rg/RenderGraph.hpp>
@@ -17,7 +17,7 @@ namespace rg {
 class NNTrain final : public myvk_rg::PassGroupBase {
 public:
 	struct Args {
-		const myvk::Ptr<VkNRCState> &nrc_state_ptr;
+		const myvk::Ptr<NRCState> &nrc_state_ptr;
 		const myvk_rg::Buffer &weights;
 		const std::optional<myvk_rg::Buffer> &opt_use_weights;
 		const myvk_rg::Buffer &optimizer_state, &optimizer_entries;
@@ -71,14 +71,14 @@ private:
 	class NNOptimizer final : public myvk_rg::ComputePassBase {
 	public:
 		struct Args {
-			const myvk::Ptr<VkNRCState> &nrc_state_ptr;
+			const myvk::Ptr<NRCState> &nrc_state_ptr;
 			const myvk_rg::Buffer &gradients, &count, &weights;
 			const std::optional<myvk_rg::Buffer> &opt_use_weights;
 			const myvk_rg::Buffer &optimizer_state, &optimizer_entries;
 		};
 
 	private:
-		myvk::Ptr<VkNRCState> m_nrc_state_ptr;
+		myvk::Ptr<NRCState> m_nrc_state_ptr;
 		bool m_write_use;
 
 	public:
@@ -94,7 +94,7 @@ private:
 public:
 	inline NNTrain(myvk_rg::Parent parent, const Args &args) : myvk_rg::PassGroupBase(parent) {
 		auto gradients =
-		    CreateResource<myvk_rg::ManagedBuffer>({"gradients"}, VkNRCState::GetWeightCount() * sizeof(float));
+		    CreateResource<myvk_rg::ManagedBuffer>({"gradients"}, NRCState::GetWeightCount() * sizeof(float));
 		auto clear_pass = CreatePass<myvk_rg::BufferFillPass>({"clear_pass"}, gradients->Alias(), 0);
 		auto prepare_pass =
 		    CreatePass<NNPreparePass>({"prepare_pass"}, NNPreparePass::Args{.count = args.batch_train_count,

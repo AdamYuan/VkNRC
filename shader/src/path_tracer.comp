@@ -38,14 +38,20 @@ layout(push_constant) uniform uuPushConstant {
 layout(binding = 9) uniform usampler2D uPrimitiveID_InstanceID;
 // NRC
 layout(binding = 12) buffer uuEvalCount { uint uEvalCount; };
-layout(std430, binding = 13) writeonly buffer uuEvalRecords { NRCEvalRecord uEvalRecords[]; };
+layout(std430, binding = 13) writeonly buffer uuEvalInputs { NRCInput uEvalInputs[]; };
+layout(std430, binding = 14) writeonly buffer uuEvalDests { uint uEvalDests[]; };
+
 layout(binding = 14) buffer uuBatchTrainCounts { uint count; }
 uBatchTrainCounts[NRC_TRAIN_BATCH_COUNT];
-layout(std430, binding = 15) writeonly buffer uuBatchTrainRecords { NRCTrainRecord records[]; }
-uBatchTrainRecords[NRC_TRAIN_BATCH_COUNT];
+layout(std430, binding = 15) writeonly buffer uuBatchTrainInputs { NRCInput inputs[]; }
+uBatchTrainInputs[NRC_TRAIN_BATCH_COUNT];
+layout(std430, binding = 16) writeonly buffer uuBatchTrainTargetBiases { NRCOutput biases[]; }
+uBatchTrainTargetBiases[NRC_TRAIN_BATCH_COUNT];
+layout(std430, binding = 17) writeonly buffer uuBatchTrainTargetFactors { NRCOutput factors[]; }
+uBatchTrainTargetFactors[NRC_TRAIN_BATCH_COUNT];
 
-layout(binding = 16, rgba32f) writeonly uniform image2D uBias_FactorR;
-layout(binding = 17, rg32f) writeonly uniform image2D uFactorGB;
+layout(binding = 18, rgba32f) writeonly uniform image2D uBias_FactorR;
+layout(binding = 19, rg32f) writeonly uniform image2D uFactorGB;
 
 struct Ray {
 	vec3 o, d;
@@ -156,12 +162,24 @@ float _distance_2(in const vec3 l, in const vec3 r) {
 	return dot(d, d);
 }
 
-PackedNRCInput MakeNRCInput(in const Hit hit, in const vec3 d) {
-	PackedNRCInput i;
-	i.primitive_id = hit.primitive_id;
-	i.flip_bit_instance_id = hit.instance_id | (uint(hit.flip_normal) << 31u);
-	i.barycentric_2x16U = packUnorm2x16(hit.barycentric);
-	i.scattered_dir_2x16U = packUnorm2x16(NRCSphEncode(d));
+NRCInput MakeNRCInput(in const Hit hit, in const vec3 d) {
+	NRCInput i;
+	i.pos[0] = hit.position[0];
+	i.pos[1] = hit.position[1];
+	i.pos[2] = hit.position[2];
+	vec2 scat = NRCSphEncode(d);
+	i.scat[0] = scat[0];
+	i.scat[1] = scat[1];
+	vec2 norm = NRCSphEncode(hit.normal);
+	i.norm[0] = norm[0];
+	i.norm[1] = norm[1];
+	i.roughness = hit.material.roughness;
+	i.diff[0] = hit.diffuse[0];
+	i.diff[1] = hit.diffuse[1];
+	i.diff[2] = hit.diffuse[2];
+	i.spec[0] = hit.specular[0];
+	i.spec[1] = hit.specular[1];
+	i.spec[2] = hit.specular[2];
 	return i;
 }
 
@@ -242,10 +260,8 @@ PathTraceResult PathTrace(Hit hit, Ray ray, in const uint method) {
 	if (subgroupAll(method != METHOD_NONE)) {
 		// Push a EvalRecord
 		uint eval_id = atomicAdd(uEvalCount, 1u, gl_ScopeQueueFamily, gl_StorageSemanticsBuffer, gl_SemanticsRelaxed);
-		NRCEvalRecord eval_record;
-		eval_record.dst = EncodeNRCEvalDstScreen(gl_GlobalInvocationID.xy);
-		eval_record.packed_input = MakeNRCInput(hit, ray.d);
-		uEvalRecords[eval_id] = eval_record;
+		uEvalInputs[eval_id] = MakeNRCInput(hit, ray.d);
+		uEvalDests[eval_id] = EncodeNRCEvalDstScreen(gl_GlobalInvocationID.xy);
 	}
 
 	return PathTraceResult(radiance, accumulate);
@@ -254,7 +270,7 @@ PathTraceResult PathTrace(Hit hit, Ray ray, in const uint method) {
 PathTraceResult ExtendedPathTrace(Hit hit, Ray ray, in const uint method) {
 	// assert(method != METHOD_NONE)
 	vec3 lights[MAX_BOUNCE], colors[MAX_BOUNCE];
-	PackedNRCInput inputs[MAX_BOUNCE];
+	NRCInput inputs[MAX_BOUNCE];
 
 	[[unroll]] for (uint i = 0; i < MAX_BOUNCE; ++i) {
 		colors[i] = vec3(1);
@@ -301,19 +317,15 @@ PathTraceResult ExtendedPathTrace(Hit hit, Ray ray, in const uint method) {
 	}
 	if (subgroupAll(method == METHOD_CACHE)) {
 		uint eval_id = atomicAdd(uEvalCount, 1u, gl_ScopeQueueFamily, gl_StorageSemanticsBuffer, gl_SemanticsRelaxed);
-		NRCEvalRecord eval_record;
-		eval_record.dst = EncodeNRCEvalDstScreen(gl_GlobalInvocationID.xy);
-		eval_record.packed_input = inputs[0];
-		uEvalRecords[eval_id] = eval_record;
+		uEvalInputs[eval_id] = inputs[0];
+		uEvalDests[eval_id] = EncodeNRCEvalDstScreen(gl_GlobalInvocationID.xy);
 	} else {
 		result = PathTraceResult(radiance, accumulate);
 		if (!light_terminate) {
 			uint eval_id =
 			    atomicAdd(uEvalCount, 1u, gl_ScopeQueueFamily, gl_StorageSemanticsBuffer, gl_SemanticsRelaxed);
-			NRCEvalRecord eval_record;
-			eval_record.dst = EncodeNRCEvalDstScreen(gl_GlobalInvocationID.xy);
-			eval_record.packed_input = inputs[bounce - 1];
-			uEvalRecords[eval_id] = eval_record;
+			uEvalInputs[eval_id] = inputs[bounce - 1];
+			uEvalDests[eval_id] = EncodeNRCEvalDstScreen(gl_GlobalInvocationID.xy);
 		}
 	}
 
@@ -341,33 +353,26 @@ PathTraceResult ExtendedPathTrace(Hit hit, Ray ray, in const uint method) {
 	}
 
 	uint batch = clamp(uint(RNGNext() * NRC_TRAIN_BATCH_COUNT), 0u, NRC_TRAIN_BATCH_COUNT - 1);
-	uint train_id = atomicAdd(uBatchTrainCounts[batch].count, bounce, gl_ScopeQueueFamily, gl_StorageSemanticsBuffer,
-	                          gl_SemanticsRelaxed);
-	if (train_id < NRC_TRAIN_BATCH_SIZE) {
+	uint first_train_id = atomicAdd(uBatchTrainCounts[batch].count, bounce, gl_ScopeQueueFamily,
+	                                gl_StorageSemanticsBuffer, gl_SemanticsRelaxed);
+	if (first_train_id < NRC_TRAIN_BATCH_SIZE) {
 		for (uint i = bounce - 2u; i != -1u; --i) {
 			lights[i] += colors[i] * lights[i + 1];
 			colors[i] *= colors[i + 1];
 		}
-		uint train_count = min(bounce, NRC_TRAIN_BATCH_SIZE - train_id);
+		uint train_count = min(bounce, NRC_TRAIN_BATCH_SIZE - first_train_id);
 		for (uint i = 0; i < train_count; ++i) {
-			NRCTrainRecord train_record;
-			train_record.bias_r = lights[i].r;
-			train_record.bias_g = lights[i].g;
-			train_record.bias_b = lights[i].b;
-			train_record.factor_r = colors[i].r;
-			train_record.factor_g = colors[i].g;
-			train_record.factor_b = colors[i].b;
-			train_record.packed_input = inputs[i];
-			uBatchTrainRecords[batch].records[train_id + i] = train_record;
+			uint train_id = first_train_id + i;
+			uBatchTrainInputs[batch].inputs[train_id] = inputs[i];
+			uBatchTrainTargetBiases[batch].biases[train_id].rgb = float[3](lights[i].r, lights[i].g, lights[i].b);
+			uBatchTrainTargetFactors[batch].factors[train_id].rgb = float[3](colors[i].r, colors[i].g, colors[i].b);
 		}
 
 		if (!light_terminate) {
 			uint eval_id =
 			    atomicAdd(uEvalCount, 1u, gl_ScopeQueueFamily, gl_StorageSemanticsBuffer, gl_SemanticsRelaxed);
-			NRCEvalRecord eval_record;
-			eval_record.dst = EncodeNRCEvalDstTrain(batch, train_id, train_id + train_count - 1);
-			eval_record.packed_input = inputs[bounce - 1];
-			uEvalRecords[eval_id] = eval_record;
+			uEvalInputs[eval_id] = inputs[bounce - 1];
+			uEvalDests[eval_id] = EncodeNRCEvalDstTrain(batch, first_train_id, first_train_id + train_count - 1);
 		}
 	}
 

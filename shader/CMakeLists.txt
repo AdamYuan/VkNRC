@@ -15,6 +15,7 @@ set(SHADER_SRC
         vbuffer.frag
         vbuffer.vert
         path_tracer.comp
+        reconstruct.comp
         screen.frag
         screen.vert
 )

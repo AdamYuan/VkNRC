@@ -20,6 +20,14 @@ inline static VkExternalMemoryHandleTypeFlagBits GetMemHandleType() {
 #endif
 }
 
+const char *ExportBuffer::GetExternalMemoryExtensionName() {
+#ifdef _WIN64
+	return VK_KHR_EXTERNAL_MEMORY_WIN32_EXTENSION_NAME;
+#else
+	return VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME;
+#endif
+}
+
 ExportBuffer::~ExportBuffer() {
 	if (m_buffer != VK_NULL_HANDLE) {
 		vkDestroyBuffer(m_device_ptr->GetHandle(), m_buffer, nullptr);
@@ -41,6 +49,7 @@ Ptr<ExportBuffer> ExportBuffer::Create(const Ptr<Device> &device, VkDeviceSize s
 
 	// Create Buffer
 	VkExternalMemoryHandleTypeFlagBits ext_handle_type = GetMemHandleType();
+	ret->m_ext_handle_type = ext_handle_type;
 	VkExternalMemoryBufferCreateInfo external_create_info = {
 	    .sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_BUFFER_CREATE_INFO,
 	    .handleTypes = ext_handle_type,

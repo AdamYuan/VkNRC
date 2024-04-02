@@ -3,8 +3,8 @@
 //
 
 #pragma once
-#ifndef VKNRC_CUNRCSTATE_HPP
-#define VKNRC_CUNRCSTATE_HPP
+#ifndef VKNRC_CUNRCNETWORK_HPP
+#define VKNRC_CUNRCNETWORK_HPP
 
 #include <memory>
 
@@ -17,19 +17,18 @@ template <uint32_t Dims> struct CuNRCData {
 using CuNRCInput = CuNRCData<kCuNRCInputDims>;
 using CuNRCOutput = CuNRCData<kCuNRCOutputDims>;
 
-class CuNRCState {
-public:
+class CuNRCNetwork {
 private:
-	struct TCNNImpl;
-	TCNNImpl *m_p_tcnn_impl;
+	struct CudaImpl;
+	CudaImpl *m_p_cuda_impl;
 
 public:
-	CuNRCState();
-	~CuNRCState();
+	CuNRCNetwork();
+	~CuNRCNetwork();
 
 	void Inference(const CuNRCInput &inputs, const CuNRCOutput &outputs) const;
 	void Train(const CuNRCInput &inputs, const CuNRCOutput &targets);
 	void Synchronize() const;
 };
 
-#endif // VKNRC_CUNRCSTATE_HPP
+#endif // VKNRC_CUNRCNETWORK_HPP

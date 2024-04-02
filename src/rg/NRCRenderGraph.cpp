@@ -21,7 +21,7 @@
 namespace rg {
 
 NRCRenderGraph::NRCRenderGraph(const myvk::Ptr<myvk::FrameManager> &frame_manager,
-                               const myvk::Ptr<VkSceneTLAS> &scene_tlas_ptr, const myvk::Ptr<VkNRCState> &nrc_state_ptr,
+                               const myvk::Ptr<VkSceneTLAS> &scene_tlas_ptr, const myvk::Ptr<NRCState> &nrc_state_ptr,
                                const myvk::Ptr<Camera> &camera_ptr)
     : RenderGraphBase(frame_manager->GetDevicePtr()), m_scene_tlas_ptr(scene_tlas_ptr),
       m_scene_ptr(scene_tlas_ptr->GetScenePtr()), m_nrc_state_ptr(nrc_state_ptr) {
@@ -54,7 +54,7 @@ NRCRenderGraph::NRCRenderGraph(const myvk::Ptr<myvk::FrameManager> &frame_manage
 	                      .eval_records = path_tracer_pass->GetEvalRecordsOutput(),
 	                      .batch_train_records = path_tracer_pass->GetBatchTrainRecordsOutputs()});
 
-	for (uint32_t b = 0; b < VkNRCState::GetTrainBatchCount(); ++b) {
+	for (uint32_t b = 0; b < NRCState::GetTrainBatchCount(); ++b) {
 		myvk_rg::Buffer weights = nrc_resources.weights, optimizer_entries = nrc_resources.optimizer_entries,
 		                optimizer_state = nrc_resources.optimizer_state;
 		if (b != 0) {
@@ -64,7 +64,7 @@ NRCRenderGraph::NRCRenderGraph(const myvk::Ptr<myvk::FrameManager> &frame_manage
 			optimizer_state = prev_train_pass->GetOptimizerStateOutput();
 		}
 		std::optional<myvk_rg::Buffer> opt_use_weights = std::nullopt;
-		if (b == VkNRCState::GetTrainBatchCount() - 1)
+		if (b == NRCState::GetTrainBatchCount() - 1)
 			opt_use_weights = nrc_resources.use_weights;
 		CreatePass<NNTrain>(
 		    {"nn_train_pass", b},
@@ -90,7 +90,7 @@ NRCRenderGraph::NRCRenderGraph(const myvk::Ptr<myvk::FrameManager> &frame_manage
 	auto imgui_pass = CreatePass<myvk_rg::ImGuiPass>({"imgui_pass"}, screen_pass->GetScreenOutput());
 	AddResult({"present"}, imgui_pass->GetImageOutput());
 
-	auto final_train_pass = GetPass<NNTrain>({"nn_train_pass", VkNRCState::GetTrainBatchCount() - 1});
+	auto final_train_pass = GetPass<NNTrain>({"nn_train_pass", NRCState::GetTrainBatchCount() - 1});
 	AddResult({"weights"}, final_train_pass->GetWeightOutput());
 	AddResult({"use_weights"}, final_train_pass->GetEMAWeightOutput());
 	AddResult({"optimizer_entries"}, final_train_pass->GetOptimizerEntriesOutput());
@@ -108,7 +108,7 @@ void NRCRenderGraph::PreExecute() const {
 	// Update Mapped Internals
 	m_scene_ptr->UpdateTransformBuffer(GetResource<myvk_rg::ManagedBuffer>({"transforms"})->GetMappedData());
 	*GetResource<myvk_rg::ManagedBuffer>({"eval_count"})->GetMappedData<uint32_t>() = 0u;
-	for (uint32_t b = 0; b < VkNRCState::GetTrainBatchCount(); ++b)
+	for (uint32_t b = 0; b < NRCState::GetTrainBatchCount(); ++b)
 		*GetResource<myvk_rg::ManagedBuffer>({"batch_train_count", b})->GetMappedData<uint32_t>() = 0u;
 }
 
@@ -139,17 +139,17 @@ SceneResources NRCRenderGraph::create_scene_resources() {
 NRCResources NRCRenderGraph::create_nrc_resources() {
 	auto eval_record_buffer = CreateResource<myvk_rg::ManagedBuffer>({"eval_records"});
 	eval_record_buffer->SetSizeFunc(
-	    [](VkExtent2D extent) -> VkDeviceSize { return VkNRCState::GetEvalRecordBufferSize(extent); });
+	    [](VkExtent2D extent) -> VkDeviceSize { return NRCState::GetEvalRecordBufferSize(extent); });
 
 	auto eval_record_count_buffer = CreateResource<myvk_rg::ManagedBuffer>({"eval_count"}, sizeof(uint32_t));
 	eval_record_count_buffer->SetMapped(true);
 
-	std::array<myvk_rg::Buffer, VkNRCState::GetTrainBatchCount()> batch_train_counts, batch_train_records;
-	for (uint32_t b = 0; b < VkNRCState::GetTrainBatchCount(); ++b) {
+	std::array<myvk_rg::Buffer, NRCState::GetTrainBatchCount()> batch_train_counts, batch_train_records;
+	for (uint32_t b = 0; b < NRCState::GetTrainBatchCount(); ++b) {
 		auto count_buffer = CreateResource<myvk_rg::ManagedBuffer>({"batch_train_count", b}, sizeof(uint32_t));
 		count_buffer->SetMapped(true);
 		auto record_buffer = CreateResource<myvk_rg::ManagedBuffer>({"batch_train_records", b},
-		                                                            VkNRCState::GetBatchTrainRecordBufferSize());
+		                                                            NRCState::GetBatchTrainRecordBufferSize());
 		batch_train_counts[b] = count_buffer->Alias();
 		batch_train_records[b] = record_buffer->Alias();
 	}
