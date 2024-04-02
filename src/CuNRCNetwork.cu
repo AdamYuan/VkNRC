@@ -26,7 +26,11 @@ CuNRCNetwork::CuNRCNetwork() {
 	    {"optimizer",
 	     {
 	         {"otype", "Adam"},
-	         {"learning_rate", 1e-3},
+	         {"learning_rate", 0.002},
+	         {"beta1", 0.9},
+	         {"beta2", 0.999},
+	         {"epsilon", 1e-8},
+	         {"l2_reg", 1e-8},
 	     }},
 	    {"encoding",
 	     {
@@ -55,17 +59,7 @@ CuNRCNetwork::CuNRCNetwork() {
 	};
 }
 
-void CuNRCNetwork::Reset() {
-	m_p_cuda_impl->trainer->initialize_params();
-
-	/* tcnn::default_rng_t rng{std::random_device{}()};
-	uint32_t count = kTCNNBlockCount;
-	tcnn::GPUMatrix<float> inputs(kCuNRCInputDims, count);
-	tcnn::generate_random_uniform<float>(m_p_cuda_impl->stream, rng, kCuNRCInputDims * count, inputs.data());
-	tcnn::GPUMatrix<float> targets(kCuNRCOutputDims, count);
-	tcnn::generate_random_uniform<float>(m_p_cuda_impl->stream, rng, kCuNRCOutputDims * count, targets.data());
-	m_p_cuda_impl->trainer->training_step(m_p_cuda_impl->stream, inputs, targets); */
-}
+void CuNRCNetwork::Reset() { m_p_cuda_impl->trainer->initialize_params(); }
 
 void CuNRCNetwork::Inference(const CuVkBuffer &inputs, const CuVkBuffer &outputs, uint32_t count) const {
 	count = (count + kTCNNBlockCount - 1u) / kTCNNBlockCount * kTCNNBlockCount;

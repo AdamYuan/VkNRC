@@ -176,6 +176,7 @@ int main(int argc, char **argv) {
 			fence->Wait();
 
 			uint32_t inference_count = vk_nrc_resource->GetInferenceCount(frame_index);
+			cu_nrc_network->Synchronize();
 			cu_nrc_network->Inference(*vk_nrc_resource->GetInferenceInputBuffer(),
 			                          *vk_nrc_resource->GetInferenceOutputBuffer(), inference_count);
 			cu_nrc_network->Synchronize();
