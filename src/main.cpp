@@ -5,6 +5,7 @@
 #include <spdlog/spdlog.h>
 
 #include "CuNRCNetwork.hpp"
+#include "VkNRCResource.hpp"
 #include "rg/NRCRenderGraph.hpp"
 
 constexpr uint32_t kFrameCount = 3, kWidth = 1280, kHeight = 720;
@@ -64,22 +65,20 @@ int main(int argc, char **argv) {
 	auto vk_scene = myvk::MakePtr<VkScene>(generic_queue, scene);
 	auto vk_scene_blas = myvk::MakePtr<VkSceneBLAS>(vk_scene);
 	auto vk_scene_tlas = myvk::MakePtr<VkSceneTLAS>(vk_scene_blas);
-	auto vk_nrc_state = myvk::MakePtr<NRCState>(generic_queue, VkExtent2D{kWidth, kHeight});
-	auto cu_nrc_state = std::make_unique<CuNRCNetwork>();
+	auto nrc_state = std::make_shared<NRCState>();
+	auto vk_nrc_resource = myvk::MakePtr<VkNRCResource>(generic_queue, VkExtent2D{kWidth, kHeight}, kFrameCount);
+	auto cu_nrc_network = std::make_unique<CuNRCNetwork>();
 
 	auto frame_manager = myvk::FrameManager::Create(generic_queue, present_queue, false, kFrameCount);
-	frame_manager->SetResizeFunc([&](VkExtent2D extent) {
-		vk_nrc_state->ResetAccumulateImage(extent);
-		vk_nrc_state->ResetAccumulateCount();
-	});
+	frame_manager->SetResizeFunc([&](VkExtent2D extent) { vk_nrc_resource->Resize(extent); });
 	std::array<myvk::Ptr<rg::NRCRenderGraph>, kFrameCount> render_graphs;
 	for (auto &rg : render_graphs)
-		rg = myvk::MakePtr<rg::NRCRenderGraph>(frame_manager, vk_scene_tlas, vk_nrc_state, camera);
+		rg = myvk::MakePtr<rg::NRCRenderGraph>(frame_manager, vk_scene_tlas, nrc_state, camera);
 
-	bool view_accumulate = vk_nrc_state->IsAccumulate();
-	int view_left_method = static_cast<int>(vk_nrc_state->GetLeftMethod());
-	int view_right_method = static_cast<int>(vk_nrc_state->GetRightMethod());
-	bool nrc_use_ema = vk_nrc_state->IsUseEMAWeights(), nrc_lock = false, nrc_train_one_frame = false;
+	bool view_accumulate = nrc_state->IsAccumulate();
+	int view_left_method = static_cast<int>(nrc_state->GetLeftMethod());
+	int view_right_method = static_cast<int>(nrc_state->GetRightMethod());
+	bool nrc_lock = false, nrc_train_one_frame = false;
 
 	double prev_time = glfwGetTime();
 	while (!glfwWindowShouldClose(window)) {
@@ -98,50 +97,46 @@ int main(int argc, char **argv) {
 		ImGui::Text("FPS %.1f", ImGui::GetIO().Framerate);
 		if (ImGui::CollapsingHeader("View")) {
 			if (ImGui::Checkbox("Accumulate", &view_accumulate))
-				vk_nrc_state->SetAccumulate(view_accumulate);
-			if (vk_nrc_state->IsAccumulate()) {
+				nrc_state->SetAccumulate(view_accumulate);
+			if (nrc_state->IsAccumulate()) {
 				ImGui::SameLine();
-				ImGui::Text("SPP %d", vk_nrc_state->GetAccumulateCount());
+				ImGui::Text("SPP %d", nrc_state->GetAccumulateCount());
 			}
 			constexpr const char *kViewTypeComboStr = "None\0NRC\0Cache\0";
 			if (ImGui::Combo("Left", &view_left_method, kViewTypeComboStr)) {
-				vk_nrc_state->SetLeftMethod(static_cast<NRCState::Method>(view_left_method));
-				vk_nrc_state->ResetAccumulateCount();
+				nrc_state->SetLeftMethod(static_cast<NRCState::Method>(view_left_method));
+				nrc_state->ResetAccumulateCount();
 			}
 			if (ImGui::Combo("Right", &view_right_method, kViewTypeComboStr)) {
-				vk_nrc_state->SetRightMethod(static_cast<NRCState::Method>(view_right_method));
-				vk_nrc_state->ResetAccumulateCount();
+				nrc_state->SetRightMethod(static_cast<NRCState::Method>(view_right_method));
+				nrc_state->ResetAccumulateCount();
 			}
 		}
 		if (ImGui::CollapsingHeader("NRC")) {
-			if (ImGui::Checkbox("Use EMA", &nrc_use_ema)) {
-				vk_nrc_state->SetUseEMAWeights(nrc_use_ema);
-				vk_nrc_state->ResetAccumulateCount();
-			}
 			if (ImGui::Checkbox("Lock", &nrc_lock))
-				vk_nrc_state->ResetAccumulateCount();
+				nrc_state->ResetAccumulateCount();
 			if (nrc_lock) {
 				ImGui::SameLine();
 				if (ImGui::Button("Train 1-Frame")) {
-					vk_nrc_state->ResetAccumulateCount();
+					nrc_state->ResetAccumulateCount();
 					nrc_train_one_frame = true;
 				}
 			}
 			if (ImGui::Button("Re-Train")) {
-				vk_nrc_state->ResetAccumulateCount();
-				vk_nrc_state->ResetMLPBuffers();
+				nrc_state->ResetAccumulateCount();
+				// nrc_state->ResetMLPBuffers();
 			}
 		}
 		ImGui::End();
 		ImGui::Render();
 
 		if (camera->DragControl(window, &cam_control, delta))
-			vk_nrc_state->ResetAccumulateCount();
+			nrc_state->ResetAccumulateCount();
 
 		if (nrc_lock && !nrc_train_one_frame)
-			vk_nrc_state->SetTrainProbability(0.0f);
+			nrc_state->SetTrainProbability(0.0f);
 		else
-			vk_nrc_state->SetTrainProbability(NRCState::GetDefaultTrainProbability());
+			nrc_state->SetTrainProbability(NRCState::GetDefaultTrainProbability());
 
 		if (frame_manager->NewFrame()) {
 			const auto &command_buffer = frame_manager->GetCurrentCommandBuffer();
@@ -155,7 +150,7 @@ int main(int argc, char **argv) {
 			frame_manager->Render();
 		}
 
-		vk_nrc_state->NextFrame();
+		nrc_state->NextFrame();
 	}
 
 	frame_manager->WaitIdle();

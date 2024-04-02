@@ -6,16 +6,9 @@
 #ifndef VKNRC_CUNRCNETWORK_HPP
 #define VKNRC_CUNRCNETWORK_HPP
 
-#include <memory>
+#include "CuVkBuffer.hpp"
 
 inline constexpr uint32_t kCuNRCInputDims = 14, kCuNRCOutputDims = 3;
-template <uint32_t Dims> struct CuNRCData {
-	float *p_data{nullptr};
-	uint32_t count = 0, stride = 0;
-};
-
-using CuNRCInput = CuNRCData<kCuNRCInputDims>;
-using CuNRCOutput = CuNRCData<kCuNRCOutputDims>;
 
 class CuNRCNetwork {
 private:
@@ -26,8 +19,8 @@ public:
 	CuNRCNetwork();
 	~CuNRCNetwork();
 
-	void Inference(const CuNRCInput &inputs, const CuNRCOutput &outputs) const;
-	void Train(const CuNRCInput &inputs, const CuNRCOutput &targets);
+	void Inference(const CuVkBuffer &inputs, const CuVkBuffer &outputs, uint32_t count) const;
+	void Train(const CuVkBuffer &inputs, const CuVkBuffer &targets, uint32_t count);
 	void Synchronize() const;
 };
 

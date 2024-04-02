@@ -88,16 +88,13 @@ add_executable(VkNRC
         src/VkSceneTLAS.cpp
         src/NRCState.cpp
         src/VkNRCResource.cpp
+        src/CuVkBuffer.cu
         src/CuNRCNetwork.cu
 
         src/rg/NRCRenderGraph.cpp
         src/rg/PathTracerPass.cpp
         src/rg/VBufferPass.cpp
         src/rg/ScreenPass.cpp
-        src/rg/NNInference.cpp
-        src/rg/NNInferenceShader.cpp
-        src/rg/NNTrain.cpp
-        src/rg/NNGradientShader.cpp
 )
 target_link_libraries(VkNRC PRIVATE dep shader)
 set_target_properties(VkNRC PROPERTIES

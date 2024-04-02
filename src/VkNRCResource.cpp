@@ -15,13 +15,13 @@ void VkNRCResource::create_fixed() {
 		                            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 	};
 	for (auto &train_inputs : m_batch_train_inputs)
-		train_inputs =
+		train_inputs = std::make_unique<CuVkBuffer>(
 		    myvk::ExportBuffer::Create(GetDevicePtr(), NRCState::GetTrainBatchSize() * kCuNRCInputDims * sizeof(float),
-		                               VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		                               VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT));
 	for (auto &train_targets : m_batch_train_targets)
-		train_targets =
+		train_targets = std::make_unique<CuVkBuffer>(
 		    myvk::ExportBuffer::Create(GetDevicePtr(), NRCState::GetTrainBatchSize() * kCuNRCOutputDims * sizeof(float),
-		                               VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		                               VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT));
 
 	for (auto &frame : m_frames) {
 		frame.inference_count = create_count_buffer();
@@ -38,12 +38,12 @@ void VkNRCResource::Resize(VkExtent2D extent) {
 	auto command_buffer = myvk::CommandBuffer::Create(myvk::CommandPool::Create(m_queue_ptr));
 	command_buffer->Begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 
-	m_inference_inputs = myvk::ExportBuffer::Create(
+	m_inference_inputs = std::make_unique<CuVkBuffer>(myvk::ExportBuffer::Create(
 	    GetDevicePtr(), NRCState::GetInferenceCount(extent) * kCuNRCInputDims * sizeof(float),
-	    VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-	m_inference_outputs = myvk::ExportBuffer::Create(
+	    VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT));
+	m_inference_outputs = std::make_unique<CuVkBuffer>(myvk::ExportBuffer::Create(
 	    GetDevicePtr(), NRCState::GetInferenceCount(extent) * kCuNRCOutputDims * sizeof(float),
-	    VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+	    VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT));
 
 	for (auto &frame : m_frames) {
 		auto bias_factor_r_image = myvk::Image::CreateTexture2D(

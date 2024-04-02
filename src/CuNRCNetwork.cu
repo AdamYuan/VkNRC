@@ -15,10 +15,6 @@ struct CuNRCNetwork::CudaImpl {
 	cudaStream_t stream;
 };
 
-template <uint32_t Dims> tcnn::GPUMatrix<float> to_tcnn_gpu_matrix(const CuNRCData<Dims> &data) {
-	return tcnn::GPUMatrix<float>(data.p_data, Dims, data.count, data.stride);
-}
-
 CuNRCNetwork::~CuNRCNetwork() {
 	cudaStreamDestroy(m_p_cuda_impl->stream);
 	delete m_p_cuda_impl;
@@ -59,14 +55,15 @@ CuNRCNetwork::CuNRCNetwork() {
 	};
 }
 
-void CuNRCNetwork::Inference(const CuNRCInput &inputs, const CuNRCOutput &outputs) const {
-	auto output_gpu_matrix = to_tcnn_gpu_matrix(outputs);
-	m_p_cuda_impl->network->inference(m_p_cuda_impl->stream, to_tcnn_gpu_matrix(inputs), output_gpu_matrix);
+void CuNRCNetwork::Inference(const CuVkBuffer &inputs, const CuVkBuffer &outputs, uint32_t count) const {
+	tcnn::GPUMatrix<float> input_mat{inputs.GetMappedPtr<float>(), kCuNRCInputDims, count};
+	tcnn::GPUMatrix<float> output_mat{outputs.GetMappedPtr<float>(), kCuNRCOutputDims, count};
+	m_p_cuda_impl->network->inference(m_p_cuda_impl->stream, input_mat, output_mat);
 }
-
-void CuNRCNetwork::Train(const CuNRCInput &inputs, const CuNRCOutput &targets) {
-	m_p_cuda_impl->trainer->training_step(m_p_cuda_impl->stream, to_tcnn_gpu_matrix(inputs),
-	                                      to_tcnn_gpu_matrix(targets));
+void CuNRCNetwork::Train(const CuVkBuffer &inputs, const CuVkBuffer &targets, uint32_t count) {
+	tcnn::GPUMatrix<float> input_mat{inputs.GetMappedPtr<float>(), kCuNRCInputDims, count};
+	tcnn::GPUMatrix<float> target_mat{targets.GetMappedPtr<float>(), kCuNRCOutputDims, count};
+	m_p_cuda_impl->trainer->training_step(m_p_cuda_impl->stream, input_mat, target_mat);
 }
 
 void CuNRCNetwork::Synchronize() const { cudaStreamSynchronize(m_p_cuda_impl->stream); }

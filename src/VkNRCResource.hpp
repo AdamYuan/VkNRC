@@ -6,6 +6,7 @@
 #ifndef VKNRC_VKNRCRESOURCE_HPP
 #define VKNRC_VKNRCRESOURCE_HPP
 
+#include "CuVkBuffer.hpp"
 #include "NRCState.hpp"
 #include <myvk/Buffer.hpp>
 #include <myvk/ExportBuffer.hpp>
@@ -24,9 +25,8 @@ private:
 	myvk::Ptr<myvk::Queue> m_queue_ptr;
 
 	std::vector<Frame> m_frames;
-	myvk::Ptr<myvk::ExportBuffer> m_inference_inputs, m_inference_outputs;
-	std::array<myvk::Ptr<myvk::ExportBuffer>, NRCState::GetTrainBatchCount()> m_batch_train_inputs,
-	    m_batch_train_targets;
+	std::unique_ptr<CuVkBuffer> m_inference_inputs, m_inference_outputs;
+	std::array<std::unique_ptr<CuVkBuffer>, NRCState::GetTrainBatchCount()> m_batch_train_inputs, m_batch_train_targets;
 	myvk::Ptr<myvk::ImageView> m_accumulate_view;
 
 	void create_fixed();

@@ -4,9 +4,6 @@
 
 #include "NRCRenderGraph.hpp"
 
-#include "NNDispatch.hpp"
-#include "NNInference.hpp"
-#include "NNTrain.hpp"
 #include "PathTracerPass.hpp"
 #include "ScreenPass.hpp"
 #include "VBufferPass.hpp"
