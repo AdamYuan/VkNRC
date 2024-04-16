@@ -4,6 +4,8 @@
 
 #include "CuNRCNetwork.hpp"
 
+#include <fstream>
+#include <spdlog/spdlog.h>
 #include <tiny-cuda-nn/common.h>
 #include <tiny-cuda-nn/config.h>
 
@@ -20,31 +22,40 @@ CuNRCNetwork::~CuNRCNetwork() {
 	delete m_p_cuda_impl;
 }
 
-CuNRCNetwork::CuNRCNetwork() {
-	tcnn::json config = {
-	    {"loss", {{"otype", "RelativeL2Luminance"}}},
-	    {"optimizer",
-	     {
-	         {"otype", "Adam"},
-	         {"learning_rate", 0.002},
-	         {"beta1", 0.9},
-	         {"beta2", 0.999},
-	         {"epsilon", 1e-8},
-	         {"l2_reg", 1e-8},
-	     }},
-	    {"encoding",
-	     {
-	         {"otype", "NRC"},
-	     }},
-	    {"network",
-	     {
-	         {"otype", "FullyFusedMLP"},
-	         {"n_neurons", 64},
-	         {"n_hidden_layers", 5},
-	         {"activation", "ReLU"},
-	         {"output_activation", "None"},
-	     }},
-	};
+CuNRCNetwork::CuNRCNetwork(const char *filename) {
+	tcnn::json config;
+	if (filename == nullptr) {
+		spdlog::warn("Use default NRC config");
+		config = {
+		    {"loss", {{"otype", "RelativeL2Luminance"}}},
+		    {"optimizer",
+		     {
+		         {"otype", "Adam"},
+		         {"learning_rate", 0.002},
+		         {"beta1", 0.9},
+		         {"beta2", 0.999},
+		         {"epsilon", 1e-8},
+		         {"l2_reg", 1e-8},
+		     }},
+		    {"encoding",
+		     {
+		         {"otype", "NRC"},
+		     }},
+		    {"network",
+		     {
+		         {"otype", "FullyFusedMLP"},
+		         {"n_neurons", 64},
+		         {"n_hidden_layers", 5},
+		         {"activation", "ReLU"},
+		         {"output_activation", "None"},
+		     }},
+		};
+	} else {
+		std::ifstream fin{filename};
+		config = tcnn::json::parse(fin);
+		spdlog::info("NRC config {} loaded from {}", config.dump(4), filename);
+	}
+
 	auto model = tcnn::create_from_config(kCuNRCInputDims, kCuNRCOutputDims, config);
 
 	cudaStream_t stream;
@@ -67,13 +78,14 @@ void CuNRCNetwork::Inference(const CuVkBuffer &inputs, const CuVkBuffer &outputs
 	tcnn::GPUMatrix<float> output_mat{outputs.GetMappedPtr<float>(), kCuNRCOutputDims, count};
 	m_p_cuda_impl->network->inference(m_p_cuda_impl->stream, input_mat, output_mat);
 }
-void CuNRCNetwork::Train(const CuVkBuffer &inputs, const CuVkBuffer &targets, uint32_t count) {
+std::optional<float> CuNRCNetwork::Train(const CuVkBuffer &inputs, const CuVkBuffer &targets, uint32_t count) {
 	count = count / kTCNNBlockCount * kTCNNBlockCount;
 	if (count == 0)
-		return;
+		return std::nullopt;
 	tcnn::GPUMatrix<float> input_mat{inputs.GetMappedPtr<float>(), kCuNRCInputDims, count};
 	tcnn::GPUMatrix<float> target_mat{targets.GetMappedPtr<float>(), kCuNRCOutputDims, count};
-	m_p_cuda_impl->trainer->training_step(m_p_cuda_impl->stream, input_mat, target_mat);
+	auto p_forward_ctx = m_p_cuda_impl->trainer->training_step(m_p_cuda_impl->stream, input_mat, target_mat);
+	return m_p_cuda_impl->trainer->loss(m_p_cuda_impl->stream, *p_forward_ctx);
 }
 
 void CuNRCNetwork::Synchronize() const { cudaStreamSynchronize(m_p_cuda_impl->stream); }

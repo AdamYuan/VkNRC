@@ -17,10 +17,18 @@ int main(int argc, char **argv) {
 		spdlog::error("No OBJ file");
 		return EXIT_FAILURE;
 	}
+	const char *obj_filename = nullptr, *json_filename = nullptr;
+	for (int i = 0; i < argc; ++i) {
+		auto ext = std::filesystem::path{argv[i]}.extension();
+		if (ext == ".obj")
+			obj_filename = argv[i];
+		else if (ext == ".json")
+			json_filename = argv[i];
+	}
 	GLFWwindow *window = myvk::GLFWCreateWindow("VkNRC", kWidth, kHeight, true);
 
 	// Scene scene = Scene::LoadOBJShapeInstanceSAH(argv[0], 7); // at most 128 instances
-	Scene scene = Scene::LoadOBJSingleInstance(argv[0]);
+	Scene scene = Scene::LoadOBJSingleInstance(obj_filename);
 	if (scene.Empty())
 		return EXIT_FAILURE;
 	spdlog::info("Loaded {} Vertices, {} Texcoords, {} Materials, {} Instances", scene.GetVertices().size(),
@@ -67,7 +75,7 @@ int main(int argc, char **argv) {
 	auto vk_scene_blas = myvk::MakePtr<VkSceneBLAS>(vk_scene);
 	auto vk_scene_tlas = myvk::MakePtr<VkSceneTLAS>(vk_scene_blas);
 	auto nrc_state = std::make_shared<NRCState>();
-	auto cu_nrc_network = std::make_unique<CuNRCNetwork>();
+	auto cu_nrc_network = std::make_unique<CuNRCNetwork>(json_filename);
 
 	cu_nrc_network->Reset();
 	cu_nrc_network->Synchronize();
@@ -193,8 +201,13 @@ int main(int argc, char **argv) {
 
 			for (uint32_t batch = 0; batch < NRCState::GetTrainBatchCount(); ++batch) {
 				uint32_t train_count = vk_nrc_resource->GetBatchTrainCount(frame_index, batch);
-				cu_nrc_network->Train(*vk_nrc_resource->GetBatchTrainInputBufferArray()[batch],
-				                      *vk_nrc_resource->GetBatchTrainTargetBufferArray()[batch], train_count);
+
+				auto opt_loss =
+				    cu_nrc_network->Train(*vk_nrc_resource->GetBatchTrainInputBufferArray()[batch],
+				                          *vk_nrc_resource->GetBatchTrainTargetBufferArray()[batch], train_count);
+				if (opt_loss) {
+					printf("%f\n", *opt_loss);
+				}
 			}
 
 			const auto &command_buffer = frame_manager->GetCurrentCommandBuffer();
