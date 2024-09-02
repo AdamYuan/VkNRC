@@ -4,6 +4,8 @@
 
 #include "VBufferPass.hpp"
 
+#include <array>
+
 namespace rg {
 
 namespace vbuffer_pass {

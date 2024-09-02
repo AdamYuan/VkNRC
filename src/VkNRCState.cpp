@@ -4,6 +4,7 @@
 
 #include "VkNRCState.hpp"
 
+#include <array>
 #include <myvk/CommandBuffer.hpp>
 
 namespace nrc {

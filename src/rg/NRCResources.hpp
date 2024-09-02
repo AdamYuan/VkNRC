@@ -8,6 +8,8 @@
 
 #include <myvk_rg/RenderGraph.hpp>
 
+#include <array>
+
 namespace rg {
 
 struct NRCResources {

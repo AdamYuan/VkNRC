@@ -12,6 +12,8 @@
 #include "SceneResources.hpp"
 #include <myvk_rg/RenderGraph.hpp>
 
+#include <array>
+
 namespace rg {
 
 class PathTracerPass final : public myvk_rg::ComputePassBase {

@@ -5,6 +5,7 @@
 #include "Scene.hpp"
 
 #include <algorithm>
+#include <span>
 
 #include "AABB.hpp"
 #include <spdlog/spdlog.h>
