@@ -1,2 +1,54 @@
 #version 450
-#include "NNOptimize.glsl"
+
+#extension GL_EXT_shader_explicit_arithmetic_types_float16 : enable
+#extension GL_KHR_shader_subgroup_basic : enable
+#extension GL_KHR_shader_subgroup_vote : enable
+layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
+
+#include "Constant.glsl"
+
+#define LEARNING_RATE 0.002
+#define EPSILON 1e-8
+
+layout(std430, binding = 0) writeonly buffer uuWeights { float16_t uWeights[]; };
+#ifdef WRITE_USE_WEIGHTS
+layout(std430, binding = 1) writeonly buffer uuUseWeights { float16_t uUseWeights[]; };
+#endif
+layout(std430, binding = 2) readonly buffer uuGradients { float uGradients[]; };
+
+struct OptimizerEntry {
+	vec2 moment;
+	float weight, ema_weight;
+};
+layout(std430, binding = 3) buffer uuOptimizerEntries { OptimizerEntry uOptimizerEntries[]; };
+layout(binding = 4) uniform uuBatchTrainCount { uint uBatchTrainCount; };
+layout(binding = 5) uniform uuOptimizerState {
+	uint uStep;
+	float uBeta1_T, uBeta2_T, uAlpha_T, uAlpha_T_1;
+};
+
+layout(push_constant) uniform uuPushConstant { uint uUseEMAWeights; };
+
+void main() {
+	if (subgroupAll(uBatchTrainCount == 0))
+		return;
+
+	float gradient = uGradients[gl_GlobalInvocationID.x] / float(uBatchTrainCount) / LOSS_SCALE;
+	if (isnan(gradient) || isinf(gradient))
+		gradient = 0.0;
+
+	OptimizerEntry entry = uOptimizerEntries[gl_GlobalInvocationID.x];
+	entry.moment = vec2(ADAM_BETA1, ADAM_BETA2) * entry.moment +
+	               (1.0 - vec2(ADAM_BETA1, ADAM_BETA2)) * vec2(gradient, gradient * gradient);
+	vec2 h_moment = entry.moment / (1.0 - vec2(uBeta1_T, uBeta2_T));
+	entry.weight -= LEARNING_RATE * h_moment.x / (sqrt(h_moment.y) + EPSILON);
+
+	float eta_t = 1.0 - uAlpha_T, eta_t_1 = 1.0 - uAlpha_T_1;
+	entry.ema_weight = (1.0 - EMA_ALPHA) / eta_t * entry.weight + EMA_ALPHA * eta_t_1 * entry.ema_weight;
+
+	uOptimizerEntries[gl_GlobalInvocationID.x] = entry;
+	uWeights[gl_GlobalInvocationID.x] = float16_t(entry.weight);
+#ifdef WRITE_USE_WEIGHTS
+	uUseWeights[gl_GlobalInvocationID.x] = float16_t(uUseEMAWeights == 1 ? entry.ema_weight : entry.weight);
+#endif
+}

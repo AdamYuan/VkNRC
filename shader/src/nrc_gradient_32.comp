@@ -1,3 +1,0 @@
-#version 460
-#define SUBGROUP_SIZE 32
-#include "NNGradient.glsl"
