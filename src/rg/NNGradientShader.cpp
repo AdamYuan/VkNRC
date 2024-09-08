@@ -17,19 +17,21 @@ NNGradientShader::Create(const myvk::Ptr<myvk::Device> &device) {
 	if (subgroup_size == 16) {
 		constexpr uint32_t kCompSpv[] = {
 #include <shader/nrc_gradient_16.comp.u32>
+
 		};
 		return {myvk::ShaderModule::Create(device, kCompSpv, sizeof(kCompSpv)), info};
 	} else if (subgroup_size == 32) {
 		constexpr uint32_t kCompSpv[] = {
 #include <shader/nrc_gradient_32.comp.u32>
+
 		};
 		return {myvk::ShaderModule::Create(device, kCompSpv, sizeof(kCompSpv)), info};
-	} else if (subgroup_size == 64) {
-		constexpr uint32_t kCompSpv[] = {
+	} /* else if (subgroup_size == 64) {
+	    constexpr uint32_t kCompSpv[] = {
 #include <shader/nrc_gradient_64.comp.u32>
-		};
-		return {myvk::ShaderModule::Create(device, kCompSpv, sizeof(kCompSpv)), info};
-	}
+	    };
+	    return {myvk::ShaderModule::Create(device, kCompSpv, sizeof(kCompSpv)), info};
+	} */
 	spdlog::error("Unsupported subgroup size {}, only 16, 32, 64 are supported", subgroup_size);
 	return {nullptr, info};
 }

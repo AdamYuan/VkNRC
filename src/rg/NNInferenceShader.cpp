@@ -24,12 +24,12 @@ NNInferenceShader::Create(const myvk::Ptr<myvk::Device> &device) {
 #include <shader/nrc_inference_32.comp.u32>
 		};
 		return {myvk::ShaderModule::Create(device, kCompSpv, sizeof(kCompSpv)), info};
-	} else if (subgroup_size == 64) {
+	} /* else if (subgroup_size == 64) {
 		constexpr uint32_t kCompSpv[] = {
 #include <shader/nrc_inference_64.comp.u32>
 		};
 		return {myvk::ShaderModule::Create(device, kCompSpv, sizeof(kCompSpv)), info};
-	}
+	} */
 	spdlog::error("Unsupported subgroup size {}, only 16, 32, 64 are supported", subgroup_size);
 	return {nullptr, info};
 }
