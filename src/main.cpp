@@ -26,7 +26,18 @@ int main(int argc, char **argv) {
 	auto instance = myvk::Instance::CreateWithGlfwExtensions();
 	myvk::Ptr<myvk::Queue> generic_queue, compute_queue;
 	myvk::Ptr<myvk::PresentQueue> present_queue;
-	auto physical_device = myvk::PhysicalDevice::Fetch(instance)[0];
+	myvk::Ptr<myvk::PhysicalDevice> physical_device;
+	for (const auto &candidate_physical_device : myvk::PhysicalDevice::Fetch(instance)) {
+		if (candidate_physical_device->GetExtensionSupport(VK_NV_COOPERATIVE_MATRIX_EXTENSION_NAME)) {
+			physical_device = candidate_physical_device;
+			break;
+		}
+	}
+	if (physical_device == nullptr) {
+		spdlog::error("No Device Supporting VK_NV_cooperative_matrix Found");
+		return -1;
+	}
+	spdlog::info("Physical Device: {}", physical_device->GetProperties().vk10.deviceName);
 	auto features = physical_device->GetDefaultFeatures();
 	features.vk11.storageBuffer16BitAccess = VK_TRUE;
 	features.vk12.bufferDeviceAddress = VK_TRUE;
