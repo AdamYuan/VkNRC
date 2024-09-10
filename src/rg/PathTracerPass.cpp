@@ -74,7 +74,7 @@ myvk::Ptr<myvk::ComputePipeline> PathTracerPass::CreatePipeline() const {
 	auto &device = GetRenderGraphPtr()->GetDevicePtr();
 	auto pipeline_layout = myvk::PipelineLayout::Create(device, {GetVkDescriptorSetLayout()},
 	                                                    {{VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(PushConstant_Data)}});
-	constexpr uint32_t kCompSpv[] = {
+	static constexpr uint32_t kCompSpv[] = {
 #include <shader/path_tracer.comp.u32>
 	};
 	auto shader_module = myvk::ShaderModule::Create(device, kCompSpv, sizeof(kCompSpv));

@@ -15,17 +15,17 @@ NNInferenceShader::Create(const myvk::Ptr<myvk::Device> &device) {
 	    .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_REQUIRED_SUBGROUP_SIZE_CREATE_INFO,
 	    .requiredSubgroupSize = subgroup_size};
 	if (subgroup_size == 16) {
-		constexpr uint32_t kCompSpv[] = {
+		static constexpr uint32_t kCompSpv[] = {
 #include <shader/nrc_inference_16.comp.u32>
 		};
 		return {myvk::ShaderModule::Create(device, kCompSpv, sizeof(kCompSpv)), info};
 	} else if (subgroup_size == 32) {
-		constexpr uint32_t kCompSpv[] = {
+		static constexpr uint32_t kCompSpv[] = {
 #include <shader/nrc_inference_32.comp.u32>
 		};
 		return {myvk::ShaderModule::Create(device, kCompSpv, sizeof(kCompSpv)), info};
 	} /* else if (subgroup_size == 64) {
-		constexpr uint32_t kCompSpv[] = {
+		static constexpr uint32_t kCompSpv[] = {
 #include <shader/nrc_inference_64.comp.u32>
 		};
 		return {myvk::ShaderModule::Create(device, kCompSpv, sizeof(kCompSpv)), info};

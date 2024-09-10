@@ -40,10 +40,10 @@ myvk::Ptr<myvk::GraphicsPipeline> VBufferPass::CreatePipeline() const {
 	auto pipeline_layout = myvk::PipelineLayout::Create(
 	    device, {}, {{VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstant_Data)}});
 
-	constexpr uint32_t kVertSpv[] = {
+	static constexpr uint32_t kVertSpv[] = {
 #include <shader/vbuffer.vert.u32>
 	};
-	constexpr uint32_t kFragSpv[] = {
+	static constexpr uint32_t kFragSpv[] = {
 #include <shader/vbuffer.frag.u32>
 	};
 

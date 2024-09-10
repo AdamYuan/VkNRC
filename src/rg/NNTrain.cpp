@@ -20,7 +20,7 @@ NNTrain::NNPreparePass::NNPreparePass(myvk_rg::Parent parent, const Args &args) 
 myvk::Ptr<myvk::ComputePipeline> NNTrain::NNPreparePass::CreatePipeline() const {
 	auto &device = GetRenderGraphPtr()->GetDevicePtr();
 	auto pipeline_layout = myvk::PipelineLayout::Create(device, {GetVkDescriptorSetLayout()}, {});
-	constexpr uint32_t kCompSpv[] = {
+	static constexpr uint32_t kCompSpv[] = {
 #include <shader/nrc_train_prepare.comp.u32>
 	};
 	auto shader_module = myvk::ShaderModule::Create(device, kCompSpv, sizeof(kCompSpv));
@@ -109,12 +109,12 @@ myvk::Ptr<myvk::ComputePipeline> NNTrain::NNOptimizer::CreatePipeline() const {
 	    device, {GetVkDescriptorSetLayout()}, {{.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT, .size = sizeof(uint32_t)}});
 	myvk::Ptr<myvk::ShaderModule> shader_module;
 	if (m_write_use) {
-		constexpr uint32_t kCompSpv[] = {
+		static constexpr uint32_t kCompSpv[] = {
 #include <shader/nrc_optimize_use.comp.u32>
 		};
 		shader_module = myvk::ShaderModule::Create(device, kCompSpv, sizeof(kCompSpv));
 	} else {
-		constexpr uint32_t kCompSpv[] = {
+		static constexpr uint32_t kCompSpv[] = {
 #include <shader/nrc_optimize.comp.u32>
 		};
 		shader_module = myvk::ShaderModule::Create(device, kCompSpv, sizeof(kCompSpv));

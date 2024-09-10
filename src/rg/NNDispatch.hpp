@@ -30,8 +30,9 @@ private:
 		myvk::Ptr<myvk::ComputePipeline> CreatePipeline() const final {
 			auto &device = GetRenderGraphPtr()->GetDevicePtr();
 			auto pipeline_layout = myvk::PipelineLayout::Create(device, {GetVkDescriptorSetLayout()}, {});
-			constexpr uint32_t kCompSpv[] = {
+			static constexpr uint32_t kCompSpv[] = {
 #include <shader/nrc_indirect.comp.u32>
+
 			};
 			auto shader_module = myvk::ShaderModule::Create(device, kCompSpv, sizeof(kCompSpv));
 			return myvk::ComputePipeline::Create(pipeline_layout, shader_module);
